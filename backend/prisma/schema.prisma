@@ -1,0 +1,168 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserType {
+  CUSTOMER
+  EMPLOYEE
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+}
+
+enum ShipmentType {
+  SEA
+  AIR
+  EXPRESS
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String
+  name          String
+  phone         String?
+  userType      UserType @default(CUSTOMER)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  orders        Order[]
+  payments      Payment[]
+  roles         UserRole[]
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  permissions String[]
+  createdAt   DateTime @default(now())
+  
+  users       UserRole[]
+}
+
+model UserRole {
+  id     String @id @default(uuid())
+  userId String
+  roleId String
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, roleId])
+}
+
+model Order {
+  id              String       @id @default(uuid())
+  orderNumber     String       @unique
+  userId          String
+  
+  senderName      String
+  senderPhone     String
+  senderAddress   String
+  senderCity      String
+  senderCountry   String
+  senderPostal    String
+  
+  receiverName    String
+  receiverPhone   String
+  receiverAddress String
+  receiverCity    String
+  receiverCountry String
+  receiverPostal  String
+  
+  weight          Float
+  dimensions      String?
+  shipmentType    ShipmentType
+  
+  status          OrderStatus  @default(PENDING)
+  totalAmount     Float
+  currency        String       @default("USD")
+  
+  notes           String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  
+  user            User         @relation(fields: [userId], references: [id])
+  shipment        Shipment?
+  payment         Payment?
+}
+
+model Shipment {
+  id              String   @id @default(uuid())
+  orderId         String   @unique
+  trackingNumber  String   @unique
+  carrier         String
+  
+  originPort      String?
+  destinationPort String?
+  
+  departureDate   DateTime?
+  arrivalDate     DateTime?
+  estimatedArrival DateTime?
+  
+  currentLocation String?
+  currentLat      Float?
+  currentLng      Float?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  order           Order    @relation(fields: [orderId], references: [id])
+  events          TrackingEvent[]
+}
+
+model TrackingEvent {
+  id          String   @id @default(uuid())
+  shipmentId  String
+  
+  status      String
+  description String
+  location    String
+  lat         Float?
+  lng         Float?
+  timestamp   DateTime
+  
+  createdAt   DateTime @default(now())
+  
+  shipment    Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  
+  @@index([shipmentId, timestamp])
+}
+
+model Payment {
+  id              String        @id @default(uuid())
+  orderId         String        @unique
+  userId          String
+  
+  amount          Float
+  currency        String        @default("USD")
+  status          PaymentStatus @default(PENDING)
+  
+  stripePaymentId String?
+  paymentMethod   String?
+  
+  paidAt          DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  
+  order           Order         @relation(fields: [orderId], references: [id])
+  user            User          @relation(fields: [userId], references: [id])
+}

@@ -1,0 +1,109 @@
+import { FastifyInstance } from 'fastify';
+import bcrypt from 'bcryptjs';
+import { PrismaClient } from '@prisma/client';
+import { JWTPayload } from '../../lib/jwt';
+
+const prisma = new PrismaClient();
+
+export async function authRoutes(fastify: FastifyInstance) {
+  fastify.post<{
+    Body: { email: string; password: string; name: string; phone?: string };
+  }>('/register', async (request, reply) => {
+    const { email, password, name, phone } = request.body;
+
+    if (!email || !password || !name) {
+      return reply.code(400).send({ error: 'Missing required fields' });
+    }
+
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      return reply.code(400).send({ error: 'Email already registered' });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const user = await prisma.user.create({
+      data: {
+        email,
+        passwordHash,
+        name,
+        phone,
+        userType: 'CUSTOMER',
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        userType: true,
+      },
+    });
+
+    const token = fastify.jwt.sign({
+      userId: user.id,
+      email: user.email,
+      userType: user.userType,
+    } as JWTPayload);
+
+    return { token, user };
+  });
+
+  fastify.post<{
+    Body: { email: string; password: string };
+  }>('/login', async (request, reply) => {
+    const { email, password } = request.body;
+
+    if (!email || !password) {
+      return reply.code(400).send({ error: 'Missing email or password' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      return reply.code(401).send({ error: 'Invalid credentials' });
+    }
+
+    const validPassword = await bcrypt.compare(password, user.passwordHash);
+    if (!validPassword) {
+      return reply.code(401).send({ error: 'Invalid credentials' });
+    }
+
+    const token = fastify.jwt.sign({
+      userId: user.id,
+      email: user.email,
+      userType: user.userType,
+    } as JWTPayload);
+
+    return {
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        userType: user.userType,
+      },
+    };
+  });
+
+  fastify.get('/me', {
+    preHandler: [fastify.authenticate],
+  }, async (request) => {
+    const payload = request.user as JWTPayload;
+    
+    const user = await prisma.user.findUnique({
+      where: { id: payload.userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        phone: true,
+        userType: true,
+        createdAt: true,
+      },
+    });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    return { user };
+  });
+}

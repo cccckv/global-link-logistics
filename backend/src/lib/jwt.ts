@@ -3,7 +3,9 @@ import { FastifyRequest } from 'fastify';
 export interface JWTPayload {
   userId: string;
   email: string;
+  phone: string;
   userType: string;
+  userRole: string;
 }
 
 export async function authenticate(request: FastifyRequest) {

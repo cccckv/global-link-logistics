@@ -1,19 +1,55 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { UserPlus, Mail, Lock, User, Building } from 'lucide-react';
+import { UserPlus, Smartphone, Lock, User, MessageSquare } from 'lucide-react';
 import { authApi } from '../lib/api';
 
 export default function Register() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    email: '',
+    phone: '',
+    code: '',
     password: '',
     confirmPassword: '',
-    fullName: '',
-    companyName: '',
+    name: '',
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [codeSent, setCodeSent] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [countdown]);
+
+  const handleSendCode = async () => {
+    if (!formData.phone) {
+      setError('请输入手机号');
+      return;
+    }
+
+    if (!/^1[3-9]\d{9}$/.test(formData.phone)) {
+      setError('请输入有效的手机号');
+      return;
+    }
+
+    setError('');
+    setLoading(true);
+
+    try {
+      const response = await authApi.sendCode(formData.phone);
+      setCodeSent(true);
+      setCountdown(300);
+      setError('');
+      alert(`验证码已发送! 请查看后端控制台获取验证码\n(开发环境下验证码会输出到后端日志)`);
+    } catch (err: any) {
+      setError(err.response?.data?.error || '发送验证码失败');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,22 +65,38 @@ export default function Register() {
       return;
     }
 
+    if (!formData.code) {
+      setError('请输入验证码');
+      return;
+    }
+
     setLoading(true);
+
+    if (!formData.name) {
+      setError('请输入用户名');
+      return;
+    }
 
     try {
       const response = await authApi.register({
-        email: formData.email,
+        phone: formData.phone,
+        code: formData.code,
         password: formData.password,
-        fullName: formData.fullName || undefined,
-        companyName: formData.companyName || undefined,
+        name: formData.name,
       });
       
       localStorage.setItem('jwt_token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
-      navigate('/');
+      
+      // 根据角色跳转
+      if (response.data.user.userRole === 'ADMIN') {
+        navigate('/order/quick');
+      } else {
+        navigate('/external-tracking');
+      }
       window.location.reload();
     } catch (err: any) {
-      setError(err.response?.data?.message || '注册失败，请稍后重试');
+      setError(err.response?.data?.error || '注册失败，请稍后重试');
     } finally {
       setLoading(false);
     }
@@ -70,47 +122,69 @@ export default function Register() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-2">邮箱 *</label>
+            <label className="block text-sm font-medium mb-2">手机号 *</label>
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                type="tel"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                placeholder="请输入手机号"
+                className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="your@email.com"
+                pattern="1[3-9]\d{9}"
+                maxLength={11}
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">姓名</label>
+            <label className="block text-sm font-medium mb-2">用户名 *</label>
             <div className="relative">
               <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
-                value={formData.fullName}
-                onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="张三"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="请输入用户名"
+                className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                required
+                minLength={3}
+                maxLength={20}
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">公司名称</label>
-            <div className="relative">
-              <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                value={formData.companyName}
-                onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="您的公司"
-              />
+            <label className="block text-sm font-medium mb-2">验证码 *</label>
+            <div className="flex space-x-2">
+              <div className="relative flex-1">
+                <MessageSquare className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  value={formData.code}
+                  onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                  placeholder="请输入验证码"
+                  className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  required
+                  maxLength={6}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={handleSendCode}
+                disabled={countdown > 0 || loading}
+                className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary-light transition font-semibold disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+              >
+                {countdown > 0 ? `${countdown}秒` : codeSent ? '重新发送' : '发送验证码'}
+              </button>
             </div>
+            {codeSent && countdown > 0 && (
+              <p className="text-xs text-gray-500 mt-1">验证码已发送，{Math.floor(countdown / 60)}分{countdown % 60}秒后可重新发送</p>
+            )}
           </div>
+
+
 
           <div>
             <label className="block text-sm font-medium mb-2">密码 *</label>
@@ -120,9 +194,10 @@ export default function Register() {
                 type="password"
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                placeholder="请输入密码 (至少6位)"
+                className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="至少6位"
+                minLength={6}
               />
             </div>
           </div>
@@ -135,9 +210,9 @@ export default function Register() {
                 type="password"
                 value={formData.confirmPassword}
                 onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                placeholder="请再次输入密码"
+                className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                 required
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="再次输入密码"
               />
             </div>
           </div>
@@ -145,18 +220,18 @@ export default function Register() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-primary text-white py-3 rounded-lg font-semibold hover:bg-primary-light transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-primary text-white py-3 rounded-lg hover:bg-primary-light transition font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? '注册中...' : '注册'}
           </button>
         </form>
 
-        <p className="text-center mt-6 text-gray-600">
-          已有账户？{' '}
-          <Link to="/login" className="text-primary font-semibold hover:underline">
+        <div className="mt-6 text-center text-sm text-gray-600">
+          已有账户?{' '}
+          <Link to="/login" className="text-primary hover:text-primary-light font-semibold">
             立即登录
           </Link>
-        </p>
+        </div>
       </div>
     </div>
   );

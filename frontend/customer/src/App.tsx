@@ -1,34 +1,86 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import Navbar from './components/Navbar';
-import Footer from './components/Footer';
+import PublicLayout from './layouts/PublicLayout';
+import DashboardLayout from './layouts/DashboardLayout';
+import ProtectedRoute from './components/ProtectedRoute';
+import AdminRoute from './components/AdminRoute';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
 import Tracking from './pages/Tracking';
-import Orders from './pages/Orders';
-import OrderNew from './pages/OrderNew';
+import QuickOrder from './pages/QuickOrder';
+import OrderList from './pages/OrderList';
 import OrderDetail from './pages/OrderDetail';
-import Payment from './pages/Payment';
+import ExternalTracking from './pages/ExternalTracking';
+import UserManagement from './pages/UserManagement';
 
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="flex flex-col min-h-screen">
-        <Navbar />
-        <main className="flex-1">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/tracking" element={<Tracking />} />
-            <Route path="/orders" element={<Orders />} />
-            <Route path="/order/new" element={<OrderNew />} />
-            <Route path="/order/:orderId" element={<OrderDetail />} />
-            <Route path="/payment/:orderId" element={<Payment />} />
-          </Routes>
-        </main>
-        <Footer />
-      </div>
+      <Routes>
+        <Route element={<PublicLayout />}>
+          <Route path="/" element={<Home />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/tracking" element={<Tracking />} />
+        </Route>
+
+        <Route element={<DashboardLayout />}>
+          <Route path="/tracking-dashboard" element={<Tracking />} />
+          <Route
+            path="/user-management"
+            element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <UserManagement />
+                </AdminRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/external-tracking"
+            element={
+              <ProtectedRoute>
+                <ExternalTracking />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/order/quick"
+            element={
+              <ProtectedRoute>
+                <QuickOrder />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/order/list"
+            element={
+              <ProtectedRoute>
+                <OrderList />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/order/:orderId"
+            element={
+              <ProtectedRoute>
+                <OrderDetail />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/order/detail/:orderId"
+            element={
+              <ProtectedRoute>
+                <OrderDetail />
+              </ProtectedRoute>
+            }
+          />
+        </Route>
+      </Routes>
     </BrowserRouter>
   );
 }

@@ -1,9 +1,24 @@
-import React, { useEffect, useRef } from 'react';
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
-import { TrackingEvent } from '@/lib/api';
+import React, { useEffect } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
-mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN || '';
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+});
+
+interface TrackingEvent {
+  eventId: string;
+  status: string;
+  location: string;
+  description?: string;
+  timestamp: string;
+  lat?: number;
+  lng?: number;
+}
 
 interface TrackingMapProps {
   events: TrackingEvent[];
@@ -13,150 +28,125 @@ interface TrackingMapProps {
   };
 }
 
-const TrackingMap: React.FC<TrackingMapProps> = ({ events, currentLocation }) => {
-  const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
+const createCustomIcon = (color: string, size: number = 25) => {
+  return L.divIcon({
+    className: 'custom-marker',
+    html: `<div style="
+      width: ${size}px;
+      height: ${size}px;
+      background-color: ${color};
+      border-radius: 50%;
+      border: 3px solid white;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    "></div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  });
+};
 
+const AutoFitBounds: React.FC<{ positions: [number, number][] }> = ({ positions }) => {
+  const map = useMap();
+  
   useEffect(() => {
-    if (!mapContainer.current || map.current) return;
+    if (positions.length > 0) {
+      const bounds = L.latLngBounds(positions);
+      map.fitBounds(bounds, { padding: [50, 50] });
+    }
+  }, [positions, map]);
+  
+  return null;
+};
 
-    const validEvents = events.filter((e) => e.lat && e.lng);
-    if (validEvents.length === 0 && !currentLocation) return;
+const TrackingMap: React.FC<TrackingMapProps> = ({ events, currentLocation }) => {
+  const validEvents = events.filter((e) => e.lat && e.lng);
+  
+  if (validEvents.length === 0 && !currentLocation) {
+    return (
+      <div className="w-full h-96 bg-gray-100 rounded-lg flex items-center justify-center">
+        <p className="text-gray-500">暂无位置信息</p>
+      </div>
+    );
+  }
 
-    const centerLat =
-      currentLocation?.lat || validEvents[0]?.lat || 0;
-    const centerLng =
-      currentLocation?.lng || validEvents[0]?.lng || 0;
+  const center: [number, number] = currentLocation
+    ? [currentLocation.lat, currentLocation.lng]
+    : validEvents.length > 0
+    ? [validEvents[0].lat!, validEvents[0].lng!]
+    : [39.9042, 116.4074];
 
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center: [centerLng, centerLat],
-      zoom: 4,
-    });
+  const allPositions: [number, number][] = [
+    ...validEvents.map(e => [e.lat!, e.lng!] as [number, number]),
+    ...(currentLocation ? [[currentLocation.lat, currentLocation.lng] as [number, number]] : []),
+  ];
 
-    map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
-
-    map.current.on('load', () => {
-      if (!map.current) return;
-
-      if (validEvents.length > 1) {
-        const coordinates = validEvents.map((e) => [e.lng!, e.lat!]);
-
-        map.current.addSource('route', {
-          type: 'geojson',
-          data: {
-            type: 'Feature',
-            properties: {},
-            geometry: {
-              type: 'LineString',
-              coordinates,
-            },
-          },
-        });
-
-        map.current.addLayer({
-          id: 'route',
-          type: 'line',
-          source: 'route',
-          layout: {
-            'line-join': 'round',
-            'line-cap': 'round',
-          },
-          paint: {
-            'line-color': '#5167FC',
-            'line-width': 3,
-          },
-        });
-
-        const bounds = new mapboxgl.LngLatBounds();
-        coordinates.forEach((coord) => bounds.extend(coord as [number, number]));
-        map.current.fitBounds(bounds, { padding: 50 });
-      }
-
-      validEvents.forEach((event, index) => {
-        if (!event.lat || !event.lng || !map.current) return;
-
-        const isLatest = index === 0;
-        const isOrigin = index === validEvents.length - 1;
-
-        const el = document.createElement('div');
-        el.className = 'tracking-marker';
-        el.style.width = isLatest ? '20px' : '12px';
-        el.style.height = isLatest ? '20px' : '12px';
-        el.style.backgroundColor = isLatest
-          ? '#5167FC'
-          : isOrigin
-          ? '#00B6FF'
-          : '#E5E7EB';
-        el.style.borderRadius = '50%';
-        el.style.border = isLatest ? '3px solid white' : '2px solid white';
-        el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';
-
-        const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
-          <div style="padding: 8px;">
-            <strong>${event.status}</strong><br/>
-            <span style="font-size: 12px; color: #666;">${event.location}</span><br/>
-            <span style="font-size: 11px; color: #999;">
-              ${new Date(event.timestamp).toLocaleString('zh-CN')}
-            </span>
-          </div>
-        `);
-
-        new mapboxgl.Marker(el)
-          .setLngLat([event.lng, event.lat])
-          .setPopup(popup)
-          .addTo(map.current);
-      });
-
-      if (currentLocation && (!validEvents.length || 
-          (validEvents[0].lat !== currentLocation.lat || 
-           validEvents[0].lng !== currentLocation.lng))) {
-        const el = document.createElement('div');
-        el.className = 'current-location-marker';
-        el.style.width = '24px';
-        el.style.height = '24px';
-        el.style.backgroundColor = '#FF6B6B';
-        el.style.borderRadius = '50%';
-        el.style.border = '4px solid white';
-        el.style.boxShadow = '0 2px 8px rgba(255,107,107,0.5)';
-        el.style.animation = 'pulse 2s infinite';
-
-        new mapboxgl.Marker(el)
-          .setLngLat([currentLocation.lng, currentLocation.lat])
-          .setPopup(
-            new mapboxgl.Popup({ offset: 25 }).setHTML(`
-              <div style="padding: 8px;">
-                <strong>当前位置</strong>
-              </div>
-            `)
-          )
-          .addTo(map.current);
-      }
-    });
-
-    return () => {
-      map.current?.remove();
-      map.current = null;
-    };
-  }, [events, currentLocation]);
+  const routePositions: [number, number][] = validEvents.map(e => [e.lat!, e.lng!] as [number, number]);
 
   return (
     <div className="relative w-full h-96 rounded-lg overflow-hidden">
-      <div ref={mapContainer} className="w-full h-full" />
-      <style>{`
-        @keyframes pulse {
-          0% {
-            box-shadow: 0 0 0 0 rgba(255, 107, 107, 0.7);
-          }
-          70% {
-            box-shadow: 0 0 0 10px rgba(255, 107, 107, 0);
-          }
-          100% {
-            box-shadow: 0 0 0 0 rgba(255, 107, 107, 0);
-          }
-        }
-      `}</style>
+      <MapContainer
+        center={center}
+        zoom={4}
+        style={{ height: '100%', width: '100%' }}
+        scrollWheelZoom={true}
+      >
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+        
+        <AutoFitBounds positions={allPositions} />
+
+        {routePositions.length > 1 && (
+          <Polyline
+            positions={routePositions}
+            color="#5167FC"
+            weight={3}
+            opacity={0.7}
+          />
+        )}
+
+        {validEvents.map((event, index) => {
+          const isLatest = index === 0;
+          const isOrigin = index === validEvents.length - 1;
+          const color = isLatest ? '#5167FC' : isOrigin ? '#00B6FF' : '#E5E7EB';
+          const size = isLatest ? 25 : 15;
+
+          return (
+            <Marker
+              key={event.eventId}
+              position={[event.lat!, event.lng!]}
+              icon={createCustomIcon(color, size)}
+            >
+              <Popup>
+                <div className="p-2">
+                  <strong className="text-sm">{event.status}</strong>
+                  <br />
+                  <span className="text-xs text-gray-600">{event.location}</span>
+                  <br />
+                  <span className="text-xs text-gray-400">
+                    {new Date(event.timestamp).toLocaleString('zh-CN')}
+                  </span>
+                </div>
+              </Popup>
+            </Marker>
+          );
+        })}
+
+        {currentLocation && (!validEvents.length || 
+          (validEvents[0].lat !== currentLocation.lat || 
+           validEvents[0].lng !== currentLocation.lng)) && (
+          <Marker
+            position={[currentLocation.lat, currentLocation.lng]}
+            icon={createCustomIcon('#FF6B6B', 30)}
+          >
+            <Popup>
+              <div className="p-2">
+                <strong className="text-sm">当前位置</strong>
+              </div>
+            </Popup>
+          </Marker>
+        )}
+      </MapContainer>
     </div>
   );
 };

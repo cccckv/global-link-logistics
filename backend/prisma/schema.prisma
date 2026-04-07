@@ -7,24 +7,16 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ============================================
+// LEGACY SYSTEM ENUMS
+// ============================================
+
 enum UserType {
   CUSTOMER
   EMPLOYEE
 }
 
-enum OrderStatus {
-  PENDING
-  CONFIRMED
-  IN_TRANSIT
-  DELIVERED
-  CANCELLED
-}
 
-enum ShipmentType {
-  SEA
-  AIR
-  EXPRESS
-}
 
 enum PaymentStatus {
   PENDING
@@ -33,19 +25,93 @@ enum PaymentStatus {
   REFUNDED
 }
 
+// ============================================
+// QUICK ORDER SYSTEM ENUMS
+// ============================================
+
+enum QuickOrderType {
+  SEA_LCL // 海运拼柜
+  AIR // 空运快递
+  LAND // 陆运装车
+  SEA_FCL // 海运整柜
+  PARCEL // 拼邮快递
+  BATCH // 批量导入拼柜
+}
+
+enum QuickOrderStatus {
+  PENDING // 待确认
+  CONFIRMED // 已确认
+  IN_TRANSIT // 运输中
+  DELIVERED // 已送达
+  CANCELLED // 已取消
+}
+
+enum ContainerType {
+  GP_20 // 20英尺普通柜
+  GP_40 // 40英尺普通柜
+  HQ_40 // 40英尺高柜
+  HQ_45 // 45英尺高柜
+}
+
+enum BatchImportStatus {
+  UPLOADING // 上传中
+  PARSING // 解析中
+  COMPLETED // 完成
+  FAILED // 失败
+  PARTIAL // 部分成功
+}
+
+enum AdditionalService {
+  WOODEN_FRAME // 木架
+  CUSTOMS // 报关费
+  DISINFECTION // 消毒费
+  LABEL // 贴单费
+  DELIVERY // 派送费
+  UNLOADING // 卸车费
+}
+
+enum UserRoleEnum {
+  ADMIN // 管理员：全部功能访问权限
+  USER  // 普通用户：仅能访问"我的订单"和"外部查询"
+}
+
+// ============================================
+// USER & AUTH MODELS
+// ============================================
+
 model User {
-  id            String   @id @default(uuid())
-  email         String   @unique
-  passwordHash  String
-  name          String
-  phone         String?
-  userType      UserType @default(CUSTOMER)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
-  orders        Order[]
-  payments      Payment[]
-  roles         UserRole[]
+  id           String       @id @default(uuid())
+  email        String?      @unique
+  passwordHash String
+  name         String
+  phone        String       @unique
+  userType     UserType     @default(CUSTOMER)
+  userRole     UserRoleEnum @default(USER)
+  deletedAt    DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  // Legacy system relations
+  payments Payment[]
+  roles    UserRole[]
+
+  // QuickOrder system relations
+  quickOrders        QuickOrder[]
+  pickupAddresses    OrderPickupAddress[]    @relation("UserPickupAddresses")
+  recipientAddresses OrderRecipientAddress[] @relation("UserRecipientAddresses")
+  batchImportTasks   BatchImportTask[]
+}
+
+model VerificationCode {
+  id        String   @id @default(uuid())
+  phone     String
+  code      String
+  type      String
+  expiresAt DateTime
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([phone, type, verified])
 }
 
 model Role {
@@ -54,115 +120,255 @@ model Role {
   description String?
   permissions String[]
   createdAt   DateTime @default(now())
-  
-  users       UserRole[]
+
+  users UserRole[]
 }
 
 model UserRole {
   id     String @id @default(uuid())
   userId String
   roleId String
-  
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  
+
   @@unique([userId, roleId])
 }
 
-model Order {
-  id              String       @id @default(uuid())
-  orderNumber     String       @unique
-  userId          String
-  
-  senderName      String
-  senderPhone     String
-  senderAddress   String
-  senderCity      String
-  senderCountry   String
-  senderPostal    String
-  
-  receiverName    String
-  receiverPhone   String
-  receiverAddress String
-  receiverCity    String
-  receiverCountry String
-  receiverPostal  String
-  
-  weight          Float
-  dimensions      String?
-  shipmentType    ShipmentType
-  
-  status          OrderStatus  @default(PENDING)
-  totalAmount     Float
-  currency        String       @default("USD")
-  
-  notes           String?
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  
-  user            User         @relation(fields: [userId], references: [id])
-  shipment        Shipment?
-  payment         Payment?
+// ============================================
+// QUICK ORDER SYSTEM (PRIMARY)
+// ============================================
+
+model QuickOrder {
+  id          String         @id @default(uuid())
+  orderNumber String         @unique // 订单号 (GL{timestamp}{random})
+  userId      String
+  orderType   QuickOrderType // 订单类型
+
+  // === 运输信息 ===
+  warehouse      String? // 国内仓库 (标准散货必填)
+  destination    String // 目的地 (所有类型必填)
+  trackingNumber String? // 主单号 (标准散货) - 仅用于整单级别追踪
+  courierCompany String? // 快递公司 (标准散货)
+  totalPackages  Int? // 总件数 (标准散货必填)
+  note           String? @db.Text // 备注 - 使用TEXT支持长文本
+  userMark       String? // 用户唛头
+  mark           String? // 唛头
+  attachmentUrl  String? // 附件URL
+
+  // === 整柜专用字段 ===
+  originPort      String? // 起运港口 (整柜专用)
+  destinationPort String? // 目的港口 (整柜专用)
+
+  // === 附加服务 (Enum Array) ===
+  additionalServices AdditionalService[] @default([])
+
+  // === 批量导入关联 ===
+  batchTaskId String? // 关联批量导入任务ID
+
+  // === 状态与金额 ===
+  status      QuickOrderStatus @default(PENDING)
+  totalAmount Decimal          @default(0) @db.Decimal(10, 2) // 使用Decimal避免精度丢失
+  currency    String           @default("CNY")
+
+  // === 时间戳 ===
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // === 地址关联 ===
+  pickupAddressId    String?
+  recipientAddressId String
+
+  // === 关系 ===
+  user             User                  @relation(fields: [userId], references: [id], onDelete: Restrict)
+  pickupAddress    OrderPickupAddress?   @relation("OrderPickupAddress", fields: [pickupAddressId], references: [id], onDelete: SetNull)
+  recipientAddress OrderRecipientAddress @relation("OrderRecipientAddress", fields: [recipientAddressId], references: [id], onDelete: Restrict)
+  declarations     OrderDeclaration[] // 散货申报明细
+  containers       OrderContainer[] // 整柜明细
+  batchTask        BatchImportTask?      @relation(fields: [batchTaskId], references: [id], onDelete: SetNull)
+  shipment         Shipment? // 关联物流追踪表
+  payment          Payment? // 关联支付表
+
+  @@index([userId, orderType, status, createdAt(sort: Desc)]) // 复合索引优化列表查询
+  @@index([orderNumber]) // 订单号查询
+  @@index([batchTaskId]) // 批次查询
+  @@index([createdAt(sort: Desc)]) // 时间范围查询
 }
 
+model OrderPickupAddress {
+  id     String @id @default(uuid())
+  userId String
+
+  name     String // 联系人姓名
+  company  String? // 公司名称
+  phone    String // 手机号码 (必填)
+  region   String? // 所在地区 (省/市/区)
+  postcode String? // 邮政编码
+  address  String // 详细地址 (必填)
+
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User         @relation("UserPickupAddresses", fields: [userId], references: [id], onDelete: Cascade)
+  orders QuickOrder[] @relation("OrderPickupAddress")
+
+  @@unique([userId, phone, name])
+  @@index([userId, isDefault])
+  @@index([userId, updatedAt])
+}
+
+model OrderRecipientAddress {
+  id     String @id @default(uuid())
+  userId String
+
+  name     String // 收件人姓名 (必填)
+  company  String? // 公司名称
+  phone    String // 手机号码 (必填)
+  region   String? // 所在地区
+  postcode String? // 邮政编码
+  address  String // 详细地址 (必填)
+
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User         @relation("UserRecipientAddresses", fields: [userId], references: [id], onDelete: Cascade)
+  orders QuickOrder[] @relation("OrderRecipientAddress")
+
+  @@unique([userId, phone, name])
+  @@index([userId, isDefault])
+  @@index([userId, updatedAt])
+}
+
+model OrderDeclaration {
+  id      String @id @default(uuid())
+  orderId String
+
+  trackingNumber String? // 包裹级别的快递单号
+  productName    String // 品名* (必填)
+  length         Decimal? @db.Decimal(8, 2) // 长(cm)
+  width          Decimal? @db.Decimal(8, 2) // 宽(cm)
+  height         Decimal? @db.Decimal(8, 2) // 高(cm)
+  outerQuantity  Int? // 件数(外)
+  innerQuantity  Int? // 数量(内)
+  weight         Decimal  @db.Decimal(10, 3) // 重量(kg)* (必填)
+  unitPrice      Decimal? @db.Decimal(10, 2) // 单价(¥)
+  density        Decimal? @db.Decimal(10, 2) // 密度 (自动计算)
+
+  createdAt DateTime @default(now())
+
+  order QuickOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([productName])
+}
+
+model OrderContainer {
+  id      String @id @default(uuid())
+  orderId String
+
+  containerType ContainerType // 订柜箱型
+  quantity      Int // 柜数 (必填)
+  weight        Decimal?      @db.Decimal(10, 2) // 重量(kg)
+  productsJson  String?       @db.Text // 产品详情 (JSON)
+
+  createdAt DateTime @default(now())
+
+  order QuickOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
+
+model BatchImportTask {
+  id     String @id @default(uuid())
+  userId String
+
+  fileUrl     String // 上传文件路径
+  fileName    String? // 原始文件名
+  fileSize    Int? // 文件大小(bytes)
+  warehouse   String // 国内仓库
+  destination String // 目的地
+
+  status       BatchImportStatus @default(UPLOADING)
+  totalRows    Int               @default(0)
+  successCount Int               @default(0)
+  failedCount  Int               @default(0)
+  errorLog     String?           @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  orders QuickOrder[]
+
+  @@index([userId, status, createdAt(sort: Desc)])
+}
+
+// ============================================
+// SHARED MODELS (Both systems use)
+// ============================================
+
 model Shipment {
-  id              String   @id @default(uuid())
-  orderId         String   @unique
-  trackingNumber  String   @unique
-  carrier         String
-  
+  id             String  @id @default(uuid())
+  orderId        String? @unique // Legacy order (optional)
+  quickOrderId   String? @unique // QuickOrder (optional)
+  trackingNumber String  @unique
+  carrier        String
+
   originPort      String?
   destinationPort String?
-  
-  departureDate   DateTime?
-  arrivalDate     DateTime?
+
+  departureDate    DateTime?
+  arrivalDate      DateTime?
   estimatedArrival DateTime?
-  
+
   currentLocation String?
   currentLat      Float?
   currentLng      Float?
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
-  order           Order    @relation(fields: [orderId], references: [id])
-  events          TrackingEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  quickOrder QuickOrder?     @relation(fields: [quickOrderId], references: [id])
+  events     TrackingEvent[]
 }
 
 model TrackingEvent {
-  id          String   @id @default(uuid())
-  shipmentId  String
-  
+  id         String @id @default(uuid())
+  shipmentId String
+
   status      String
   description String
   location    String
   lat         Float?
   lng         Float?
   timestamp   DateTime
-  
-  createdAt   DateTime @default(now())
-  
-  shipment    Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
-  
+
+  createdAt DateTime @default(now())
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
   @@index([shipmentId, timestamp])
 }
 
 model Payment {
-  id              String        @id @default(uuid())
-  orderId         String        @unique
-  userId          String
-  
-  amount          Float
-  currency        String        @default("USD")
-  status          PaymentStatus @default(PENDING)
-  
+  id           String  @id @default(uuid())
+  orderId      String? @unique // Legacy order (optional)
+  quickOrderId String? @unique // QuickOrder (optional)
+  userId       String
+
+  amount   Decimal       @db.Decimal(10, 2)
+  currency String        @default("USD")
+  status   PaymentStatus @default(PENDING)
+
   stripePaymentId String?
   paymentMethod   String?
-  
-  paidAt          DateTime?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  
-  order           Order         @relation(fields: [orderId], references: [id])
-  user            User          @relation(fields: [userId], references: [id])
+
+  paidAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  quickOrder QuickOrder? @relation(fields: [quickOrderId], references: [id])
+  user       User        @relation(fields: [userId], references: [id])
 }

@@ -2,11 +2,13 @@ import 'dotenv/config';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
-import socketio from '@fastify/socket.io';
+import socketio from 'fastify-socket.io';
 import { authRoutes } from './modules/auth/routes';
-import { orderRoutes } from './modules/order/routes';
+import { quickOrderRoutes } from './modules/order/quick-order.routes';
+import { contactRoutes } from './modules/order/contact.routes';
 import { trackingRoutes } from './modules/tracking/routes';
 import { paymentRoutes } from './modules/payment/routes';
+import { userRoutes } from './modules/user/user.routes';
 import { authenticate } from './lib/jwt';
 
 const fastify = Fastify({
@@ -49,9 +51,11 @@ async function start() {
     });
 
     await fastify.register(authRoutes, { prefix: '/api/auth' });
-    await fastify.register(orderRoutes, { prefix: '/api/orders' });
+    await fastify.register(quickOrderRoutes, { prefix: '/api/orders/quick' });
+    await fastify.register(contactRoutes, { prefix: '/api/contacts' });
     await fastify.register(trackingRoutes, { prefix: '/api/tracking' });
     await fastify.register(paymentRoutes, { prefix: '/api/payments' });
+    await fastify.register(userRoutes, { prefix: '/api/users' });
 
     fastify.get('/health', async () => {
       return { status: 'ok', timestamp: new Date().toISOString() };

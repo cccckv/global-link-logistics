@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Package, Plane, Ship, Zap } from 'lucide-react';
-import Globe3D from '../components/Globe3D';
+import { Search, Package, Plane, Ship, Zap, Globe as GlobeIcon } from 'lucide-react';
+
+const Globe3D = lazy(() => import('../components/Globe3D'));
 
 export default function Home() {
   const navigate = useNavigate();
@@ -15,10 +16,16 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen">
-      <section className="relative h-[600px] bg-primary-dark overflow-hidden">
+    <div>
+      <section className="relative h-[500px] bg-primary-dark overflow-hidden">
         <div className="absolute inset-0 opacity-30">
-          <Globe3D />
+          <Suspense fallback={
+            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-900 via-blue-800 to-blue-900">
+              <GlobeIcon className="w-32 h-32 text-blue-300 animate-spin" />
+            </div>
+          }>
+            <Globe3D />
+          </Suspense>
         </div>
 
         <div className="relative z-10 container mx-auto px-4 h-full flex flex-col items-center justify-center">

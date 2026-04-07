@@ -1,6 +1,20 @@
 version: '3.8'
 
 services:
+  nginx:
+    image: nginx:alpine
+    container_name: globallink-nginx
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+      - customer-portal
+    networks:
+      - globallink-network
+    restart: unless-stopped
+
   # PostgreSQL Database
   db:
     image: postgres:16-alpine
@@ -22,7 +36,7 @@ services:
     image: redis:7-alpine
     container_name: globallink-cache
     ports:
-      - "6379:6379"
+      - "6380:6379"
     networks:
       - globallink-network
     restart: unless-stopped
@@ -39,7 +53,6 @@ services:
       - REDIS_URL=redis://cache:6379
       - JWT_SECRET=${JWT_SECRET}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
-      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
       - AFTERSHIP_API_KEY=${AFTERSHIP_API_KEY}
       - BACKEND_PORT=3000
       - CORS_ORIGIN=http://localhost:5173,http://localhost:5174
@@ -63,11 +76,10 @@ services:
       dockerfile: Dockerfile.dev
     container_name: globallink-customer
     environment:
-      - VITE_API_BASE_URL=http://localhost:3000/api
-      - VITE_WS_URL=http://localhost:3000
+      - VITE_API_BASE_URL=/api
+      - VITE_WS_URL=
       - VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN}
       - VITE_CESIUM_ION_TOKEN=${VITE_CESIUM_ION_TOKEN}
-      - VITE_STRIPE_PUBLISHABLE_KEY=${VITE_STRIPE_PUBLISHABLE_KEY}
     ports:
       - "5173:5173"
     volumes:
@@ -78,24 +90,24 @@ services:
     restart: unless-stopped
     command: npm run dev
 
-  # Admin Console (Vue3 + Vben)
-  admin-console:
-    build:
-      context: ./frontend/admin
-      dockerfile: Dockerfile.dev
-    container_name: globallink-admin
-    environment:
-      - VITE_API_BASE_URL=http://localhost:3000/api
-      - VITE_WS_URL=http://localhost:3000
-    ports:
-      - "5174:5174"
-    volumes:
-      - ./frontend/admin:/app
-      - /app/node_modules
-    networks:
-      - globallink-network
-    restart: unless-stopped
-    command: npm run dev
+  # Admin Console (Vue3 + Vben) - DISABLED: frontend/admin directory not yet created
+  # admin-console:
+  #   build:
+  #     context: ./frontend/admin
+  #     dockerfile: Dockerfile.dev
+  #   container_name: globallink-admin
+  #   environment:
+  #     - VITE_API_BASE_URL=http://localhost:3000/api
+  #     - VITE_WS_URL=http://localhost:3000
+  #   ports:
+  #     - "5174:5174"
+  #   volumes:
+  #     - ./frontend/admin:/app
+  #     - /app/node_modules
+  #   networks:
+  #     - globallink-network
+  #   restart: unless-stopped
+  #   command: npm run dev
 
 volumes:
   pgdata:

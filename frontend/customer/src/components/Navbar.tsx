@@ -7,10 +7,29 @@ export default function Navbar() {
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      setUser(JSON.parse(userData));
-    }
+    const loadUser = () => {
+      const userData = localStorage.getItem('user');
+      if (userData) {
+        setUser(JSON.parse(userData));
+      } else {
+        setUser(null);
+      }
+    };
+
+    loadUser();
+
+    const handleStorageChange = () => {
+      loadUser();
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    
+    const interval = setInterval(loadUser, 1000);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
   }, []);
 
   const handleLogout = () => {
@@ -26,7 +45,7 @@ export default function Navbar() {
         <div className="flex items-center justify-between">
           <Link to="/" className="flex items-center space-x-2 text-xl font-bold">
             <Package className="w-8 h-8 text-accent-cyan" />
-            <span className="text-gradient">Global Link Logistics</span>
+            <span className="bg-gradient-to-r from-white to-accent-cyan bg-clip-text text-transparent">Global Link Logistics</span>
           </Link>
 
           <div className="flex items-center space-x-6">
@@ -39,17 +58,17 @@ export default function Navbar() {
 
             {user ? (
               <>
-                <Link to="/orders" className="hover:text-accent-cyan transition">
-                  我的订单
-                </Link>
-                <Link to="/order/new" className="hover:text-accent-cyan transition">
-                  下单
-                </Link>
                 <div className="flex items-center space-x-4">
                   <div className="flex items-center space-x-2">
                     <User className="w-5 h-5" />
-                    <span className="text-sm">{user.email}</span>
+                    <span className="text-sm">{user.phone}</span>
                   </div>
+                  <Link
+                    to="/order/quick"
+                    className="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary-light transition font-semibold"
+                  >
+                    进入控制台
+                  </Link>
                   <button
                     onClick={handleLogout}
                     className="flex items-center space-x-1 hover:text-accent-coral transition"

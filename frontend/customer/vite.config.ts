@@ -15,11 +15,18 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ['cesium'],
+    exclude: ['cesium', 'resium'],
+    include: ['react', 'react-dom', 'react-router-dom', 'axios', 'lucide-react'],
   },
   build: {
     rollupOptions: {
-      external: ['cesium'],
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'map-vendor': ['mapbox-gl'],
+        },
+      },
     },
+    chunkSizeWarningLimit: 1000,
   },
 })

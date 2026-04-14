@@ -38,8 +38,12 @@ export class PaymentCollectionService {
         where,
         include: {
           order: {
-            include: {
-              paymentVouchers: true,
+            select: {
+              id: true,
+              orderNumber: true,
+              orderType: true,
+              status: true,
+              createdAt: true,
             },
           },
           declaration: {
@@ -91,9 +95,6 @@ export class PaymentCollectionService {
                 email: true,
               },
             },
-            paymentVouchers: {
-              orderBy: { uploadedAt: 'desc' },
-            },
           },
         },
         declaration: true,
@@ -139,14 +140,6 @@ export class PaymentCollectionService {
           select: {
             id: true,
             orderNumber: true,
-            paymentVouchers: {
-              select: {
-                id: true,
-                fileUrl: true,
-                fileName: true,
-                uploadedAt: true,
-              },
-            },
           },
         },
         declaration: {

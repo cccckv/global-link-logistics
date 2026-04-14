@@ -84,12 +84,6 @@ export async function paymentCollectionRoutes(fastify: FastifyInstance) {
             weight: collection.declaration.weight.toNumber(),
             trackingNumber: collection.declaration.trackingNumber,
           } : null,
-          vouchers: collection.order?.paymentVouchers?.map((v: any) => ({
-            id: v.id,
-            fileUrl: v.fileUrl,
-            fileName: v.fileName,
-            uploadedAt: v.uploadedAt.toISOString(),
-          })) || [],
         })),
         pagination: result.pagination,
       };
@@ -133,12 +127,6 @@ export async function paymentCollectionRoutes(fastify: FastifyInstance) {
           user: collection.order.user,
         } : null,
         declaration: collection.declaration,
-        vouchers: collection.order?.paymentVouchers?.map((v: any) => ({
-          id: v.id,
-          fileUrl: v.fileUrl,
-          fileName: v.fileName,
-          uploadedAt: v.uploadedAt.toISOString(),
-        })) || [],
       };
     }
   );

@@ -350,7 +350,6 @@ const OrderDetail: React.FC = () => {
                       <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">渠道运费成本(¥)</th>
                       <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">渠道其他成本(¥)</th>
                       <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">利润(¥)</th>
-                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">凭证数量</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -373,19 +372,6 @@ const OrderDetail: React.FC = () => {
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900 text-center">
                           ¥{collection.channelFreightCost?.toFixed(2) || '0.00'}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-900 text-center">
-                          ¥{collection.channelOtherCost?.toFixed(2) || '0.00'}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-center">
-                          <span className={`font-semibold ${
-                            (collection.profit || 0) >= 0 ? 'text-green-600' : 'text-red-600'
-                          }`}>
-                            ¥{collection.profit?.toFixed(2) || '0.00'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-900 text-center">
-                          {collection.vouchers?.length || 0}
                         </td>
                       </tr>
                     ))}
@@ -417,9 +403,6 @@ const OrderDetail: React.FC = () => {
                         }`}>
                           ¥{paymentCollections.reduce((sum, c) => sum + (c.profit || 0), 0).toFixed(2)}
                         </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-900 text-center">
-                        {paymentCollections.reduce((sum, c) => sum + (c.vouchers?.length || 0), 0)}
                       </td>
                     </tr>
                   </tfoot>

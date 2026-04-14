@@ -328,12 +328,6 @@ export interface PaymentCollection {
     weight: number;
     trackingNumber?: string;
   };
-  vouchers: Array<{
-    id: string;
-    fileUrl: string;
-    fileName?: string;
-    uploadedAt: string;
-  }>;
 }
 
 export interface PaymentCollectionListResponse {

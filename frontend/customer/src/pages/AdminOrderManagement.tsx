@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Search, Edit, X } from 'lucide-react';
+import { Search, Edit, X, Upload, FileText } from 'lucide-react';
 import { quickOrderApi, paymentCollectionApi } from '../lib/api';
 import type { QuickOrder, PaymentCollection } from '../lib/api';
 
@@ -62,6 +62,10 @@ export default function AdminOrderManagement() {
   const [loading, setLoading] = useState(true);
   const [editingCollection, setEditingCollection] = useState<PaymentCollection | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showVoucherModal, setShowVoucherModal] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [voucherFile, setVoucherFile] = useState<File | null>(null);
+  const [uploadingVoucher, setUploadingVoucher] = useState(false);
   const [filters, setFilters] = useState({
     keyword: '',
     page: 1,
@@ -163,6 +167,69 @@ export default function AdminOrderManagement() {
     setEditingCollection(null);
   };
 
+  const handleOpenVoucherModal = (orderId: string) => {
+    setSelectedOrderId(orderId);
+    setShowVoucherModal(true);
+    setVoucherFile(null);
+  };
+
+  const handleCloseVoucherModal = () => {
+    setShowVoucherModal(false);
+    setSelectedOrderId(null);
+    setVoucherFile(null);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const maxSize = 10 * 1024 * 1024;
+      if (file.size > maxSize) {
+        toast.error('文件大小不能超过10MB');
+        return;
+      }
+      setVoucherFile(file);
+    }
+  };
+
+  const handleUploadVoucher = async () => {
+    if (!selectedOrderId || !voucherFile) {
+      toast.error('请选择文件');
+      return;
+    }
+
+    try {
+      setUploadingVoucher(true);
+      
+      const formData = new FormData();
+      formData.append('file', voucherFile);
+
+      const uploadResponse = await fetch('/api/upload', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`,
+        },
+        body: formData,
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error('文件上传失败');
+      }
+
+      const { fileUrl } = await uploadResponse.json();
+
+      await paymentCollectionApi.addVoucher(selectedOrderId, fileUrl, voucherFile.name);
+
+      toast.success('凭证上传成功');
+      handleCloseVoucherModal();
+      loadOrders();
+    } catch (error) {
+      console.error('Failed to upload voucher:', error);
+      toast.error('凭证上传失败');
+    } finally {
+      setUploadingVoucher(false);
+    }
+  };
+
   if (loading && orders.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -217,12 +284,13 @@ export default function AdminOrderManagement() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">订单状态</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">订单类型</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">下单时间</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {orders.length === 0 ? (
                   <tr>
-                    <td colSpan={13} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={14} className="px-6 py-8 text-center text-gray-500">
                       暂无数据
                     </td>
                   </tr>
@@ -282,6 +350,16 @@ export default function AdminOrderManagement() {
                           minute: '2-digit',
                           second: '2-digit',
                         })}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => handleOpenVoucherModal(order.orderId)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition"
+                          title="添加收款凭证"
+                        >
+                          <Upload className="w-4 h-4" />
+                          添加凭证
+                        </button>
                       </td>
                     </tr>
                   ))
@@ -468,6 +546,85 @@ export default function AdminOrderManagement() {
                 className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition"
               >
                 保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showVoucherModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="flex justify-between items-center p-6 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <FileText className="w-5 h-5" />
+                添加收款凭证
+              </h2>
+              <button
+                onClick={handleCloseVoucherModal}
+                className="p-2 hover:bg-gray-100 rounded-lg transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  选择文件
+                </label>
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  onChange={handleFileSelect}
+                  className="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+                <p className="mt-2 text-xs text-gray-500">
+                  支持格式：图片（JPG、PNG等）或PDF，最大10MB
+                </p>
+              </div>
+
+              {voucherFile && (
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-blue-600" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {voucherFile.name}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {(voucherFile.size / 1024 / 1024).toFixed(2)} MB
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 p-6 border-t border-gray-200">
+              <button
+                onClick={handleCloseVoucherModal}
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                disabled={uploadingVoucher}
+              >
+                取消
+              </button>
+              <button
+                onClick={handleUploadVoucher}
+                disabled={!voucherFile || uploadingVoucher}
+                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {uploadingVoucher ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    上传中...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4" />
+                    上传凭证
+                  </>
+                )}
               </button>
             </div>
           </div>

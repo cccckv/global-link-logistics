@@ -230,7 +230,7 @@ export default function AdminOrderManagement() {
                   orders.map((order) => (
                     <tr 
                       key={order.orderId} 
-                      onClick={() => navigate(`/order/${order.orderId}`)}
+                      onClick={() => navigate(`/order/${order.orderId}`, { state: { from: '/admin/order-management' } })}
                       className="hover:bg-gray-50 cursor-pointer"
                     >
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">

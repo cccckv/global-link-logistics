@@ -1,5 +1,5 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Package, LogOut, User, MapPin, Menu, X, Search, Zap, Users, List } from 'lucide-react';
+import { Package, LogOut, User, MapPin, Menu, X, Search, Zap, Users, List, DollarSign } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 export default function Sidebar() {
@@ -61,6 +61,18 @@ export default function Sidebar() {
     if (path === '/tracking-dashboard') {
       return location.pathname === '/tracking-dashboard';
     }
+    
+    const isOrderDetailPage = location.pathname.match(/^\/order\/[^/]+$/) || location.pathname.startsWith('/order/detail/');
+    const fromPath = (location.state as { from?: string })?.from;
+    
+    if (isOrderDetailPage && fromPath) {
+      return path === fromPath;
+    }
+    
+    if (path === '/order/list' && location.pathname === '/order/list') {
+      return true;
+    }
+    
     return location.pathname === path;
   };
 
@@ -124,17 +136,14 @@ export default function Sidebar() {
         </div>
 
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          {user?.userRole === 'ADMIN' ? (
+          <NavItem to="/order/list" icon={List} label="运单管理" />
+          <NavItem to="/external-tracking" icon={Search} label="外部查询" />
+          {user?.userRole === 'ADMIN' && (
             <>
-              <NavItem to="/user-management" icon={Users} label="用户管理" />
-              <NavItem to="/order/list" icon={List} label="运单管理" />
               <NavItem to="/order/quick" icon={Zap} label="快速下单" />
               <NavItem to="/tracking-dashboard" icon={MapPin} label="物流追踪" />
-              <NavItem to="/external-tracking" icon={Search} label="外部查询" />
-            </>
-          ) : (
-            <>
-              <NavItem to="/external-tracking" icon={Search} label="外部查询" />
+              <NavItem to="/admin/order-management" icon={DollarSign} label="订单收款" />
+              <NavItem to="/user-management" icon={Users} label="用户管理" />
             </>
           )}
         </nav>

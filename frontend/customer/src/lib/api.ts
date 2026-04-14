@@ -4,7 +4,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -103,7 +103,6 @@ export const trackingApi = {
 
 export type QuickOrderType = 'SEA_LCL' | 'AIR' | 'LAND' | 'SEA_FCL' | 'PARCEL' | 'BATCH';
 export type QuickOrderStatus = 'PENDING' | 'CONFIRMED' | 'IN_TRANSIT' | 'DELIVERED' | 'CANCELLED';
-export type AdditionalService = 'WOODEN_FRAME' | 'CUSTOMS' | 'DISINFECTION' | 'LABEL' | 'DELIVERY' | 'UNLOADING';
 
 export interface ContactAddress {
   id: string;
@@ -136,7 +135,8 @@ export interface QuickOrderDeclaration {
   outerQuantity?: number;
   innerQuantity?: number;
   weight: number;
-  unitPrice?: number;
+  cnyUnitPrice?: number;
+  phpUnitPrice?: number;
 }
 
 export interface QuickOrderContainer {
@@ -159,7 +159,6 @@ export interface CreateQuickOrderInput {
   attachmentUrl?: string;
   originPort?: string;
   destinationPort?: string;
-  additionalServices?: AdditionalService[];
   pickupAddress?: QuickOrderAddress;
   recipientAddress: QuickOrderAddress;
   declarations?: QuickOrderDeclaration[];
@@ -182,14 +181,13 @@ export interface QuickOrder {
   attachmentUrl?: string;
   originPort?: string;
   destinationPort?: string;
-  additionalServices?: AdditionalService[];
   totalAmount: number;
   currency: string;
   createdAt: string;
   updatedAt?: string;
   pickupAddress?: QuickOrderAddress & { id: string };
   recipientAddress: QuickOrderAddress & { id: string };
-  declarations?: Array<QuickOrderDeclaration & { id: string; density?: number }>;
+  declarations?: Array<QuickOrderDeclaration & { id: string }>;
   containers?: Array<QuickOrderContainer & { id: string }>;
   shipment?: Shipment;
   payment?: Payment;
@@ -283,6 +281,99 @@ export const userApi = {
   
   delete: (id: string) =>
     api.delete<{ success: boolean; message: string }>(`/users/${id}`),
+};
+
+export interface PaymentCollection {
+  id: string;
+  orderId: string;
+  declarationId: string;
+  channelUnitPricePhp: number;
+  receivableFreightAmount: number;
+  receivableOtherAmount: number;
+  actualReceivedAmount: number;
+  channelFreightCost: number;
+  channelOtherCost: number;
+  profit: number;
+  createdAt: string;
+  updatedAt: string;
+  order?: {
+    id: string;
+    orderNumber: string;
+    orderType: string;
+    status: string;
+    createdAt: string;
+    warehouse?: string;
+    destination: string;
+    totalPackages?: number;
+    userMark?: string;
+    mark?: string;
+    declarations?: Array<{
+      id: string;
+      productName: string;
+      weight: number;
+      trackingNumber?: string;
+      length?: number;
+      width?: number;
+      height?: number;
+    }>;
+    containers?: Array<{
+      id: string;
+      containerType: string;
+      quantity: number;
+    }>;
+  };
+  declaration?: {
+    id: string;
+    productName: string;
+    weight: number;
+    trackingNumber?: string;
+  };
+  vouchers: Array<{
+    id: string;
+    fileUrl: string;
+    fileName?: string;
+    uploadedAt: string;
+  }>;
+}
+
+export interface PaymentCollectionListResponse {
+  data: PaymentCollection[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
+
+export interface UpdatePaymentCollectionData {
+  channelUnitPricePhp?: number;
+  receivableFreightAmount?: number;
+  receivableOtherAmount?: number;
+  actualReceivedAmount?: number;
+  channelFreightCost?: number;
+  channelOtherCost?: number;
+  profit?: number;
+}
+
+export const paymentCollectionApi = {
+  getAll: (params?: { orderId?: string; declarationId?: string; page?: number; limit?: number }) =>
+    api.get<PaymentCollectionListResponse>('/payment-collections', { params }),
+  
+  getOne: (id: string) =>
+    api.get<PaymentCollection>(`/payment-collections/${id}`),
+  
+  update: (id: string, data: UpdatePaymentCollectionData) =>
+    api.patch<PaymentCollection>(`/payment-collections/${id}`, data),
+  
+  batchUpdate: (orderId: string, updates: Array<{ declarationId: string } & UpdatePaymentCollectionData>) =>
+    api.post(`/payment-collections/batch/${orderId}`, { updates }),
+  
+  addVoucher: (orderId: string, fileUrl: string, fileName?: string) =>
+    api.post(`/payment-collections/vouchers/${orderId}`, { fileUrl, fileName }),
+  
+  deleteVoucher: (voucherId: string) =>
+    api.delete(`/payment-collections/vouchers/${voucherId}`),
 };
 
 

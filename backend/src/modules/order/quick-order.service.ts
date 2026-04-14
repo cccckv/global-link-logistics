@@ -367,6 +367,9 @@ export class QuickOrderService {
         },
         payment: true,
         batchTask: true,
+        paymentVouchers: {
+          orderBy: { uploadedAt: 'desc' },
+        },
       },
     });
 

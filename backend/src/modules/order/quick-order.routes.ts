@@ -315,6 +315,15 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
           status: order.batchTask.status,
           fileName: order.batchTask.fileName,
         } : null,
+        
+        paymentVouchers: order.paymentVouchers?.map(v => ({
+          id: v.id,
+          fileUrl: v.fileUrl,
+          fileName: v.fileName,
+          fileType: v.fileType,
+          fileSize: v.fileSize,
+          uploadedAt: v.uploadedAt.toISOString(),
+        })) || [],
       };
     }
   );

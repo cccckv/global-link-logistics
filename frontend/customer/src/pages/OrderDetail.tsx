@@ -11,6 +11,7 @@ import {
   ArrowLeft,
   CheckCircle,
   DollarSign,
+  FileText,
 } from 'lucide-react';
 
 const OrderDetail: React.FC = () => {
@@ -407,6 +408,43 @@ const OrderDetail: React.FC = () => {
                     </tr>
                   </tfoot>
                 </table>
+              </div>
+            </div>
+          )}
+
+          {order.paymentVouchers && order.paymentVouchers.length > 0 && (
+            <div className="px-6 py-4 border-t border-gray-100">
+              <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-gray-400" />
+                付款凭证
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {order.paymentVouchers.map((voucher) => (
+                  <div key={voucher.id} className="border border-gray-200 rounded-lg p-4 hover:border-primary hover:shadow-sm transition">
+                    <div className="flex items-start gap-3">
+                      <FileText className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <a
+                          href={voucher.fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline block truncate"
+                        >
+                          {voucher.fileName || '查看凭证'}
+                        </a>
+                        <div className="mt-1 flex items-center gap-2 text-xs text-gray-500">
+                          <span>{new Date(voucher.uploadedAt).toLocaleDateString('zh-CN')}</span>
+                          {voucher.fileSize && (
+                            <>
+                              <span>·</span>
+                              <span>{(voucher.fileSize / 1024 / 1024).toFixed(2)} MB</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}

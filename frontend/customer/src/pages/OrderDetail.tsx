@@ -1,23 +1,26 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { quickOrderApi } from '../lib/api';
-import type { QuickOrder } from '../lib/api';
+import { quickOrderApi, paymentCollectionApi } from '../lib/api';
+import type { QuickOrder, PaymentCollection } from '../lib/api';
 import { subscribeToTracking } from '../lib/socket';
 import {
   Package,
   MapPin,
   Clock,
   User,
-  Phone,
   ArrowLeft,
   CheckCircle,
+  DollarSign,
 } from 'lucide-react';
 
 const OrderDetail: React.FC = () => {
   const { orderId } = useParams<{ orderId: string }>();
   const [order, setOrder] = useState<QuickOrder | null>(null);
+  const [paymentCollections, setPaymentCollections] = useState<PaymentCollection[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingPayments, setLoadingPayments] = useState(true);
   const navigate = useNavigate();
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
 
   useEffect(() => {
     if (!orderId) return;
@@ -55,6 +58,26 @@ const OrderDetail: React.FC = () => {
     fetchOrder();
   }, [orderId]);
 
+  useEffect(() => {
+    if (!orderId || user.userRole !== 'ADMIN') {
+      setLoadingPayments(false);
+      return;
+    }
+
+    const fetchPaymentCollections = async () => {
+      try {
+        const { data } = await paymentCollectionApi.getAll({ orderId });
+        setPaymentCollections(data.data);
+      } catch (error) {
+        console.error('获取收款记录失败:', error);
+      } finally {
+        setLoadingPayments(false);
+      }
+    };
+
+    fetchPaymentCollections();
+  }, [orderId, user.userRole]);
+
   const getStatusText = (status: string) => {
     const statusMap: Record<string, string> = {
       pending: '待确认',
@@ -76,16 +99,6 @@ const OrderDetail: React.FC = () => {
       BATCH: '批量订单',
     };
     return typeMap[type] || type;
-  };
-
-  const getPaymentStatusText = (status: string) => {
-    const statusMap: Record<string, string> = {
-      pending: '待支付',
-      succeeded: '已支付',
-      failed: '支付失败',
-      refunded: '已退款',
-    };
-    return statusMap[status.toLowerCase()] || status;
   };
 
   if (loading) {
@@ -112,7 +125,7 @@ const OrderDetail: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <button
           onClick={() => navigate(-1)}
           className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6"
@@ -121,15 +134,15 @@ const OrderDetail: React.FC = () => {
           <span>返回</span>
         </button>
 
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <div className="flex items-start justify-between mb-6">
+        <div className="bg-white rounded-lg shadow-sm mb-6">
+          {/* Header */}
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">
+              <h1 className="text-2xl font-bold text-gray-900">
                 订单详情 #{order.orderNumber}
               </h1>
-              <p className="text-gray-500">
-                创建时间:{' '}
-                {new Date(order.createdAt).toLocaleDateString('zh-CN', {
+              <p className="text-sm text-gray-500 mt-1">
+                创建时间: {new Date(order.createdAt).toLocaleDateString('zh-CN', {
                   year: 'numeric',
                   month: 'long',
                   day: 'numeric',
@@ -151,98 +164,269 @@ const OrderDetail: React.FC = () => {
             </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            {order.pickupAddress && (
-              <div className="border border-gray-200 rounded-lg p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <User className="w-5 h-5 text-gray-400" />
-                  <h3 className="font-semibold text-gray-900">提货人信息</h3>
-                </div>
-                <div className="space-y-2 text-sm">
-                  <p className="text-gray-900 font-medium">{order.pickupAddress.name}</p>
-                  {order.pickupAddress.company && (
-                    <p className="text-gray-600">{order.pickupAddress.company}</p>
-                  )}
-                  <div className="flex items-center gap-2 text-gray-600">
-                    <Phone className="w-4 h-4" />
-                    <span>{order.pickupAddress.phone}</span>
-                  </div>
-                  <div className="flex items-start gap-2 text-gray-600">
-                    <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                    <span>
-                      {order.pickupAddress.region && `${order.pickupAddress.region} `}
-                      {order.pickupAddress.address}
-                      {order.pickupAddress.postcode && ` (${order.pickupAddress.postcode})`}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="border border-gray-200 rounded-lg p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <MapPin className="w-5 h-5 text-gray-400" />
-                <h3 className="font-semibold text-gray-900">收件人信息</h3>
-              </div>
-              <div className="space-y-2 text-sm">
-                <p className="text-gray-900 font-medium">{order.recipientAddress.name}</p>
-                {order.recipientAddress.company && (
-                  <p className="text-gray-600">{order.recipientAddress.company}</p>
-                )}
-                <div className="flex items-center gap-2 text-gray-600">
-                  <Phone className="w-4 h-4" />
-                  <span>{order.recipientAddress.phone}</span>
-                </div>
-                <div className="flex items-start gap-2 text-gray-600">
-                  <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                  <span>
-                    {order.recipientAddress.region && `${order.recipientAddress.region} `}
-                    {order.recipientAddress.address}
-                    {order.recipientAddress.postcode && ` (${order.recipientAddress.postcode})`}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="border border-gray-200 rounded-lg p-4 mb-6">
-            <div className="flex items-center gap-2 mb-3">
+          {/* 订单基本信息表格 */}
+          <div className="px-6 py-4">
+            <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
               <Package className="w-5 h-5 text-gray-400" />
-              <h3 className="font-semibold text-gray-900">订单信息</h3>
-            </div>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-gray-500 mb-1">订单类型</p>
-                <p className="text-gray-900 font-medium">
-                  {getOrderTypeText(order.orderType)}
-                </p>
-              </div>
-              <div>
-                <p className="text-gray-500 mb-1">目的地</p>
-                <p className="text-gray-900 font-medium">{order.destination}</p>
-              </div>
-              {order.warehouse && (
-                <div>
-                  <p className="text-gray-500 mb-1">仓库</p>
-                  <p className="text-gray-900 font-medium">{order.warehouse}</p>
-                </div>
-              )}
-              {order.trackingNumber && (
-                <div>
-                  <p className="text-gray-500 mb-1">追踪单号</p>
-                  <p className="text-gray-900 font-medium font-mono">{order.trackingNumber}</p>
-                </div>
-              )}
-              {order.userMark && (
-                <div>
-                  <p className="text-gray-500 mb-1">用户唛头</p>
-                  <p className="text-gray-900 font-medium">{order.userMark}</p>
-                </div>
-              )}
+              订单信息
+            </h2>
+            <div className="overflow-x-auto rounded-lg border border-gray-300">
+              <table className="w-full border-collapse">
+                <tbody className="bg-white divide-y divide-gray-200">
+                  <tr>
+                    <td className="px-4 py-3 text-sm font-medium text-gray-500 bg-gray-50 w-1/4">订单类型</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">{getOrderTypeText(order.orderType)}</td>
+                    <td className="px-4 py-3 text-sm font-medium text-gray-500 bg-gray-50 w-1/4">目的地</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">{order.destination}</td>
+                  </tr>
+                  {order.warehouse && (
+                    <tr>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-500 bg-gray-50">仓库</td>
+                      <td className="px-4 py-3 text-sm text-gray-900" colSpan={3}>{order.warehouse}</td>
+                    </tr>
+                  )}
+                  {order.userMark && (
+                    <tr>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-500 bg-gray-50">用户唛头</td>
+                      <td className="px-4 py-3 text-sm text-gray-900" colSpan={3}>{order.userMark}</td>
+                    </tr>
+                  )}
+                  {order.declarations && order.declarations.some(d => d.trackingNumber) && (
+                    <tr>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-500 bg-gray-50 align-top">包裹快递单号</td>
+                      <td className="px-4 py-3 text-sm text-gray-900" colSpan={3}>
+                        <div className="space-y-1">
+                          {order.declarations
+                            .filter(d => d.trackingNumber)
+                            .map((decl) => (
+                              <div key={decl.id} className="font-mono text-sm">
+                                {decl.trackingNumber}
+                              </div>
+                            ))}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
 
+          {/* 提货人信息表格 */}
+          {order.pickupAddress && (
+            <div className="px-6 py-4 border-t border-gray-100">
+              <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <User className="w-5 h-5 text-gray-400" />
+                提货人信息
+              </h2>
+              <div className="overflow-x-auto rounded-lg border border-gray-300">
+                <table className="w-full border-collapse">
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    <tr>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-500 bg-gray-50 w-1/4">联系人</td>
+                      <td className="px-4 py-3 text-sm text-gray-900">{order.pickupAddress.name}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-500 bg-gray-50 w-1/4">手机号码</td>
+                      <td className="px-4 py-3 text-sm text-gray-900">{order.pickupAddress.phone}</td>
+                    </tr>
+                    {order.pickupAddress.company && (
+                      <tr>
+                        <td className="px-4 py-3 text-sm font-medium text-gray-500 bg-gray-50">公司名称</td>
+                        <td className="px-4 py-3 text-sm text-gray-900" colSpan={3}>{order.pickupAddress.company}</td>
+                      </tr>
+                    )}
+                    <tr>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-500 bg-gray-50">所在地区</td>
+                      <td className="px-4 py-3 text-sm text-gray-900" colSpan={3}>
+                        {order.pickupAddress.region || '-'}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-500 bg-gray-50">详细地址</td>
+                      <td className="px-4 py-3 text-sm text-gray-900" colSpan={3}>{order.pickupAddress.address}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
+          {/* 收件人信息表格 */}
+          <div className="px-6 py-4 border-t border-gray-100">
+            <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <MapPin className="w-5 h-5 text-gray-400" />
+              收件人信息
+            </h2>
+            <div className="overflow-x-auto rounded-lg border border-gray-300">
+              <table className="w-full border-collapse">
+                <tbody className="bg-white divide-y divide-gray-200">
+                  <tr>
+                    <td className="px-4 py-3 text-sm font-medium text-gray-500 bg-gray-50 w-1/4">收件人</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">{order.recipientAddress.name}</td>
+                    <td className="px-4 py-3 text-sm font-medium text-gray-500 bg-gray-50 w-1/4">手机号码</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">{order.recipientAddress.phone}</td>
+                  </tr>
+                  {order.recipientAddress.company && (
+                    <tr>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-500 bg-gray-50">公司名称</td>
+                      <td className="px-4 py-3 text-sm text-gray-900" colSpan={3}>{order.recipientAddress.company}</td>
+                    </tr>
+                  )}
+                  <tr>
+                    <td className="px-4 py-3 text-sm font-medium text-gray-500 bg-gray-50">所在地区</td>
+                    <td className="px-4 py-3 text-sm text-gray-900" colSpan={3}>
+                      {order.recipientAddress.region || '-'}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3 text-sm font-medium text-gray-500 bg-gray-50">详细地址</td>
+                    <td className="px-4 py-3 text-sm text-gray-900" colSpan={3}>{order.recipientAddress.address}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* 申报信息表格 */}
+          {order.declarations && order.declarations.length > 0 && (
+            <div className="px-6 py-4 border-t border-gray-100">
+              <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <Package className="w-5 h-5 text-gray-400" />
+                申报信息
+              </h2>
+              <div className="overflow-x-auto rounded-lg border border-gray-300">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">序号</th>
+                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-left">快递单号</th>
+                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-left">品名</th>
+                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">尺寸(cm)</th>
+                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">件数</th>
+                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">数量</th>
+                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">重量(kg)</th>
+                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">单价(￥)</th>
+                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">单价(₱)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {order.declarations.map((decl, index) => (
+                      <tr key={decl.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-sm text-gray-900 text-center">{index + 1}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900 font-mono">{decl.trackingNumber || '-'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900">{decl.productName}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900 text-center">
+                          {decl.length && decl.width && decl.height 
+                            ? `${decl.length}×${decl.width}×${decl.height}` 
+                            : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-900 text-center">{decl.outerQuantity || '-'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900 text-center">{decl.innerQuantity || '-'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900 text-center">{decl.weight}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900 text-center">{decl.cnyUnitPrice || '-'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900 text-center">{decl.phpUnitPrice || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {user.userRole === 'ADMIN' && !loadingPayments && paymentCollections.length > 0 && (
+            <div className="px-6 py-4 border-t border-gray-100">
+              <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <DollarSign className="w-5 h-5 text-gray-400" />
+                订单收款记录
+              </h2>
+              <div className="overflow-x-auto rounded-lg border border-gray-300">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-left">品名</th>
+                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">渠道单价(₱)</th>
+                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">应收运费(¥)</th>
+                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">应收其他(¥)</th>
+                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">实收金额(¥)</th>
+                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">渠道运费成本(¥)</th>
+                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">渠道其他成本(¥)</th>
+                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">利润(¥)</th>
+                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">凭证数量</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {paymentCollections.map((collection) => (
+                      <tr key={collection.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-sm text-gray-900">
+                          {collection.declaration?.productName || '-'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-900 text-center">
+                          ₱{collection.channelUnitPricePhp.toFixed(2)}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-900 text-center">
+                          ¥{collection.receivableFreightAmount.toFixed(2)}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-900 text-center">
+                          ¥{collection.receivableOtherAmount?.toFixed(2) || '0.00'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-900 text-center font-semibold">
+                          ¥{collection.actualReceivedAmount.toFixed(2)}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-900 text-center">
+                          ¥{collection.channelFreightCost?.toFixed(2) || '0.00'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-900 text-center">
+                          ¥{collection.channelOtherCost?.toFixed(2) || '0.00'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-center">
+                          <span className={`font-semibold ${
+                            (collection.profit || 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                          }`}>
+                            ¥{collection.profit?.toFixed(2) || '0.00'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-900 text-center">
+                          {collection.vouchers?.length || 0}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-gray-50">
+                    <tr className="font-semibold">
+                      <td className="px-4 py-3 text-sm text-gray-900">合计</td>
+                      <td className="px-4 py-3 text-sm text-gray-900 text-center">-</td>
+                      <td className="px-4 py-3 text-sm text-gray-900 text-center">
+                        ¥{paymentCollections.reduce((sum, c) => sum + c.receivableFreightAmount, 0).toFixed(2)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900 text-center">
+                        ¥{paymentCollections.reduce((sum, c) => sum + (c.receivableOtherAmount || 0), 0).toFixed(2)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900 text-center font-bold text-primary">
+                        ¥{paymentCollections.reduce((sum, c) => sum + c.actualReceivedAmount, 0).toFixed(2)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900 text-center">
+                        ¥{paymentCollections.reduce((sum, c) => sum + (c.channelFreightCost || 0), 0).toFixed(2)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900 text-center">
+                        ¥{paymentCollections.reduce((sum, c) => sum + (c.channelOtherCost || 0), 0).toFixed(2)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-center">
+                        <span className={`font-bold ${
+                          paymentCollections.reduce((sum, c) => sum + (c.profit || 0), 0) >= 0 
+                            ? 'text-green-600' 
+                            : 'text-red-600'
+                        }`}>
+                          ¥{paymentCollections.reduce((sum, c) => sum + (c.profit || 0), 0).toFixed(2)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900 text-center">
+                        {paymentCollections.reduce((sum, c) => sum + (c.vouchers?.length || 0), 0)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
 
         {order.shipment && (

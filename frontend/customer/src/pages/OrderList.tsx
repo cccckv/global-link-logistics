@@ -171,7 +171,7 @@ export default function OrderList() {
   };
 
   const handleRowClick = (orderId: string) => {
-    navigate(`/order/${orderId}`, { state: { from: '/order/list' } });
+    navigate(`/waybill/${orderId}`, { state: { from: '/order/list' } });
   };
 
   const handleExport = () => {
@@ -499,7 +499,7 @@ export default function OrderList() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigate(`/order/${order.orderId}`, { state: { from: '/order/list' } });
+                              navigate(`/waybill/${order.orderId}`, { state: { from: '/order/list' } });
                             }}
                             className="text-blue-600 hover:text-blue-900"
                           >

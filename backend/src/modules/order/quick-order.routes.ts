@@ -296,7 +296,6 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
           fileUrl: v.fileUrl,
           fileName: v.fileName,
           fileType: v.fileType,
-          fileSize: v.fileSize,
           uploadedAt: v.uploadedAt.toISOString(),
         })) || [],
         

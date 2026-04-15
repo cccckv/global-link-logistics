@@ -11,6 +11,7 @@ import Tracking from './pages/Tracking';
 import QuickOrder from './pages/QuickOrder';
 import OrderList from './pages/OrderList';
 import OrderDetail from './pages/OrderDetail';
+import WaybillDetail from './pages/WaybillDetail';
 import ExternalTracking from './pages/ExternalTracking';
 import UserManagement from './pages/UserManagement';
 import AdminOrderManagement from './pages/AdminOrderManagement';
@@ -87,6 +88,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <OrderDetail />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/waybill/:orderId"
+            element={
+              <ProtectedRoute>
+                <WaybillDetail />
               </ProtectedRoute>
             }
           />

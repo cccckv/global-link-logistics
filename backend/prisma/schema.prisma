@@ -270,7 +270,6 @@ model OrderPaymentVoucher {
   fileUrl    String
   fileName   String?
   fileType   String?
-  fileSize   Int?
   uploadedAt DateTime   @default(now())
   order      QuickOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
 

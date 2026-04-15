@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { quickOrderApi, paymentCollectionApi } from '../lib/api';
-import type { QuickOrder, PaymentCollection } from '../lib/api';
+import { quickOrderApi } from '../lib/api';
+import type { QuickOrder } from '../lib/api';
 import { subscribeToTracking } from '../lib/socket';
 import {
   Package,
@@ -10,7 +10,6 @@ import {
   User,
   ArrowLeft,
   CheckCircle,
-  DollarSign,
   FileText,
   Eye,
   X,
@@ -19,18 +18,15 @@ import {
   FileBadge,
 } from 'lucide-react';
 
-const OrderDetail: React.FC = () => {
+const WaybillDetail: React.FC = () => {
   const { orderId } = useParams<{ orderId: string }>();
   const [order, setOrder] = useState<QuickOrder | null>(null);
-  const [paymentCollections, setPaymentCollections] = useState<PaymentCollection[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingPayments, setLoadingPayments] = useState(true);
   const [previewVoucher, setPreviewVoucher] = useState<QuickOrder['paymentVouchers'][0] | null>(null);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [blobLoading, setBlobLoading] = useState(false);
   const [blobType, setBlobType] = useState<string | null>(null);
   const navigate = useNavigate();
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
 
   useEffect(() => {
     if (!orderId) return;
@@ -67,26 +63,6 @@ const OrderDetail: React.FC = () => {
 
     fetchOrder();
   }, [orderId]);
-
-  useEffect(() => {
-    if (!orderId || user.userRole !== 'ADMIN') {
-      setLoadingPayments(false);
-      return;
-    }
-
-    const fetchPaymentCollections = async () => {
-      try {
-        const { data } = await paymentCollectionApi.getAll({ orderId });
-        setPaymentCollections(data.data);
-      } catch (error) {
-        console.error('获取收款记录失败:', error);
-      } finally {
-        setLoadingPayments(false);
-      }
-    };
-
-    fetchPaymentCollections();
-  }, [orderId, user.userRole]);
 
   useEffect(() => {
     if (!previewVoucher?.id) {
@@ -201,7 +177,7 @@ const OrderDetail: React.FC = () => {
           <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">
-                订单详情 #{order.orderNumber}
+                运单详情 #{order.orderNumber}
               </h1>
               <p className="text-sm text-gray-500 mt-1">
                 创建时间: {new Date(order.createdAt).toLocaleDateString('zh-CN', {
@@ -387,103 +363,6 @@ const OrderDetail: React.FC = () => {
                   </tbody>
                 </table>
               </div>
-            </div>
-          )}
-
-          {user.userRole === 'ADMIN' && (
-            <div className="px-6 py-4 border-t border-gray-100">
-              <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                <DollarSign className="w-5 h-5 text-gray-400" />
-                订单收款记录
-              </h2>
-              {loadingPayments ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                </div>
-              ) : paymentCollections.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  暂无收款记录
-                </div>
-              ) : (
-                <div className="overflow-x-auto rounded-lg border border-gray-300">
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr className="bg-gray-50">
-                        <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-left">品名</th>
-                        <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">渠道单价(₱)</th>
-                        <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">应收运费(¥)</th>
-                        <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">应收其他(¥)</th>
-                        <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">实收金额(¥)</th>
-                        <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">渠道运费成本(¥)</th>
-                        <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">渠道其他成本(¥)</th>
-                        <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">利润(¥)</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {paymentCollections.map((collection) => (
-                        <tr key={collection.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm text-gray-900">
-                            {collection.declaration?.productName || '-'}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-900 text-center">
-                            ₱{collection.channelUnitPricePhp.toFixed(2)}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-900 text-center">
-                            ¥{collection.receivableFreightAmount.toFixed(2)}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-900 text-center">
-                            ¥{collection.receivableOtherAmount?.toFixed(2) || '0.00'}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-900 text-center font-semibold">
-                            ¥{collection.actualReceivedAmount.toFixed(2)}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-900 text-center">
-                            ¥{collection.channelFreightCost?.toFixed(2) || '0.00'}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-900 text-center">
-                            ¥{collection.channelOtherCost?.toFixed(2) || '0.00'}
-                          </td>
-                          <td className={`px-4 py-3 text-sm text-center font-semibold ${
-                            (collection.profit || 0) >= 0 ? 'text-green-600' : 'text-red-600'
-                          }`}>
-                            ¥{collection.profit?.toFixed(2) || '0.00'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot className="bg-gray-50">
-                      <tr className="font-semibold">
-                        <td className="px-4 py-3 text-sm text-gray-900">合计</td>
-                        <td className="px-4 py-3 text-sm text-gray-900 text-center">-</td>
-                        <td className="px-4 py-3 text-sm text-gray-900 text-center">
-                          ¥{paymentCollections.reduce((sum, c) => sum + c.receivableFreightAmount, 0).toFixed(2)}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-900 text-center">
-                          ¥{paymentCollections.reduce((sum, c) => sum + (c.receivableOtherAmount || 0), 0).toFixed(2)}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-900 text-center font-bold text-primary">
-                          ¥{paymentCollections.reduce((sum, c) => sum + c.actualReceivedAmount, 0).toFixed(2)}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-900 text-center">
-                          ¥{paymentCollections.reduce((sum, c) => sum + (c.channelFreightCost || 0), 0).toFixed(2)}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-900 text-center">
-                          ¥{paymentCollections.reduce((sum, c) => sum + (c.channelOtherCost || 0), 0).toFixed(2)}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-center">
-                          <span className={`font-bold ${
-                            paymentCollections.reduce((sum, c) => sum + (c.profit || 0), 0) >= 0
-                              ? 'text-green-600'
-                              : 'text-red-600'
-                          }`}>
-                            ¥{paymentCollections.reduce((sum, c) => sum + (c.profit || 0), 0).toFixed(2)}
-                          </span>
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              )}
             </div>
           )}
 
@@ -714,4 +593,4 @@ const OrderDetail: React.FC = () => {
   );
 };
 
-export default OrderDetail;
+export default WaybillDetail;

@@ -39,4 +39,15 @@
   .glass-effect {
     @apply bg-white/80 backdrop-blur-lg border border-white/20;
   }
+  
+  /* 移除 number input 的上下箭头 */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
 }

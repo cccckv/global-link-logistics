@@ -180,12 +180,14 @@ export class PaymentCollectionService {
     return results;
   }
 
-  async addVoucher(orderId: string, fileUrl: string, fileName?: string) {
+  async addVoucher(orderId: string, fileUrl: string, fileName?: string, fileType?: string, fileSize?: number) {
     const voucher = await prisma.orderPaymentVoucher.create({
       data: {
         orderId,
         fileUrl,
         fileName,
+        fileType,
+        fileSize,
       },
     });
 

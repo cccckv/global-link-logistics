@@ -7,7 +7,6 @@ interface ContactInput {
   company?: string;
   phone: string;
   region?: string;
-  postcode?: string;
   address: string;
 }
 
@@ -27,7 +26,6 @@ export class ContactService {
       update: {
         company: input.company,
         region: input.region,
-        postcode: input.postcode,
         address: input.address,
         updatedAt: new Date(), // 更新使用时间
       },
@@ -55,7 +53,6 @@ export class ContactService {
       update: {
         company: input.company,
         region: input.region,
-        postcode: input.postcode,
         address: input.address,
         updatedAt: new Date(),
       },

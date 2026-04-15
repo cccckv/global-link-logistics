@@ -65,7 +65,6 @@ model QuickOrder {
   orderType          QuickOrderType
   warehouse          String?
   destination        String
-  totalPackages      Int?
   note               String?
   userMark           String?
   mark               String?
@@ -73,8 +72,6 @@ model QuickOrder {
   destinationPort    String?
   batchTaskId        String?
   status             QuickOrderStatus         @default(PENDING)
-  totalAmount        Decimal                  @default(0) @db.Decimal(10, 2)
-  currency           String                   @default("CNY")
   createdAt          DateTime                 @default(now())
   updatedAt          DateTime                 @updatedAt
   pickupAddressId    String?
@@ -116,6 +113,7 @@ model OrderPickupAddress {
   orders    QuickOrder[] @relation("OrderPickupAddress")
 
   @@unique([userId, phone])
+  @@unique([userId, phone, name])
   @@index([userId, isDefault])
   @@index([userId, updatedAt])
 }
@@ -135,6 +133,7 @@ model OrderRecipientAddress {
   orders    QuickOrder[] @relation("OrderRecipientAddress")
 
   @@unique([userId, phone])
+  @@unique([userId, phone, name])
   @@index([userId, isDefault])
   @@index([userId, updatedAt])
 }
@@ -147,8 +146,6 @@ model OrderDeclaration {
   length             Decimal?                 @db.Decimal(8, 2)
   width              Decimal?                 @db.Decimal(8, 2)
   height             Decimal?                 @db.Decimal(8, 2)
-  outerQuantity      Int?
-  innerQuantity      Int?
   weight             Decimal                  @db.Decimal(10, 3)
   cnyUnitPrice       Decimal?                 @db.Decimal(10, 2)
   createdAt          DateTime                 @default(now())

@@ -2,11 +2,13 @@ import 'dotenv/config';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
+import multipart from '@fastify/multipart';
 import socketio from 'fastify-socket.io';
 import { authRoutes } from './modules/auth/routes';
 import { quickOrderRoutes } from './modules/order/quick-order.routes';
 import { contactRoutes } from './modules/order/contact.routes';
 import { paymentCollectionRoutes } from './modules/order/payment-collection.routes';
+import { uploadRoutes } from './modules/order/upload.routes';
 import { trackingRoutes } from './modules/tracking/routes';
 import { paymentRoutes } from './modules/payment/routes';
 import { userRoutes } from './modules/user/user.routes';
@@ -55,6 +57,10 @@ async function start() {
     await fastify.register(quickOrderRoutes, { prefix: '/api/orders/quick' });
     await fastify.register(contactRoutes, { prefix: '/api/contacts' });
     await fastify.register(paymentCollectionRoutes, { prefix: '/api/payment-collections' });
+    await fastify.register(multipart, {
+      limits: { fileSize: 10 * 1024 * 1024 },
+    });
+    await fastify.register(uploadRoutes, { prefix: '/api' });
     await fastify.register(trackingRoutes, { prefix: '/api/tracking' });
     await fastify.register(paymentRoutes, { prefix: '/api/payments' });
     await fastify.register(userRoutes, { prefix: '/api/users' });

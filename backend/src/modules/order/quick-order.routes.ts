@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { QuickOrderService } from './quick-order.service';
 import { getUserFromRequest } from '../../lib/jwt';
 import { authorize } from '../../lib/auth';
-import { QuickOrderType, QuickOrderStatus, AdditionalService } from '@prisma/client';
+import { QuickOrderType, QuickOrderStatus } from '@prisma/client';
 
 const service = new QuickOrderService();
 
@@ -10,23 +10,17 @@ interface CreateQuickOrderBody {
   orderType: QuickOrderType;
   warehouse?: string;
   destination: string;
-  trackingNumber?: string;
-  courierCompany?: string;
-  totalPackages?: number;
   note?: string;
   userMark?: string;
   mark?: string;
-  attachmentUrl?: string;
   originPort?: string;
   destinationPort?: string;
-  additionalServices?: AdditionalService[];
   
   pickupAddress?: {
     name: string;
     company?: string;
     phone: string;
     region?: string;
-    postcode?: string;
     address: string;
   };
   
@@ -35,7 +29,6 @@ interface CreateQuickOrderBody {
     company?: string;
     phone: string;
     region?: string;
-    postcode?: string;
     address: string;
   };
   
@@ -45,10 +38,10 @@ interface CreateQuickOrderBody {
     length?: number;
     width?: number;
     height?: number;
-    outerQuantity?: number;
-    innerQuantity?: number;
     weight: number;
-    unitPrice?: number;
+    cnyUnitPrice?: number;
+    phpUnitPrice?: number;
+    channelUnitPricePhp?: number;
   }>;
   
   containers?: Array<{
@@ -89,8 +82,6 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
           orderNumber: order.orderNumber,
           orderType: order.orderType,
           status: order.status,
-          totalAmount: order.totalAmount.toNumber(),
-          currency: order.currency,
           destination: order.destination,
           createdAt: order.createdAt.toISOString(),
           pickupAddress: order.pickupAddress,
@@ -101,8 +92,9 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
             width: d.width?.toNumber(),
             height: d.height?.toNumber(),
             weight: d.weight.toNumber(),
-            unitPrice: d.unitPrice?.toNumber(),
-            density: d.density?.toNumber(),
+            cnyUnitPrice: d.cnyUnitPrice?.toNumber(),
+            phpUnitPrice: d.phpUnitPrice?.toNumber(),
+            channelUnitPricePhp: d.channelUnitPricePhp?.toNumber(),
           })),
           containers: order.containers.map(c => ({
             ...c,
@@ -150,18 +142,11 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
           status: order.status,
           destination: order.destination,
           warehouse: order.warehouse,
-          trackingNumber: order.trackingNumber,
-          courierCompany: order.courierCompany,
-          totalPackages: order.totalPackages,
           note: order.note,
           userMark: order.userMark,
           mark: order.mark,
-          attachmentUrl: order.attachmentUrl,
           originPort: order.originPort,
           destinationPort: order.destinationPort,
-          additionalServices: order.additionalServices,
-          totalAmount: order.totalAmount.toNumber(),
-          currency: order.currency,
           createdAt: order.createdAt.toISOString(),
           updatedAt: order.updatedAt?.toISOString(),
           pickupAddress: order.pickupAddress ? {
@@ -181,11 +166,10 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
             length: d.length?.toNumber(),
             width: d.width?.toNumber(),
             height: d.height?.toNumber(),
-            outerQuantity: d.outerQuantity,
-            innerQuantity: d.innerQuantity,
             weight: d.weight.toNumber(),
-            unitPrice: d.unitPrice?.toNumber(),
-            density: d.density?.toNumber(),
+            cnyUnitPrice: d.cnyUnitPrice?.toNumber(),
+            phpUnitPrice: d.phpUnitPrice?.toNumber(),
+            channelUnitPricePhp: d.channelUnitPricePhp?.toNumber(),
           })),
           containers: order.containers?.map(c => ({
             id: c.id,
@@ -233,18 +217,11 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
         status: order.status,
         warehouse: order.warehouse,
         destination: order.destination,
-        trackingNumber: order.trackingNumber,
-        courierCompany: order.courierCompany,
-        totalPackages: order.totalPackages,
         note: order.note,
         userMark: order.userMark,
         mark: order.mark,
-        attachmentUrl: order.attachmentUrl,
         originPort: order.originPort,
         destinationPort: order.destinationPort,
-        additionalServices: order.additionalServices,
-        totalAmount: order.totalAmount.toNumber(),
-        currency: order.currency,
         createdAt: order.createdAt.toISOString(),
         updatedAt: order.updatedAt.toISOString(),
         
@@ -266,11 +243,9 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
           length: d.length?.toNumber(),
           width: d.width?.toNumber(),
           height: d.height?.toNumber(),
-          outerQuantity: d.outerQuantity,
-          innerQuantity: d.innerQuantity,
           weight: d.weight.toNumber(),
-          unitPrice: d.unitPrice?.toNumber(),
-          density: d.density?.toNumber(),
+          cnyUnitPrice: d.cnyUnitPrice?.toNumber(),
+          phpUnitPrice: d.phpUnitPrice?.toNumber(),
         })),
         
         containers: order.containers.map(c => ({
@@ -324,6 +299,19 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
           fileSize: v.fileSize,
           uploadedAt: v.uploadedAt.toISOString(),
         })) || [],
+        
+        paymentCollections: order.paymentCollections?.map(pc => ({
+          id: pc.id,
+          orderId: pc.orderId,
+          declarationId: pc.declarationId,
+          channelUnitPricePhp: pc.channelUnitPricePhp.toNumber(),
+          receivableFreightAmount: pc.receivableFreightAmount.toNumber(),
+          receivableOtherAmount: pc.receivableOtherAmount?.toNumber(),
+          actualReceivedAmount: pc.actualReceivedAmount.toNumber(),
+          channelFreightCost: pc.channelFreightCost?.toNumber(),
+          channelOtherCost: pc.channelOtherCost?.toNumber(),
+          profit: pc.profit?.toNumber(),
+        })) || [],
       };
     }
   );
@@ -333,7 +321,6 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
     Body: { 
       status?: QuickOrderStatus;
       note?: string;
-      attachmentUrl?: string;
     };
   }>(
     '/:id',
@@ -353,7 +340,6 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
           orderNumber: order.orderNumber,
           status: order.status,
           note: order.note,
-          attachmentUrl: order.attachmentUrl,
           updatedAt: order.updatedAt.toISOString(),
         };
       } catch (error: any) {

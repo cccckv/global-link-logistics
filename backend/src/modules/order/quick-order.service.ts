@@ -1,4 +1,4 @@
-import { PrismaClient, QuickOrderType, QuickOrderStatus, AdditionalService, Prisma } from '@prisma/client';
+import { PrismaClient, QuickOrderType, QuickOrderStatus, Prisma } from '@prisma/client';
 import { ContactService } from './contact.service';
 
 const prisma = new PrismaClient();
@@ -12,16 +12,11 @@ interface CreateQuickOrderInput {
   orderType: QuickOrderType;
   warehouse?: string;
   destination: string;
-  trackingNumber?: string;
-  courierCompany?: string;
-  totalPackages?: number;
   note?: string;
   userMark?: string;
   mark?: string;
-  attachmentUrl?: string;
   originPort?: string;
   destinationPort?: string;
-  additionalServices?: AdditionalService[];
   batchTaskId?: string;
   
   pickupAddress?: {
@@ -29,7 +24,6 @@ interface CreateQuickOrderInput {
     company?: string;
     phone: string;
     region?: string;
-    postcode?: string;
     address: string;
   };
   
@@ -38,7 +32,6 @@ interface CreateQuickOrderInput {
     company?: string;
     phone: string;
     region?: string;
-    postcode?: string;
     address: string;
   };
   
@@ -48,10 +41,10 @@ interface CreateQuickOrderInput {
     length?: number;
     width?: number;
     height?: number;
-    outerQuantity?: number;
-    innerQuantity?: number;
     weight: number;
-    unitPrice?: number;
+    cnyUnitPrice?: number;
+    phpUnitPrice?: number;
+    channelUnitPricePhp?: number;
   }>;
   
   containers?: Array<{
@@ -101,7 +94,6 @@ export class QuickOrderService {
       case 'trackingNumber':
         return { 
           OR: [
-            { trackingNumber: search },
             { declarations: { some: { trackingNumber: search } } },
           ],
         };
@@ -115,111 +107,28 @@ export class QuickOrderService {
   }
 
   /**
-   * 计算密度
-   * 密度 = 重量 / 体积 (kg/m³)
-   */
-  private calculateDensity(
-    length: number,
-    width: number,
-    height: number,
-    weight: number
-  ): number {
-    if (!length || !width || !height || !weight) return 0;
-    
-    const volume = (length * width * height) / 1000000; // m³
-    const density = weight / volume; // kg/m³
-    
-    return Math.round(density * 100) / 100; // 保留2位小数
-  }
-
-  /**
-   * 计算运费
-   * TODO: 根据实际业务规则调整
-   */
-  private calculateShippingFee(
-    orderType: QuickOrderType,
-    declarations?: Array<{ weight: number }>,
-    containers?: Array<{ containerType: string; quantity: number }>,
-    additionalServices?: AdditionalService[]
-  ): number {
-    const baseRates: Record<string, number> = {
-      SEA_LCL: 5,    // ¥5/kg
-      AIR: 15,       // ¥15/kg
-      LAND: 3,       // ¥3/kg
-      PARCEL: 12,    // ¥12/kg
-      SEA_FCL: 0,    // 整柜按柜型计费
-      BATCH: 5,      // 批量导入按拼柜计费
-    };
-
-    let baseFee = 0;
-
-    // 标准散货: 按重量计费
-    if (orderType !== 'SEA_FCL' && declarations && declarations.length > 0) {
-      const totalWeight = declarations.reduce((sum, d) => sum + Number(d.weight), 0);
-      baseFee = totalWeight * baseRates[orderType];
-    }
-
-    // 海运整柜: 按柜型计费
-    if (orderType === 'SEA_FCL' && containers && containers.length > 0) {
-      const containerRates: Record<string, number> = {
-        GP_20: 8000,   // ¥8000/柜
-        GP_40: 12000,  // ¥12000/柜
-        HQ_40: 13000,  // ¥13000/柜
-        HQ_45: 15000,  // ¥15000/柜
-      };
-
-      baseFee = containers.reduce((sum, c) => {
-        return sum + (containerRates[c.containerType] || 0) * c.quantity;
-      }, 0);
-    }
-
-    // 附加服务费用
-    const serviceRates: Record<string, number> = {
-      WOODEN_FRAME: 50,   // ¥50/单
-      CUSTOMS: 100,       // ¥100/单
-      DISINFECTION: 30,   // ¥30/单
-      LABEL: 10,          // ¥10/单
-      DELIVERY: 80,       // ¥80/单
-      UNLOADING: 60,      // ¥60/单
-    };
-
-    if (additionalServices && additionalServices.length > 0) {
-      additionalServices.forEach(service => {
-        baseFee += serviceRates[service] || 0;
-      });
-    }
-
-    return Math.round(baseFee * 100) / 100; // 保留2位小数
-  }
-
-  /**
    * 创建快速订单
    */
   async create(userId: string, input: CreateQuickOrderInput) {
     const orderNumber = this.generateOrderNumber();
-    
-    // 计算运费
-    const totalAmount = this.calculateShippingFee(
-      input.orderType,
-      input.declarations,
-      input.containers,
-      input.additionalServices
-    );
 
-    // 准备申报明细数据（计算密度）
+    // 准备申报明细数据
+    if (input.declarations && input.declarations.length > 0) {
+      const missingChannelPrice = input.declarations.some(d => d.channelUnitPricePhp === undefined || d.channelUnitPricePhp === null);
+      if (missingChannelPrice) {
+        throw new Error('每条申报信息必须填写渠道单价');
+      }
+    }
+
     const declarationsData = input.declarations?.map(d => ({
       trackingNumber: d.trackingNumber,
       productName: d.productName,
       length: d.length ? new Prisma.Decimal(d.length) : null,
       width: d.width ? new Prisma.Decimal(d.width) : null,
       height: d.height ? new Prisma.Decimal(d.height) : null,
-      outerQuantity: d.outerQuantity,
-      innerQuantity: d.innerQuantity,
       weight: new Prisma.Decimal(d.weight),
-      unitPrice: d.unitPrice ? new Prisma.Decimal(d.unitPrice) : null,
-      density: d.length && d.width && d.height
-        ? new Prisma.Decimal(this.calculateDensity(d.length, d.width, d.height, d.weight))
-        : null,
+      cnyUnitPrice: d.cnyUnitPrice ? new Prisma.Decimal(d.cnyUnitPrice) : null,
+      phpUnitPrice: d.phpUnitPrice ? new Prisma.Decimal(d.phpUnitPrice) : null,
     })) || [];
 
     // 准备整柜明细数据
@@ -248,19 +157,12 @@ export class QuickOrderService {
         orderType: input.orderType,
         warehouse: input.warehouse,
         destination: input.destination,
-        trackingNumber: input.trackingNumber,
-        courierCompany: input.courierCompany,
-        totalPackages: input.totalPackages,
         note: input.note,
         userMark: input.userMark,
         mark: input.mark,
-        attachmentUrl: input.attachmentUrl,
         originPort: input.originPort,
         destinationPort: input.destinationPort,
-        additionalServices: input.additionalServices || [],
         batchTaskId: input.batchTaskId,
-        totalAmount: new Prisma.Decimal(totalAmount),
-        currency: 'CNY',
         status: 'PENDING',
         
         pickupAddressId,
@@ -281,6 +183,26 @@ export class QuickOrderService {
         containers: true,
       },
     });
+
+    if (order.declarations.length > 0 && input.declarations) {
+      const channelPriceMap = new Map(
+        input.declarations.map((d, idx) => [idx, d.channelUnitPricePhp])
+      );
+      
+      await prisma.orderPaymentCollection.createMany({
+        data: order.declarations.map((declaration, idx) => ({
+          orderId: order.id,
+          declarationId: declaration.id,
+          channelUnitPricePhp: channelPriceMap.get(idx) ? new Prisma.Decimal(channelPriceMap.get(idx)!) : new Prisma.Decimal(0),
+          receivableFreightAmount: new Prisma.Decimal(0),
+          receivableOtherAmount: new Prisma.Decimal(0),
+          actualReceivedAmount: new Prisma.Decimal(0),
+          channelFreightCost: new Prisma.Decimal(0),
+          channelOtherCost: new Prisma.Decimal(0),
+          profit: new Prisma.Decimal(0),
+        })),
+      });
+    }
 
     return order;
   }
@@ -370,6 +292,7 @@ export class QuickOrderService {
         paymentVouchers: {
           orderBy: { uploadedAt: 'desc' },
         },
+        paymentCollections: true,
       },
     });
 
@@ -382,7 +305,6 @@ export class QuickOrderService {
   async update(id: string, userId: string, data: {
     status?: QuickOrderStatus;
     note?: string;
-    attachmentUrl?: string;
   }) {
     // 验证权限
     const order = await prisma.quickOrder.findFirst({

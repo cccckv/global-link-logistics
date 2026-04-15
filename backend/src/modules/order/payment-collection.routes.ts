@@ -37,6 +37,8 @@ interface BatchUpdateBody {
 interface AddVoucherBody {
   fileUrl: string;
   fileName?: string;
+  fileType?: string;
+  fileSize?: number;
 }
 
 export async function paymentCollectionRoutes(fastify: FastifyInstance) {
@@ -215,9 +217,9 @@ export async function paymentCollectionRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       try {
         const { orderId } = request.params;
-        const { fileUrl, fileName } = request.body;
+        const { fileUrl, fileName, fileType, fileSize } = request.body;
         
-        const voucher = await service.addVoucher(orderId, fileUrl, fileName);
+        const voucher = await service.addVoucher(orderId, fileUrl, fileName, fileType, fileSize);
         
         return reply.code(201).send({
           id: voucher.id,

@@ -12,6 +12,11 @@ import {
   CheckCircle,
   DollarSign,
   FileText,
+  Eye,
+  X,
+  File,
+  Image as ImageIcon,
+  FileBadge,
 } from 'lucide-react';
 
 const OrderDetail: React.FC = () => {
@@ -20,6 +25,10 @@ const OrderDetail: React.FC = () => {
   const [paymentCollections, setPaymentCollections] = useState<PaymentCollection[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingPayments, setLoadingPayments] = useState(true);
+  const [previewVoucher, setPreviewVoucher] = useState<QuickOrder['paymentVouchers'][0] | null>(null);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [blobLoading, setBlobLoading] = useState(false);
+  const [blobType, setBlobType] = useState<string | null>(null);
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
@@ -78,6 +87,58 @@ const OrderDetail: React.FC = () => {
 
     fetchPaymentCollections();
   }, [orderId, user.userRole]);
+
+  useEffect(() => {
+    if (!previewVoucher?.id) {
+      setBlobUrl(null);
+      return;
+    }
+    const controller = new AbortController();
+    setBlobLoading(true);
+    setBlobUrl(null);
+
+    const loadBlob = async () => {
+      try {
+        const token = localStorage.getItem('jwt_token');
+        const res = await fetch(`/api/vouchers/${previewVoucher.id}`, {
+          headers: { Authorization: token ? `Bearer ${token}` : '' },
+          signal: controller.signal,
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const blob = await res.blob();
+        setBlobType(blob.type);
+        const url = URL.createObjectURL(blob);
+        setBlobUrl(url);
+      } catch {
+        setBlobUrl(null);
+      } finally {
+        setBlobLoading(false);
+      }
+    };
+
+    loadBlob();
+    return () => {
+      controller.abort();
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewVoucher?.id]);
+
+  const handleDownload = async (voucher: QuickOrder['paymentVouchers'][0]) => {
+    const token = localStorage.getItem('jwt_token');
+    const res = await fetch(`/api/vouchers/${voucher.id}`, {
+      headers: { Authorization: token ? `Bearer ${token}` : '' },
+    });
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = voucher.fileName || '凭证';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  };
 
   const getStatusText = (status: string) => {
     const statusMap: Record<string, string> = {
@@ -301,9 +362,7 @@ const OrderDetail: React.FC = () => {
                       <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">序号</th>
                       <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-left">快递单号</th>
                       <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-left">品名</th>
-                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">尺寸(cm)</th>
-                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">件数</th>
-                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">数量</th>
+                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">体积(m³)</th>
                       <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">重量(kg)</th>
                       <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">单价(￥)</th>
                       <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">单价(₱)</th>
@@ -317,11 +376,9 @@ const OrderDetail: React.FC = () => {
                         <td className="px-4 py-3 text-sm text-gray-900">{decl.productName}</td>
                         <td className="px-4 py-3 text-sm text-gray-900 text-center">
                           {decl.length && decl.width && decl.height 
-                            ? `${decl.length}×${decl.width}×${decl.height}` 
+                            ? ((decl.length * decl.width * decl.height) / 1000000).toFixed(4)
                             : '-'}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-900 text-center">{decl.outerQuantity || '-'}</td>
-                        <td className="px-4 py-3 text-sm text-gray-900 text-center">{decl.innerQuantity || '-'}</td>
                         <td className="px-4 py-3 text-sm text-gray-900 text-center">{decl.weight}</td>
                         <td className="px-4 py-3 text-sm text-gray-900 text-center">{decl.cnyUnitPrice || '-'}</td>
                         <td className="px-4 py-3 text-sm text-gray-900 text-center">{decl.phpUnitPrice || '-'}</td>
@@ -374,6 +431,14 @@ const OrderDetail: React.FC = () => {
                         <td className="px-4 py-3 text-sm text-gray-900 text-center">
                           ¥{collection.channelFreightCost?.toFixed(2) || '0.00'}
                         </td>
+                        <td className="px-4 py-3 text-sm text-gray-900 text-center">
+                          ¥{collection.channelOtherCost?.toFixed(2) || '0.00'}
+                        </td>
+                        <td className={`px-4 py-3 text-sm text-center font-semibold ${
+                          (collection.profit || 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                        }`}>
+                          ¥{collection.profit?.toFixed(2) || '0.00'}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -412,42 +477,66 @@ const OrderDetail: React.FC = () => {
             </div>
           )}
 
-          {order.paymentVouchers && order.paymentVouchers.length > 0 && (
-            <div className="px-6 py-4 border-t border-gray-100">
-              <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                <FileText className="w-5 h-5 text-gray-400" />
-                付款凭证
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {order.paymentVouchers.map((voucher) => (
-                  <div key={voucher.id} className="border border-gray-200 rounded-lg p-4 hover:border-primary hover:shadow-sm transition">
-                    <div className="flex items-start gap-3">
-                      <FileText className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                      <div className="flex-1 min-w-0">
-                        <a
-                          href={voucher.fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline block truncate"
-                        >
-                          {voucher.fileName || '查看凭证'}
-                        </a>
-                        <div className="mt-1 flex items-center gap-2 text-xs text-gray-500">
-                          <span>{new Date(voucher.uploadedAt).toLocaleDateString('zh-CN')}</span>
-                          {voucher.fileSize && (
-                            <>
-                              <span>·</span>
-                              <span>{(voucher.fileSize / 1024 / 1024).toFixed(2)} MB</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+          <div className="px-6 py-4 border-t border-gray-100">
+            <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <FileText className="w-5 h-5 text-gray-400" />
+              付款凭证
+            </h2>
+            <div className="overflow-x-auto border border-gray-200 rounded-lg">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      文件名称
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      上传时间
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      文件大小
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      操作
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {order.paymentVouchers && order.paymentVouchers.length > 0 ? (
+                    order.paymentVouchers.map((voucher) => (
+                      <tr key={voucher.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-sm text-gray-900">
+                          {voucher.fileName || '付款凭证'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          {new Date(voucher.uploadedAt).toLocaleDateString('zh-CN')}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          {voucher.fileSize
+                            ? `${(voucher.fileSize / 1024 / 1024).toFixed(2)} MB`
+                            : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          <button
+                            onClick={() => setPreviewVoucher(voucher)}
+                            className="flex items-center gap-1 text-blue-600 hover:text-blue-800 transition-colors"
+                          >
+                            <Eye className="w-4 h-4" />
+                            查看
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-6 text-center text-sm text-gray-500">
+                        暂无付款凭证记录
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
-          )}
+          </div>
         </div>
 
         {order.shipment && (
@@ -524,6 +613,101 @@ const OrderDetail: React.FC = () => {
           </div>
         )}
       </div>
+
+      {previewVoucher && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={() => setPreviewVoucher(null)}
+        >
+          <div
+            className="relative bg-white rounded-xl shadow-2xl max-w-3xl w-full mx-4 max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                {blobType?.startsWith('image/') ? (
+                  <ImageIcon className="w-5 h-5 text-blue-500 shrink-0" />
+                ) : blobType === 'application/pdf' ? (
+                  <FileBadge className="w-5 h-5 text-red-500 shrink-0" />
+                ) : (
+                  <File className="w-5 h-5 text-gray-500 shrink-0" />
+                )}
+                <span className="font-medium text-gray-900 truncate">
+                  {previewVoucher.fileName || '付款凭证'}
+                </span>
+              </div>
+              <button
+                onClick={() => setPreviewVoucher(null)}
+                className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600 ml-3 shrink-0"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-auto p-5 bg-gray-50 flex items-center justify-center min-h-[200px]">
+              {blobLoading ? (
+                <div className="flex flex-col items-center gap-3 text-gray-400">
+                  <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-sm">加载中...</span>
+                </div>
+              ) : blobType?.startsWith('image/') ? (
+                blobUrl ? (
+                  <img
+                    src={blobUrl}
+                    alt={previewVoucher.fileName || '付款凭证'}
+                    className="max-w-full max-h-[65vh] mx-auto rounded-lg object-contain shadow"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center gap-3 text-gray-400">
+                    <File className="w-12 h-12" />
+                    <span className="text-sm">加载失败，请重试</span>
+                  </div>
+                )
+              ) : blobType === 'application/pdf' ? (
+                blobUrl ? (
+                  <embed
+                    src={blobUrl}
+                    type="application/pdf"
+                    className="w-full h-[65vh] rounded-lg"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center gap-3 text-gray-400">
+                    <FileBadge className="w-12 h-12" />
+                    <span className="text-sm">加载失败，请重试</span>
+                  </div>
+                )
+              ) : (
+                <div className="flex flex-col items-center justify-center h-[65vh] gap-4">
+                  <File className="w-16 h-16 text-gray-300" />
+                  <p className="text-gray-500 text-sm">此文件类型不支持在线预览</p>
+                  <button
+                    onClick={() => handleDownload(previewVoucher)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                  >
+                    下载文件
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 text-xs text-gray-500 shrink-0 bg-white">
+              <span>
+                {previewVoucher.fileSize
+                  ? `${(previewVoucher.fileSize / 1024 / 1024).toFixed(2)} MB`
+                  : ''}
+              </span>
+              <span>{new Date(previewVoucher.uploadedAt).toLocaleString('zh-CN')}</span>
+              <button
+                onClick={() => handleDownload(previewVoucher)}
+                className="flex items-center gap-1 text-blue-600 hover:text-blue-800 font-medium"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                下载
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

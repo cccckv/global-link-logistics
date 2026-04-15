@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Upload, FileUp, Download, Loader2 } from 'lucide-react';
-import { quickOrderApi, contactApi, userApi, type QuickOrderType, type AdditionalService as APIAdditionalService, type ContactAddress } from '../lib/api';
+import { Download, Loader2 } from 'lucide-react';
+import { quickOrderApi, contactApi, userApi, type QuickOrderType, type ContactAddress } from '../lib/api';
 
 interface User {
   id: string;
@@ -19,12 +19,10 @@ interface PackageItem {
   length: string;
   width: string;
   height: string;
-  outerQuantity: string;
-  innerQuantity: string;
   weight: string;
-  unitPrice: string;
-  image: File | null;
-  density: string;
+  cnyUnitPrice: string;
+  phpUnitPrice: string;
+  channelUnitPricePhp: string;
 }
 
 interface ContainerItem {
@@ -35,37 +33,23 @@ interface ContainerItem {
   products: string;
 }
 
-interface AdditionalService {
-  id: string;
-  label: string;
-  price: number;
-  checked: boolean;
-}
-
 interface FormData {
   warehouse: string;
   destination: string;
-  trackingNumber: string;
-  courierCompany: string;
-  totalPackages: string;
   note: string;
   userMark: string;
   mark: string;
-  attachment: File | null;
-  additionalServices: AdditionalService[];
   pickupContact: string;
   pickupName: string;
   pickupCompany: string;
   pickupPhone: string;
   pickupRegion: string;
-  pickupPostcode: string;
   pickupAddress: string;
   recipientContact: string;
   recipientName: string;
   recipientCompany: string;
   recipientPhone: string;
   recipientRegion: string;
-  recipientPostcode: string;
   recipientAddress: string;
   packages: PackageItem[];
   originPort: string;
@@ -85,34 +69,20 @@ const SHIPMENT_TABS = [
 const initialFormData: FormData = {
   warehouse: '',
   destination: '',
-  trackingNumber: '',
-  courierCompany: '',
-  totalPackages: '',
   note: '',
   userMark: '',
   mark: '',
-  attachment: null,
-  additionalServices: [
-    { id: 'wooden_frame', label: '木架', price: 0, checked: false },
-    { id: 'customs_fee', label: '报关费', price: 11, checked: false },
-    { id: 'disinfection_fee', label: '消毒费', price: 12, checked: false },
-    { id: 'labeling_fee', label: '贴单费', price: 20, checked: false },
-    { id: 'delivery_fee', label: '派送费', price: 10, checked: false },
-    { id: 'unloading_fee', label: '卸车费', price: 0, checked: false },
-  ],
   pickupContact: '',
   pickupName: '',
   pickupCompany: '',
   pickupPhone: '',
   pickupRegion: '',
-  pickupPostcode: '',
   pickupAddress: '',
   recipientContact: '',
   recipientName: '',
   recipientCompany: '',
   recipientPhone: '',
   recipientRegion: '',
-  recipientPostcode: '',
   recipientAddress: '',
   packages: [
     {
@@ -122,12 +92,10 @@ const initialFormData: FormData = {
       length: '',
       width: '',
       height: '',
-      outerQuantity: '',
-      innerQuantity: '',
       weight: '',
-      unitPrice: '',
-      image: null,
-      density: '',
+      cnyUnitPrice: '',
+      phpUnitPrice: '',
+      channelUnitPricePhp: '',
     },
   ],
   originPort: '',
@@ -202,7 +170,6 @@ export default function QuickOrder() {
       updateFormData('pickupCompany', selected.company || '');
       updateFormData('pickupPhone', selected.phone);
       updateFormData('pickupRegion', selected.region || '');
-      updateFormData('pickupPostcode', selected.postcode || '');
       updateFormData('pickupAddress', selected.address);
     }
   };
@@ -215,7 +182,6 @@ export default function QuickOrder() {
       updateFormData('recipientCompany', selected.company || '');
       updateFormData('recipientPhone', selected.phone);
       updateFormData('recipientRegion', selected.region || '');
-      updateFormData('recipientPostcode', selected.postcode || '');
       updateFormData('recipientAddress', selected.address);
     }
   };
@@ -238,14 +204,6 @@ export default function QuickOrder() {
     }));
   };
 
-  useEffect(() => {
-    const total = currentData.packages.reduce((sum, pkg) => {
-      const qty = parseInt(pkg.outerQuantity) || 0;
-      return sum + qty;
-    }, 0);
-    updateFormData('totalPackages', total > 0 ? total.toString() : '');
-  }, [currentData.packages]);
-
   const addPackage = () => {
     const newId = Math.max(...currentData.packages.map(p => p.id), 0) + 1;
     updateFormData('packages', [...currentData.packages, {
@@ -255,12 +213,10 @@ export default function QuickOrder() {
       length: '',
       width: '',
       height: '',
-      outerQuantity: '',
-      innerQuantity: '',
       weight: '',
-      unitPrice: '',
-      image: null,
-      density: '',
+      cnyUnitPrice: '',
+      phpUnitPrice: '',
+      channelUnitPricePhp: '',
     }]);
   };
 
@@ -271,35 +227,10 @@ export default function QuickOrder() {
   };
 
   const updatePackage = (id: number, field: keyof PackageItem, value: string) => {
-    const updatedPackages = currentData.packages.map(p => {
-      if (p.id !== id) return p;
-      
-      const updated = { ...p, [field]: value };
-      
-      if (['length', 'width', 'height', 'weight'].includes(field)) {
-        const length = parseFloat(field === 'length' ? value : updated.length) || 0;
-        const width = parseFloat(field === 'width' ? value : updated.width) || 0;
-        const height = parseFloat(field === 'height' ? value : updated.height) || 0;
-        const weight = parseFloat(field === 'weight' ? value : updated.weight) || 0;
-        
-        if (length && width && height && weight) {
-          const volume = (length * width * height) / 1000000;
-          updated.density = (weight / volume).toFixed(2);
-        } else {
-          updated.density = '';
-        }
-      }
-      
-      return updated;
-    });
-    updateFormData('packages', updatedPackages);
-  };
-
-  const toggleService = (serviceId: string) => {
-    const updatedServices = currentData.additionalServices.map(s =>
-      s.id === serviceId ? { ...s, checked: !s.checked } : s
+    const updatedPackages = currentData.packages.map(p =>
+      p.id === id ? { ...p, [field]: value } : p
     );
-    updateFormData('additionalServices', updatedServices);
+    updateFormData('packages', updatedPackages);
   };
 
   const addContainer = () => {
@@ -326,7 +257,7 @@ export default function QuickOrder() {
     updateFormData('containers', updatedContainers);
   };
 
-  const handleEditContainerProducts = (containerId: number) => {
+  const handleEditContainerProducts = (_containerId: number) => {
     alert('编辑产品功能待实现');
   };
 
@@ -367,6 +298,28 @@ export default function QuickOrder() {
       alert('请输入收件人电话');
       return;
     }
+    if (!currentData.pickupName) {
+      alert('请输入提货联系人');
+      return;
+    }
+    if (!currentData.pickupPhone) {
+      alert('请输入提货联系人电话');
+      return;
+    }
+    if (!currentData.pickupAddress) {
+      alert('请输入提货详细地址');
+      return;
+    }
+
+    if (currentTabType === 'standard') {
+      const missingChannelUnitPrice = currentData.packages.some(p =>
+        p.productName && p.weight && !p.channelUnitPricePhp
+      );
+      if (missingChannelUnitPrice) {
+        alert('请填写每条申报信息的渠道单价(₱)');
+        return;
+      }
+    }
 
     if (currentTabType === 'standard' && !currentData.warehouse) {
       alert('请选择国内仓库');
@@ -376,34 +329,17 @@ export default function QuickOrder() {
     setIsSubmitting(true);
 
     try {
-      const additionalServices: APIAdditionalService[] = currentData.additionalServices
-        .filter(s => s.checked)
-        .map(s => {
-          const serviceMap: Record<string, APIAdditionalService> = {
-            'wooden_frame': 'WOODEN_FRAME',
-            'customs_fee': 'CUSTOMS',
-            'disinfection_fee': 'DISINFECTION',
-            'labeling_fee': 'LABEL',
-            'delivery_fee': 'DELIVERY',
-            'unloading_fee': 'UNLOADING',
-          };
-          return serviceMap[s.id];
-        })
-        .filter(Boolean);
-
       const orderData: any = {
         orderType: activeTab as QuickOrderType,
         destination: currentData.destination,
         note: currentData.note || undefined,
         userMark: currentData.userMark || undefined,
         mark: currentData.mark || undefined,
-        additionalServices,
         recipientAddress: {
           name: currentData.recipientName,
           company: currentData.recipientCompany || undefined,
           phone: currentData.recipientPhone,
           region: currentData.recipientRegion || undefined,
-          postcode: currentData.recipientPostcode || undefined,
           address: currentData.recipientAddress,
         },
       };
@@ -414,7 +350,6 @@ export default function QuickOrder() {
           company: currentData.pickupCompany || undefined,
           phone: currentData.pickupPhone,
           region: currentData.pickupRegion || undefined,
-          postcode: currentData.pickupPostcode || undefined,
           address: currentData.pickupAddress,
         };
       }
@@ -430,25 +365,22 @@ export default function QuickOrder() {
         }));
       } else if (currentTabType === 'standard') {
         orderData.warehouse = currentData.warehouse;
-        orderData.trackingNumber = currentData.trackingNumber || undefined;
-        orderData.courierCompany = currentData.courierCompany || undefined;
-        orderData.totalPackages = parseInt(currentData.totalPackages) || 0;
         orderData.declarations = currentData.packages.map(p => ({
           trackingNumber: p.trackingNumber || undefined,
           productName: p.productName,
           length: p.length ? parseFloat(p.length) : undefined,
           width: p.width ? parseFloat(p.width) : undefined,
           height: p.height ? parseFloat(p.height) : undefined,
-          outerQuantity: p.outerQuantity ? parseInt(p.outerQuantity) : undefined,
-          innerQuantity: p.innerQuantity ? parseInt(p.innerQuantity) : undefined,
           weight: parseFloat(p.weight),
-          unitPrice: p.unitPrice ? parseFloat(p.unitPrice) : undefined,
+          cnyUnitPrice: p.cnyUnitPrice ? parseFloat(p.cnyUnitPrice) : undefined,
+          phpUnitPrice: p.phpUnitPrice ? parseFloat(p.phpUnitPrice) : undefined,
+          channelUnitPricePhp: p.channelUnitPricePhp ? parseFloat(p.channelUnitPricePhp) : undefined,
         })).filter(d => d.productName && d.weight);
       }
 
       const response = await quickOrderApi.create(orderData);
       
-      alert(`订单创建成功！\n订单号: ${response.data.orderNumber}\n运费: ¥${response.data.totalAmount}`);
+      alert(`订单创建成功！\n订单号: ${response.data.orderNumber}`);
       
       await loadAddresses();
       
@@ -473,6 +405,24 @@ export default function QuickOrder() {
       ...prev,
       [activeTab]: JSON.parse(JSON.stringify(initialFormData)),
     }));
+  };
+
+  const handleResetPickupInfo = () => {
+    updateFormData('pickupContact', '');
+    updateFormData('pickupName', '');
+    updateFormData('pickupCompany', '');
+    updateFormData('pickupPhone', '');
+    updateFormData('pickupRegion', '');
+    updateFormData('pickupAddress', '');
+  };
+
+  const handleResetRecipientInfo = () => {
+    updateFormData('recipientContact', '');
+    updateFormData('recipientName', '');
+    updateFormData('recipientCompany', '');
+    updateFormData('recipientPhone', '');
+    updateFormData('recipientRegion', '');
+    updateFormData('recipientAddress', '');
   };
 
   const handleTabChange = (tab: ShipmentType) => {
@@ -581,7 +531,16 @@ export default function QuickOrder() {
                 </div>
 
                 <div className="border-b pb-8 mb-8">
-                  <h2 className="text-lg font-medium text-gray-900 mb-6">填写提货信息</h2>
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-lg font-medium text-gray-900">填写提货信息</h2>
+                    <button
+                      type="button"
+                      onClick={handleResetPickupInfo}
+                      className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
+                    >
+                      重置提货信息
+                    </button>
+                  </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <div className="space-y-2">
@@ -602,12 +561,15 @@ export default function QuickOrder() {
                     </div>
 
                     <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">提货联系人</label>
+                      <label className="block text-sm font-medium text-gray-700">
+                        <span className="text-red-500">*</span>提货联系人
+                      </label>
                       <input
                         type="text"
                         placeholder="请输入提货联系人"
                         value={currentData.pickupName}
                         onChange={(e) => updateFormData('pickupName', e.target.value)}
+                        required
                         className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                       />
                     </div>
@@ -624,12 +586,15 @@ export default function QuickOrder() {
                     </div>
 
                     <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">手机号码</label>
+                      <label className="block text-sm font-medium text-gray-700">
+                        <span className="text-red-500">*</span>手机号码
+                      </label>
                       <input
                         type="text"
                         placeholder="请输入手机号码"
                         value={currentData.pickupPhone}
                         onChange={(e) => updateFormData('pickupPhone', e.target.value)}
+                        required
                         className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                       />
                     </div>
@@ -647,24 +612,16 @@ export default function QuickOrder() {
                       </select>
                     </div>
 
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">邮政编码</label>
-                      <input
-                        type="text"
-                        placeholder="请输入邮政编码"
-                        value={currentData.pickupPostcode}
-                        onChange={(e) => updateFormData('pickupPostcode', e.target.value)}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-                      />
-                    </div>
-
                     <div className="space-y-2 md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700">详细地址</label>
+                      <label className="block text-sm font-medium text-gray-700">
+                        <span className="text-red-500">*</span>详细地址
+                      </label>
                       <input
                         type="text"
                         placeholder="请输入详细地址"
                         value={currentData.pickupAddress}
                         onChange={(e) => updateFormData('pickupAddress', e.target.value)}
+                        required
                         className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                       />
                     </div>
@@ -672,7 +629,16 @@ export default function QuickOrder() {
                 </div>
 
                 <div className="border-b pb-8 mb-8">
-                  <h2 className="text-lg font-medium text-gray-900 mb-6">填写收货信息</h2>
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-lg font-medium text-gray-900">填写收货信息</h2>
+                    <button
+                      type="button"
+                      onClick={handleResetRecipientInfo}
+                      className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
+                    >
+                      重置收件信息
+                    </button>
+                  </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <div className="space-y-2">
@@ -701,6 +667,7 @@ export default function QuickOrder() {
                         placeholder="请输入收件人"
                         value={currentData.recipientName}
                         onChange={(e) => updateFormData('recipientName', e.target.value)}
+                        required
                         className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
@@ -717,12 +684,15 @@ export default function QuickOrder() {
                     </div>
 
                     <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">手机号码</label>
+                      <label className="block text-sm font-medium text-gray-700">
+                        <span className="text-red-500">*</span>手机号码
+                      </label>
                       <input
                         type="text"
                         placeholder="请输入手机号码"
                         value={currentData.recipientPhone}
                         onChange={(e) => updateFormData('recipientPhone', e.target.value)}
+                        required
                         className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
@@ -741,17 +711,6 @@ export default function QuickOrder() {
                       </select>
                     </div>
 
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">邮政编码</label>
-                      <input
-                        type="text"
-                        placeholder="请输入邮政编码"
-                        value={currentData.recipientPostcode}
-                        onChange={(e) => updateFormData('recipientPostcode', e.target.value)}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-
                     <div className="space-y-2 md:col-span-2">
                       <label className="block text-sm font-medium text-gray-700">
                         <span className="text-red-500">*</span>详细地址
@@ -761,6 +720,7 @@ export default function QuickOrder() {
                         placeholder="请输入详细地址"
                         value={currentData.recipientAddress}
                         onChange={(e) => updateFormData('recipientAddress', e.target.value)}
+                        required
                         className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
@@ -960,32 +920,6 @@ export default function QuickOrder() {
                     </select>
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">
-                      <span className="text-red-500">*</span>附件上传
-                    </label>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="file"
-                        accept=".xls,.xlsx"
-                        onChange={(e) => updateFormData('attachment', e.target.files?.[0] || null)}
-                        className="hidden"
-                        id="batch-file-upload"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => document.getElementById('batch-file-upload')?.click()}
-                        className="flex items-center gap-2 px-4 py-2.5 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors"
-                      >
-                        <FileUp className="w-5 h-5 text-gray-400" />
-                        <span className="text-sm text-gray-600">点击上传</span>
-                      </button>
-                      {currentData.attachment && (
-                        <span className="text-sm text-gray-600">{currentData.attachment.name}</span>
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-500">只能上传xls、xlsx格式文件</p>
-                  </div>
                 </div>
 
                 <div className="flex gap-4 mt-8">
@@ -1045,32 +979,6 @@ export default function QuickOrder() {
                     </div>
 
                     <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">快递单号</label>
-                      <input
-                        type="text"
-                        placeholder="请输入快递单号"
-                        value={currentData.trackingNumber}
-                        onChange={(e) => updateFormData('trackingNumber', e.target.value)}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">快递公司</label>
-                      <select
-                        value={currentData.courierCompany}
-                        onChange={(e) => updateFormData('courierCompany', e.target.value)}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      >
-                        <option value="">请选择快递公司</option>
-                        <option value="shentong">申通快递</option>
-                        <option value="yuantong">圆通快递</option>
-                        <option value="zhongtong">中通快递</option>
-                        <option value="shunfeng">顺丰速运</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-2">
                       <label className="block text-sm font-medium text-gray-700">备注</label>
                       <input
                         type="text"
@@ -1099,32 +1007,19 @@ export default function QuickOrder() {
                     </div>
                   </div>
 
-                  <div className="mt-6 space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">附件上传</label>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="file"
-                        onChange={(e) => updateFormData('attachment', e.target.files?.[0] || null)}
-                        className="hidden"
-                        id="attachment-upload"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => document.getElementById('attachment-upload')?.click()}
-                        className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50"
-                      >
-                        <FileUp className="w-4 h-4" />
-                        选择文件
-                      </button>
-                      {currentData.attachment && (
-                        <span className="text-sm text-gray-600">{currentData.attachment.name}</span>
-                      )}
-                    </div>
-                  </div>
                 </div>
 
                 <div className="px-8 py-8 border-b bg-gray-50">
-                  <h2 className="text-lg font-medium text-gray-900 mb-6">填写提货信息</h2>
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-lg font-medium text-gray-900">填写提货信息</h2>
+                    <button
+                      type="button"
+                      onClick={handleResetPickupInfo}
+                      className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
+                    >
+                      重置提货信息
+                    </button>
+                  </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <div className="space-y-2">
@@ -1145,12 +1040,15 @@ export default function QuickOrder() {
                     </div>
 
                     <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">提货联系人</label>
+                      <label className="block text-sm font-medium text-gray-700">
+                        <span className="text-red-500">*</span>提货联系人
+                      </label>
                       <input
                         type="text"
                         placeholder="请输入提货联系人"
                         value={currentData.pickupName}
                         onChange={(e) => updateFormData('pickupName', e.target.value)}
+                        required
                         className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                       />
                     </div>
@@ -1167,12 +1065,15 @@ export default function QuickOrder() {
                     </div>
 
                     <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">手机号码</label>
+                      <label className="block text-sm font-medium text-gray-700">
+                        <span className="text-red-500">*</span>手机号码
+                      </label>
                       <input
                         type="text"
                         placeholder="请输入手机号码"
                         value={currentData.pickupPhone}
                         onChange={(e) => updateFormData('pickupPhone', e.target.value)}
+                        required
                         className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                       />
                     </div>
@@ -1190,24 +1091,16 @@ export default function QuickOrder() {
                       </select>
                     </div>
 
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">邮政编码</label>
-                      <input
-                        type="text"
-                        placeholder="请输入邮政编码"
-                        value={currentData.pickupPostcode}
-                        onChange={(e) => updateFormData('pickupPostcode', e.target.value)}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-                      />
-                    </div>
-
                     <div className="space-y-2 md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700">详细地址</label>
+                      <label className="block text-sm font-medium text-gray-700">
+                        <span className="text-red-500">*</span>详细地址
+                      </label>
                       <input
                         type="text"
                         placeholder="请输入详细地址"
                         value={currentData.pickupAddress}
                         onChange={(e) => updateFormData('pickupAddress', e.target.value)}
+                        required
                         className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                       />
                     </div>
@@ -1215,7 +1108,16 @@ export default function QuickOrder() {
                 </div>
 
                 <div className="px-8 py-8 border-b">
-                  <h2 className="text-lg font-medium text-gray-900 mb-6">填写收件信息</h2>
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-lg font-medium text-gray-900">填写收件信息</h2>
+                    <button
+                      type="button"
+                      onClick={handleResetRecipientInfo}
+                      className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
+                    >
+                      重置收件信息
+                    </button>
+                  </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <div className="space-y-2">
@@ -1260,12 +1162,15 @@ export default function QuickOrder() {
                     </div>
 
                     <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">手机号码</label>
+                      <label className="block text-sm font-medium text-gray-700">
+                        <span className="text-red-500">*</span>手机号码
+                      </label>
                       <input
                         type="text"
                         placeholder="请输入手机号码"
                         value={currentData.recipientPhone}
                         onChange={(e) => updateFormData('recipientPhone', e.target.value)}
+                        required
                         className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
@@ -1284,17 +1189,6 @@ export default function QuickOrder() {
                       </select>
                     </div>
 
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">邮政编码</label>
-                      <input
-                        type="text"
-                        placeholder="请输入邮政编码"
-                        value={currentData.recipientPostcode}
-                        onChange={(e) => updateFormData('recipientPostcode', e.target.value)}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-
                     <div className="space-y-2 md:col-span-2">
                       <label className="block text-sm font-medium text-gray-700">
                         <span className="text-red-500">*</span>详细地址
@@ -1304,6 +1198,7 @@ export default function QuickOrder() {
                         placeholder="请输入详细地址"
                         value={currentData.recipientAddress}
                         onChange={(e) => updateFormData('recipientAddress', e.target.value)}
+                        required
                         className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
@@ -1332,11 +1227,10 @@ export default function QuickOrder() {
                           <th className="border-b border-r border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center w-28">长(cm)</th>
                           <th className="border-b border-r border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center w-28">宽(cm)</th>
                           <th className="border-b border-r border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center w-28">高(cm)</th>
-                          <th className="border-b border-r border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center w-28">件数(外)</th>
-                          <th className="border-b border-r border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center w-28">数量(内)</th>
                           <th className="border-b border-r border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center w-28">重量(kg)</th>
                           <th className="border-b border-r border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center w-28">单价(￥)</th>
-                          <th className="border-b border-r border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center w-28">密度</th>
+                          <th className="border-b border-r border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center w-28">单价(₱)</th>
+                          <th className="border-b border-r border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center w-32">渠道单价(₱)</th>
                           <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center w-24">操作</th>
                         </tr>
                       </thead>
@@ -1398,26 +1292,6 @@ export default function QuickOrder() {
                             <td className="border-b border-r border-gray-300 px-3 py-2">
                               <input
                                 type="number"
-                                placeholder="件数"
-                                value={pkg.outerQuantity}
-                                onChange={(e) => updatePackage(pkg.id, 'outerQuantity', e.target.value)}
-                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                              />
-                            </td>
-                            
-                            <td className="border-b border-r border-gray-300 px-3 py-2">
-                              <input
-                                type="number"
-                                placeholder="数量"
-                                value={pkg.innerQuantity}
-                                onChange={(e) => updatePackage(pkg.id, 'innerQuantity', e.target.value)}
-                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                              />
-                            </td>
-                            
-                            <td className="border-b border-r border-gray-300 px-3 py-2">
-                              <input
-                                type="number"
                                 placeholder="重量"
                                 value={pkg.weight}
                                 onChange={(e) => updatePackage(pkg.id, 'weight', e.target.value)}
@@ -1428,24 +1302,35 @@ export default function QuickOrder() {
                             <td className="border-b border-r border-gray-300 px-3 py-2">
                               <input
                                 type="number"
-                                placeholder="单价"
-                                value={pkg.unitPrice}
-                                onChange={(e) => updatePackage(pkg.id, 'unitPrice', e.target.value)}
+                                placeholder="单价￥"
+                                value={pkg.cnyUnitPrice}
+                                onChange={(e) => updatePackage(pkg.id, 'cnyUnitPrice', e.target.value)}
                                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
                               />
                             </td>
                             
                             <td className="border-b border-r border-gray-300 px-3 py-2">
                               <input
-                                type="text"
-                                placeholder="密度"
-                                value={pkg.density}
-                                readOnly
-                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-gray-50 text-gray-600"
+                                type="number"
+                                placeholder="单价₱"
+                                value={pkg.phpUnitPrice}
+                                onChange={(e) => updatePackage(pkg.id, 'phpUnitPrice', e.target.value)}
+                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              />
+                            </td>
+
+                            <td className="border-b border-r border-gray-300 px-3 py-2">
+                              <input
+                                type="number"
+                                placeholder="渠道单价₱"
+                                value={pkg.channelUnitPricePhp}
+                                onChange={(e) => updatePackage(pkg.id, 'channelUnitPricePhp', e.target.value)}
+                                required
+                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
                               />
                             </td>
                             
-                            <td className="border-b border-gray-300 px-3 py-2 text-center">
+                            <td className="border-b border-gray-300 px-3 py-2">
                               {currentData.packages.length > 1 ? (
                                 <button
                                   type="button"
@@ -1468,8 +1353,8 @@ export default function QuickOrder() {
                         ))}
                         
                         {currentData.packages.length > 1 && (
-                          <tr>
-                            <td colSpan={12} className="border-b border-gray-300 px-4 py-3">
+                        <tr>
+                          <td colSpan={12} className="border-b border-gray-300 px-4 py-3">
                               <button
                                 type="button"
                                 onClick={addPackage}

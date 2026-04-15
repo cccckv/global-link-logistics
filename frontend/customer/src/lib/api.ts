@@ -72,6 +72,16 @@ export interface Payment {
   paymentMethod?: string;
 }
 
+export interface PaymentVoucher {
+  id: string;
+  orderId: string;
+  fileUrl: string;
+  fileName?: string;
+  fileType?: string;
+  fileSize?: number;
+  uploadedAt: string;
+}
+
 export const authApi = {
   sendCode: (phone: string) =>
     api.post<{ message: string; expiresIn: number }>('/auth/send-code', { phone }),
@@ -110,7 +120,6 @@ export interface ContactAddress {
   company?: string;
   phone: string;
   region?: string;
-  postcode?: string;
   address: string;
   isDefault: boolean;
   createdAt: string;
@@ -122,7 +131,6 @@ export interface QuickOrderAddress {
   company?: string;
   phone: string;
   region?: string;
-  postcode?: string;
   address: string;
 }
 
@@ -132,11 +140,10 @@ export interface QuickOrderDeclaration {
   length?: number;
   width?: number;
   height?: number;
-  outerQuantity?: number;
-  innerQuantity?: number;
   weight: number;
   cnyUnitPrice?: number;
   phpUnitPrice?: number;
+  channelUnitPricePhp?: number;
 }
 
 export interface QuickOrderContainer {
@@ -150,9 +157,6 @@ export interface CreateQuickOrderInput {
   orderType: QuickOrderType;
   warehouse?: string;
   destination: string;
-  trackingNumber?: string;
-  courierCompany?: string;
-  totalPackages?: number;
   note?: string;
   userMark?: string;
   mark?: string;
@@ -172,17 +176,12 @@ export interface QuickOrder {
   status: QuickOrderStatus;
   warehouse?: string;
   destination: string;
-  trackingNumber?: string;
-  courierCompany?: string;
-  totalPackages?: number;
   note?: string;
   userMark?: string;
   mark?: string;
   attachmentUrl?: string;
   originPort?: string;
   destinationPort?: string;
-  totalAmount: number;
-  currency: string;
   createdAt: string;
   updatedAt?: string;
   pickupAddress?: QuickOrderAddress & { id: string };
@@ -191,6 +190,7 @@ export interface QuickOrder {
   containers?: Array<QuickOrderContainer & { id: string }>;
   shipment?: Shipment;
   payment?: Payment;
+  paymentVouchers?: PaymentVoucher[];
 }
 
 export const quickOrderApi = {
@@ -363,11 +363,9 @@ export const paymentCollectionApi = {
   batchUpdate: (orderId: string, updates: Array<{ declarationId: string } & UpdatePaymentCollectionData>) =>
     api.post(`/payment-collections/batch/${orderId}`, { updates }),
   
-  addVoucher: (orderId: string, fileUrl: string, fileName?: string) =>
-    api.post(`/payment-collections/vouchers/${orderId}`, { fileUrl, fileName }),
+  addVoucher: (orderId: string, fileUrl: string, fileName?: string, fileType?: string, fileSize?: number) =>
+    api.post(`/payment-collections/vouchers/${orderId}`, { fileUrl, fileName, fileType, fileSize }),
   
   deleteVoucher: (voucherId: string) =>
     api.delete(`/payment-collections/vouchers/${voucherId}`),
 };
-
-

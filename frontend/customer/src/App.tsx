@@ -13,6 +13,7 @@ import OrderList from './pages/OrderList';
 import OrderDetail from './pages/OrderDetail';
 import ExternalTracking from './pages/ExternalTracking';
 import UserManagement from './pages/UserManagement';
+import AdminOrderManagement from './pages/AdminOrderManagement';
 
 export default function App() {
   return (
@@ -34,6 +35,16 @@ export default function App() {
               <ProtectedRoute>
                 <AdminRoute>
                   <UserManagement />
+                </AdminRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/order-management"
+            element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminOrderManagement />
                 </AdminRoute>
               </ProtectedRoute>
             }

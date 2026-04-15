@@ -1,0 +1,4 @@
+-- 如果知道旧的userId，可以创建相同ID的用户（需要提供旧userId）
+-- 示例：
+-- INSERT INTO "User" (id, "passwordHash", name, phone, "userType", "userRole", "createdAt", "updatedAt")
+-- VALUES ('旧的userId', '$2a$10$hash...', '测试用户', '手机号', 'CUSTOMER', 'USER', NOW(), NOW());

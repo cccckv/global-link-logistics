@@ -1,0 +1,209 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - link [ref=e4] [cursor=pointer]:
+      - /url: index.php
+      - img [ref=e5]
+    - generic [ref=e6]:
+      - link "首页" [ref=e7] [cursor=pointer]:
+        - /url: index.php
+      - link "会员中心" [ref=e8] [cursor=pointer]:
+        - /url: user.php
+      - link "最新消息" [ref=e9] [cursor=pointer]:
+        - /url: article_cat.php?id=21
+      - link "常见问题" [ref=e10] [cursor=pointer]:
+        - /url: article_cat.php?id=17
+      - link "主营业务" [ref=e11] [cursor=pointer]:
+        - /url: business.php
+      - link "物流查询" [ref=e12] [cursor=pointer]:
+        - /url: hy_track.php
+      - link "运费估算" [ref=e13] [cursor=pointer]:
+        - /url: hy_gusuan.php
+    - img [ref=e16]
+    - generic [ref=e18]:
+      - link "退出登录" [ref=e19] [cursor=pointer]:
+        - /url: user.php?act=logout
+      - generic [ref=e20]:
+        - img [ref=e22]
+        - generic [ref=e23]: 欢迎您，jiay0202
+  - generic [ref=e25]:
+    - generic [ref=e32]: 咨询
+    - generic [ref=e36]: 订单
+  - generic [ref=e41]:
+    - generic [ref=e42]:
+      - link "账户管理" [ref=e43] [cursor=pointer]:
+        - /url: user.php
+        - generic: 账户管理
+      - link "快件下单" [ref=e45] [cursor=pointer]:
+        - /url: hy_order.php?act=add
+        - generic: 快件下单
+      - link "运单管理" [ref=e47] [cursor=pointer]:
+        - /url: hy_order.php?act=list
+        - generic: 运单管理
+      - link "货物认领" [ref=e49] [cursor=pointer]:
+        - /url: hy_order.php?act=renlin
+        - generic: 货物认领
+      - link "待付账单" [ref=e51] [cursor=pointer]:
+        - /url: hy_order.php?act=zd_list&status=1
+        - generic: 待付账单
+      - link "已付账单" [ref=e53] [cursor=pointer]:
+        - /url: hy_order.php?act=zd_list&status=2
+        - generic: 已付账单
+      - link "财务管理" [ref=e55] [cursor=pointer]:
+        - /url: user.php?act=wallet
+        - generic: 财务管理
+      - link "地址管理" [ref=e57] [cursor=pointer]:
+        - /url: user.php?act=address_list&mark=0
+        - generic: 地址管理
+      - link "用户设置" [ref=e59] [cursor=pointer]:
+        - /url: user.php?act=profile
+        - generic: 用户设置
+    - generic [ref=e62]:
+      - generic [ref=e63]:
+        - generic [ref=e65]:
+          - generic [ref=e66]:
+            - paragraph [ref=e68]: jiay0202
+            - paragraph [ref=e70]: 会员代号：JIAY0202
+            - paragraph [ref=e71]: 欢迎访问,易境通散货拼柜! 联系电话：020-84386592
+          - generic [ref=e72]:
+            - img [ref=e73]
+            - generic [ref=e74]:
+              - paragraph [ref=e75]: 我的钱包
+              - paragraph [ref=e76]: ￥0.00
+            - link "立即充值" [ref=e78] [cursor=pointer]:
+              - /url: user.php?act=wallet
+              - img [ref=e79]
+              - generic [ref=e80]: 立即充值
+        - generic [ref=e81]: 订单数据
+        - generic [ref=e83]:
+          - link "待入库 0" [ref=e84] [cursor=pointer]:
+            - /url: ./hy_order.php?act=list&pb=1&order_types=0
+            - img [ref=e85]
+            - generic [ref=e86]:
+              - generic [ref=e88]: 待入库
+              - paragraph [ref=e89]: "0"
+          - link "已入库 0" [ref=e90] [cursor=pointer]:
+            - /url: ./hy_order.php?act=list&pb=2&order_types=0
+            - img [ref=e91]
+            - generic [ref=e92]:
+              - generic [ref=e94]: 已入库
+              - paragraph [ref=e95]: "0"
+          - link "待付款 0" [ref=e96] [cursor=pointer]:
+            - /url: ./hy_order.php?act=zd_list&status=1
+            - img [ref=e97]
+            - generic [ref=e98]:
+              - generic [ref=e100]: 待付款
+              - paragraph [ref=e101]: "0"
+          - link "待装柜 0" [ref=e102] [cursor=pointer]:
+            - /url: ./hy_order.php?act=list&pb=3
+            - img [ref=e103]
+            - generic [ref=e104]:
+              - generic [ref=e106]: 待装柜
+              - paragraph [ref=e107]: "0"
+          - link "待签收 0" [ref=e108] [cursor=pointer]:
+            - /url: ./hy_order.php?act=list&pb=5
+            - img [ref=e109]
+            - generic [ref=e110]:
+              - generic [ref=e112]: 待签收
+              - paragraph [ref=e113]: "0"
+      - generic [ref=e114]:
+        - generic [ref=e115]:
+          - generic [ref=e116]: 仓库地址
+          - link "查看更多>" [ref=e117] [cursor=pointer]:
+            - /url: user.php?act=getaddress
+        - generic [ref=e118]:
+          - generic [ref=e119]:
+            - generic [ref=e120]: 仓库名称：
+            - generic [ref=e121]: WUX倉
+          - generic [ref=e122]:
+            - generic [ref=e123]: 收货人：
+            - generic [ref=e124]: ABC
+        - generic [ref=e128] [cursor=pointer]: 一键复制
+      - generic [ref=e129]:
+        - heading "快捷通道" [level=3] [ref=e130]
+        - generic [ref=e131]:
+          - link "立即下单" [ref=e132] [cursor=pointer]:
+            - /url: hy_order.php?act=add
+            - img [ref=e133]
+            - generic [ref=e134]:
+              - paragraph [ref=e135]: 立即下单
+              - paragraph
+          - link "在仓货物" [ref=e136] [cursor=pointer]:
+            - /url: hy_order.php?act=list&pb=2&order_types=0
+            - img [ref=e137]
+            - generic [ref=e138]:
+              - paragraph [ref=e139]: 在仓货物
+              - paragraph
+          - link "申请出库" [ref=e140] [cursor=pointer]:
+            - /url: hy_order.php?act=list&pb=2&order_types=0
+            - img [ref=e141]
+            - generic [ref=e142]:
+              - paragraph [ref=e143]: 申请出库
+              - paragraph
+          - link "待装柜" [ref=e144] [cursor=pointer]:
+            - /url: hy_order.php?act=list&pb=3
+            - img [ref=e145]
+            - generic [ref=e146]:
+              - paragraph [ref=e147]: 待装柜
+              - paragraph
+          - link "待签收订单" [ref=e148] [cursor=pointer]:
+            - /url: hy_order.php?act=list&pb=5
+            - img [ref=e149]
+            - generic [ref=e150]:
+              - paragraph [ref=e151]: 待签收订单
+              - paragraph
+          - link "待付账单" [ref=e152] [cursor=pointer]:
+            - /url: /hy_order.php?act=zd_list&status=1
+            - img [ref=e153]
+            - generic [ref=e154]:
+              - paragraph [ref=e155]: 待付账单
+              - paragraph
+          - link "我的钱包" [ref=e156] [cursor=pointer]:
+            - /url: user.php?act=wallet
+            - img [ref=e157]
+            - generic [ref=e158]:
+              - paragraph [ref=e159]: 我的钱包
+              - paragraph
+          - link "禁品说明" [ref=e160] [cursor=pointer]:
+            - /url: hy_jinyun.php?act=list
+            - img [ref=e161]
+            - generic [ref=e162]:
+              - paragraph [ref=e163]: 禁品说明
+              - paragraph
+          - link "海关编码" [ref=e164] [cursor=pointer]:
+            - /url: product.php?act=list
+            - img [ref=e165]
+            - generic [ref=e166]:
+              - paragraph [ref=e167]: 海关编码
+              - paragraph
+          - link "轨迹查询" [ref=e168] [cursor=pointer]:
+            - /url: hy_track.php
+            - img [ref=e169]
+            - generic [ref=e170]:
+              - paragraph [ref=e171]: 轨迹查询
+              - paragraph
+          - link "全部订单" [ref=e172] [cursor=pointer]:
+            - /url: hy_order.php?act=list
+            - img [ref=e173]
+            - generic [ref=e174]:
+              - paragraph [ref=e175]: 全部订单
+              - paragraph
+          - link "已签收订单" [ref=e176] [cursor=pointer]:
+            - /url: hy_order.php?act=list&pb=6
+            - img [ref=e177]
+            - generic [ref=e178]:
+              - paragraph [ref=e179]: 已签收订单
+              - paragraph
+      - generic [ref=e180]:
+        - heading "最近订单" [level=3] [ref=e181]
+        - table [ref=e183]:
+          - rowgroup [ref=e184]:
+            - row "序号 入仓单号 下单时间 出发地 业务类型 目的地 状态 操作" [ref=e185]:
+              - columnheader "序号" [ref=e186]
+              - columnheader "入仓单号" [ref=e187]
+              - columnheader "下单时间" [ref=e188]
+              - columnheader "出发地" [ref=e189]
+              - columnheader "业务类型" [ref=e190]
+              - columnheader "目的地" [ref=e191]
+              - columnheader "状态" [ref=e192]
+              - columnheader "操作" [ref=e193]
+          - rowgroup

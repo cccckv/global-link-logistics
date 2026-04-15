@@ -1,0 +1,164 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - link [ref=e4] [cursor=pointer]:
+      - /url: index.php
+      - img [ref=e5]
+    - generic [ref=e6]:
+      - link "首页" [ref=e7] [cursor=pointer]:
+        - /url: index.php
+      - link "会员中心" [ref=e8] [cursor=pointer]:
+        - /url: user.php
+      - link "最新消息" [ref=e9] [cursor=pointer]:
+        - /url: article_cat.php?id=21
+      - link "常见问题" [ref=e10] [cursor=pointer]:
+        - /url: article_cat.php?id=17
+      - link "主营业务" [ref=e11] [cursor=pointer]:
+        - /url: business.php
+      - link "物流查询" [ref=e12] [cursor=pointer]:
+        - /url: hy_track.php
+      - link "运费估算" [ref=e13] [cursor=pointer]:
+        - /url: hy_gusuan.php
+    - img [ref=e16]
+    - generic [ref=e18]:
+      - link "退出登录" [ref=e19] [cursor=pointer]:
+        - /url: user.php?act=logout
+      - generic [ref=e20]:
+        - img [ref=e22]
+        - generic [ref=e23]: 欢迎您，jiay0202
+  - generic [ref=e25]:
+    - generic [ref=e32]: 咨询
+    - generic [ref=e36]: 订单
+  - generic [ref=e41]:
+    - generic [ref=e42]:
+      - link "账户管理" [ref=e43] [cursor=pointer]:
+        - /url: user.php
+        - generic: 账户管理
+      - link "快件下单" [ref=e45] [cursor=pointer]:
+        - /url: hy_order.php?act=add
+        - generic: 快件下单
+      - link "运单管理" [ref=e47] [cursor=pointer]:
+        - /url: hy_order.php?act=list
+        - generic: 运单管理
+      - link "货物认领" [ref=e49] [cursor=pointer]:
+        - /url: hy_order.php?act=renlin
+        - generic: 货物认领
+      - link "待付账单" [ref=e51] [cursor=pointer]:
+        - /url: hy_order.php?act=zd_list&status=1
+        - generic: 待付账单
+      - link "已付账单" [ref=e53] [cursor=pointer]:
+        - /url: hy_order.php?act=zd_list&status=2
+        - generic: 已付账单
+      - link "财务管理" [ref=e55] [cursor=pointer]:
+        - /url: user.php?act=wallet
+        - generic: 财务管理
+      - link "地址管理" [ref=e57] [cursor=pointer]:
+        - /url: user.php?act=address_list&mark=0
+        - generic: 地址管理
+      - link "用户设置" [ref=e59] [cursor=pointer]:
+        - /url: user.php?act=profile
+        - generic: 用户设置
+    - generic [ref=e62]:
+      - generic [ref=e63]:
+        - generic [ref=e65]: 立即下单
+        - generic [ref=e66]: 订单类型
+        - generic [ref=e67]:
+          - link "海运拼柜" [ref=e68] [cursor=pointer]:
+            - /url: hy_order.php?act=add&ysfs=1&types=0
+          - link "空运快递" [ref=e69] [cursor=pointer]:
+            - /url: hy_order.php?act=add&ysfs=2&types=0
+          - link "陆运装车" [ref=e70] [cursor=pointer]:
+            - /url: hy_order.php?act=add&ysfs=5&types=0
+          - link "批量导入拼柜" [ref=e71] [cursor=pointer]:
+            - /url: hy_order.php?act=add_pl
+          - link "海运整柜" [ref=e72] [cursor=pointer]:
+            - /url: hy_cabinet.php?act=add
+          - link "拼邮快递" [ref=e73] [cursor=pointer]:
+            - /url: hy_order.php?act=add&types=2
+        - generic [ref=e74]: 添加运输信息
+        - generic [ref=e75]:
+          - generic [ref=e76]:
+            - generic [ref=e77]: "*起运地"
+            - generic [ref=e80] [cursor=pointer]: 请选择仓库
+          - generic [ref=e82]:
+            - generic [ref=e83]: "*目的地"
+            - generic [ref=e86] [cursor=pointer]: 请选择目的地
+          - generic [ref=e88]:
+            - generic [ref=e89]: 起运港口
+            - generic [ref=e92] [cursor=pointer]: 请选择起运港口
+          - generic [ref=e94]:
+            - generic [ref=e95]: 目的港口
+            - generic [ref=e98] [cursor=pointer]: 请选择目的港口
+      - generic [ref=e100]:
+        - generic [ref=e101]: 填写提货信息
+        - generic [ref=e102]:
+          - generic [ref=e103]:
+            - generic [ref=e104]: 提货人管理
+            - generic [ref=e107] [cursor=pointer]: 请选择寄件人
+          - generic [ref=e109]:
+            - generic [ref=e110]: 提货联系人
+            - textbox "请输入提货联系人" [ref=e112]
+          - generic [ref=e113]:
+            - generic [ref=e114]: 公司
+            - textbox "请输入公司名称" [ref=e116]
+          - generic [ref=e117]:
+            - generic [ref=e118]: 手机号码
+            - textbox "请输入手机号码" [ref=e120]
+          - generic [ref=e121]:
+            - generic [ref=e122]: 所在地区
+            - generic [ref=e126] [cursor=pointer]: 请选择国家
+          - generic [ref=e128]:
+            - generic [ref=e129]: 邮政编码
+            - textbox "请输入邮政编码" [ref=e131]
+          - generic [ref=e132]:
+            - generic [ref=e133]: 详细地址
+            - textbox [ref=e135]
+      - generic [ref=e136]:
+        - generic [ref=e137]: 填写收货信息
+        - generic [ref=e138]:
+          - generic [ref=e139]:
+            - generic [ref=e140]: 收件人管理
+            - generic [ref=e143] [cursor=pointer]: 请选择收件人
+          - generic [ref=e145]:
+            - generic [ref=e146]: "*收件人"
+            - textbox "请输入收件人" [ref=e148]
+          - generic [ref=e149]:
+            - generic [ref=e150]: 公司
+            - textbox "请输入公司名称" [ref=e152]
+          - generic [ref=e153]:
+            - generic [ref=e154]: 手机号码
+            - textbox "请输入手机号码" [ref=e156]
+          - generic [ref=e157]:
+            - generic [ref=e158]: 所在地区
+            - generic [ref=e162] [cursor=pointer]: 请选择国家
+          - generic [ref=e164]:
+            - generic [ref=e165]: 邮政编码
+            - textbox "请输入邮政编码" [ref=e167]
+          - generic [ref=e168]:
+            - generic [ref=e169]: "*详细地址"
+            - textbox [ref=e171]
+      - generic [ref=e172]:
+        - generic [ref=e173]:
+          - generic [ref=e174]: 填写申报信息
+          - generic [ref=e175] [cursor=pointer]: 批量申报
+        - table [ref=e177]:
+          - rowgroup [ref=e178]:
+            - row "序号 订柜箱型 件数 重量(kg) 操作" [ref=e179]:
+              - columnheader "序号" [ref=e180]
+              - columnheader "订柜箱型" [ref=e181]
+              - columnheader "件数" [ref=e182]
+              - columnheader "重量(kg)" [ref=e183]
+              - columnheader "操作" [ref=e184]
+          - rowgroup [ref=e185]:
+            - row "1 20GP 0 0 编辑产品 增加" [ref=e186]:
+              - cell "1" [ref=e187]
+              - cell "20GP" [ref=e188]:
+                - generic [ref=e191] [cursor=pointer]: 20GP
+              - cell "0" [ref=e193]
+              - cell "0" [ref=e194]
+              - cell "编辑产品 增加" [ref=e195]:
+                - generic [ref=e196]:
+                  - generic [ref=e197] [cursor=pointer]: 编辑产品
+                  - generic [ref=e198] [cursor=pointer]: 增加
+        - generic [ref=e199]:
+          - button "提 交" [ref=e200] [cursor=pointer]
+          - button "取消" [ref=e201] [cursor=pointer]

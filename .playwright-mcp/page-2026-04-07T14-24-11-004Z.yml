@@ -1,0 +1,136 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - link [ref=e4] [cursor=pointer]:
+      - /url: index.php
+      - img [ref=e5]
+    - generic [ref=e6]:
+      - link "首页" [ref=e7] [cursor=pointer]:
+        - /url: index.php
+      - link "会员中心" [ref=e8] [cursor=pointer]:
+        - /url: user.php
+      - link "最新消息" [ref=e9] [cursor=pointer]:
+        - /url: article_cat.php?id=21
+      - link "常见问题" [ref=e10] [cursor=pointer]:
+        - /url: article_cat.php?id=17
+      - link "主营业务" [ref=e11] [cursor=pointer]:
+        - /url: business.php
+      - link "物流查询" [ref=e12] [cursor=pointer]:
+        - /url: hy_track.php
+      - link "运费估算" [ref=e13] [cursor=pointer]:
+        - /url: hy_gusuan.php
+    - img [ref=e16]
+    - generic [ref=e18]:
+      - link "退出登录" [ref=e19] [cursor=pointer]:
+        - /url: user.php?act=logout
+      - generic [ref=e20]:
+        - img [ref=e22]
+        - generic [ref=e23]: 欢迎您，jiay0202
+  - generic [ref=e25]:
+    - generic [ref=e32]: 咨询
+    - generic [ref=e36]: 订单
+  - generic [ref=e41]:
+    - generic [ref=e42]:
+      - link "账户管理" [ref=e43] [cursor=pointer]:
+        - /url: user.php
+        - generic: 账户管理
+      - link "快件下单" [ref=e45] [cursor=pointer]:
+        - /url: hy_order.php?act=add
+        - generic: 快件下单
+      - link "运单管理" [ref=e47] [cursor=pointer]:
+        - /url: hy_order.php?act=list
+        - generic: 运单管理
+      - link "货物认领" [ref=e49] [cursor=pointer]:
+        - /url: hy_order.php?act=renlin
+        - generic: 货物认领
+      - link "待付账单" [ref=e51] [cursor=pointer]:
+        - /url: hy_order.php?act=zd_list&status=1
+        - generic: 待付账单
+      - link "已付账单" [ref=e53] [cursor=pointer]:
+        - /url: hy_order.php?act=zd_list&status=2
+        - generic: 已付账单
+      - link "财务管理" [ref=e55] [cursor=pointer]:
+        - /url: user.php?act=wallet
+        - generic: 财务管理
+      - link "地址管理" [ref=e57] [cursor=pointer]:
+        - /url: user.php?act=address_list&mark=0
+        - generic: 地址管理
+      - link "用户设置" [ref=e59] [cursor=pointer]:
+        - /url: user.php?act=profile
+        - generic: 用户设置
+    - generic [ref=e62]:
+      - generic [ref=e64]: 运单管理
+      - generic [ref=e66]:
+        - textbox "请输入搜索唛头" [ref=e68]
+        - generic [ref=e69]:
+          - textbox "请输入搜索关键词" [ref=e70]
+          - generic [ref=e71]: "|"
+          - generic [ref=e74] [cursor=pointer]: 入仓单号
+        - generic [ref=e76]:
+          - button "查询" [ref=e77] [cursor=pointer]
+          - generic [ref=e78] [cursor=pointer]: 导出Excel
+      - generic [ref=e81]:
+        - link "全部(1)" [ref=e82] [cursor=pointer]:
+          - /url: hy_order.php?act=list&search_types=rucang_no&keywords=
+        - link "待入库(0)" [ref=e83] [cursor=pointer]:
+          - /url: hy_order.php?act=list&pb=1&order_types=0&search_types=rucang_no&keywords=
+        - link "申请出库(0)" [ref=e84] [cursor=pointer]:
+          - /url: hy_order.php?act=list&pb=2&order_types=0&search_types=rucang_no&keywords=
+        - link "整柜待审核(0)" [ref=e85] [cursor=pointer]:
+          - /url: hy_order.php?act=list&pb=1&order_types=1&search_types=rucang_no&keywords=
+        - link "整柜待提箱(0)" [ref=e86] [cursor=pointer]:
+          - /url: hy_order.php?act=list&pb=2&order_types=1&search_types=rucang_no&keywords=
+        - link "待装车(0)" [ref=e87] [cursor=pointer]:
+          - /url: hy_order.php?act=list&pb=3&search_types=rucang_no&keywords=&ysfs=5
+        - link "待装柜(1)" [ref=e88] [cursor=pointer]:
+          - /url: hy_order.php?act=list&pb=3&search_types=rucang_no&keywords=
+        - link "待签收(0)" [ref=e89] [cursor=pointer]:
+          - /url: hy_order.php?act=list&pb=5&search_types=rucang_no&keywords=
+        - link "已完成(0)" [ref=e90] [cursor=pointer]:
+          - /url: hy_order.php?act=list&pb=6&search_types=rucang_no&keywords=
+      - table [ref=e93]:
+        - rowgroup [ref=e94]:
+          - row "唛头 入仓单号 品名 快递单号/订柜箱型 件数 重量 体积 仓库 目的地 运输方式 订单状态 订单类型 下单时间 操作" [ref=e95]:
+            - columnheader [ref=e96]:
+              - generic [ref=e97]:
+                - checkbox [ref=e98] [cursor=pointer]
+                - emphasis [ref=e100]
+            - columnheader "唛头" [ref=e101]
+            - columnheader "入仓单号" [ref=e102]
+            - columnheader "品名" [ref=e103]
+            - columnheader "快递单号/订柜箱型" [ref=e104]
+            - columnheader "件数" [ref=e105]
+            - columnheader "重量" [ref=e106]
+            - columnheader "体积" [ref=e107]
+            - columnheader "仓库" [ref=e108]
+            - columnheader "目的地" [ref=e109]
+            - columnheader "运输方式" [ref=e110]
+            - columnheader "订单状态" [ref=e111]
+            - columnheader "订单类型" [ref=e112]
+            - columnheader "下单时间" [ref=e113]
+            - columnheader "操作" [ref=e114]
+        - rowgroup [ref=e115]:
+          - row "WH-000001 R9007587 五金产品 SF0000001 100 100000.00 100.000 义乌仓库 中国香港 海运 待装柜 拼柜订单 2026-04-07 15:56:01 详情" [ref=e116]:
+            - cell [ref=e117]:
+              - generic [ref=e118]:
+                - checkbox [ref=e119] [cursor=pointer]
+                - emphasis [ref=e121]
+            - cell "WH-000001" [ref=e122]
+            - cell "R9007587" [ref=e123]:
+              - generic [ref=e125]: R9007587
+            - cell "五金产品" [ref=e127]
+            - cell "SF0000001" [ref=e128]
+            - cell "100" [ref=e129]
+            - cell "100000.00" [ref=e130]
+            - cell "100.000" [ref=e131]
+            - cell "义乌仓库" [ref=e132]
+            - cell "中国香港" [ref=e133]
+            - cell "海运" [ref=e134]
+            - cell "待装柜" [ref=e135]
+            - cell "拼柜订单" [ref=e136]
+            - cell "2026-04-07 15:56:01" [ref=e137]
+            - cell "详情" [ref=e138]:
+              - link "详情" [ref=e139] [cursor=pointer]:
+                - /url: hy_order.php?act=order_info&order_id=QXlKM244YVViejI5aVNuMlk%3D&pb=all
+      - generic [ref=e140]:
+        - generic [ref=e141]: 共1条
+        - generic [ref=e145] [cursor=pointer]: 10条/页

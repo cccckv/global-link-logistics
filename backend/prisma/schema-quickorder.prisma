@@ -1,0 +1,247 @@
+// ============================================
+// Quick Order System - Prisma Schema Extension
+// ============================================
+// This file contains the new tables for the QuickOrder system.
+// It should be merged into the main schema.prisma file.
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum QuickOrderType {
+  SEA_LCL      // 海运拼柜
+  AIR          // 空运快递
+  LAND         // 陆运装车
+  SEA_FCL      // 海运整柜
+  PARCEL       // 拼邮快递
+  BATCH        // 批量导入拼柜
+}
+
+enum QuickOrderStatus {
+  PENDING      // 待确认
+  CONFIRMED    // 已确认
+  IN_TRANSIT   // 运输中
+  DELIVERED    // 已送达
+  CANCELLED    // 已取消
+}
+
+enum ContainerType {
+  GP_20        // 20英尺普通柜
+  GP_40        // 40英尺普通柜
+  HQ_40        // 40英尺高柜
+  HQ_45        // 45英尺高柜
+}
+
+enum BatchImportStatus {
+  UPLOADING    // 上传中
+  PARSING      // 解析中
+  COMPLETED    // 完成
+  FAILED       // 失败
+  PARTIAL      // 部分成功
+}
+
+enum AddressType {
+  PICKUP       // 提货地址
+  RECIPIENT    // 收件地址
+}
+
+// ============================================
+// MODELS
+// ============================================
+
+model QuickOrder {
+  id              String            @id @default(uuid())
+  orderNumber     String            @unique // 订单号 (GL{timestamp}{random})
+  userId          String
+  orderType       QuickOrderType    // 订单类型
+  
+  // === 运输信息 ===
+  warehouse       String?           // 国内仓库 (标准散货必填)
+  destination     String            // 目的地 (所有类型必填)
+  trackingNumber  String?           // 主单号 (标准散货) - 仅用于整单级别追踪
+  courierCompany  String?           // 快递公司 (标准散货)
+  note            String?           @db.Text // 备注 - 使用TEXT支持长文本
+  userMark        String?           // 用户唛头
+  mark            String?           // 唛头
+  
+  // === 整柜专用字段 ===
+  originPort      String?           // 起运港口 (整柜专用)
+  destinationPort String?           // 目的港口 (整柜专用)
+  
+  // === 批量导入关联 ===
+  batchTaskId     String?           // 关联批量导入任务ID
+  
+  // === 状态与金额 ===
+  status          QuickOrderStatus  @default(PENDING)
+  
+  // === 时间戳 ===
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  
+  // === 关系 ===
+  user            User              @relation(fields: [userId], references: [id], onDelete: Restrict)
+  pickupAddress   OrderPickupAddress?
+  recipientAddress OrderRecipientAddress?
+  declarations    OrderDeclaration[] // 散货申报明细
+  containers      OrderContainer[]   // 整柜明细
+  batchTask       BatchImportTask?   @relation(fields: [batchTaskId], references: [id], onDelete: SetNull)
+  shipment        Shipment?          // 关联现有物流追踪表 (需扩展Shipment表增加quickOrderId)
+  payment         Payment?           // 关联现有支付表 (需扩展Payment表增加quickOrderId)
+  
+  @@index([userId, orderType, status, createdAt(sort: Desc)]) // 复合索引优化列表查询
+  @@index([orderNumber]) // 订单号查询
+  @@index([batchTaskId]) // 批次查询
+  @@index([createdAt(sort: Desc)]) // 时间范围查询
+}
+
+model OrderPickupAddress {
+  id          String   @id @default(uuid())
+  orderId     String   @unique
+  
+  // 统一使用name作为主要联系人字段
+  name        String   // 联系人姓名
+  company     String?  // 公司名称
+  phone       String   // 手机号码 (必填)
+  region      String?  // 所在地区 (省/市/区)
+  postcode    String?  // 邮政编码
+  address     String   // 详细地址 (必填)
+  
+  createdAt   DateTime @default(now())
+  
+  order       QuickOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  @@index([orderId])
+}
+
+model OrderRecipientAddress {
+  id          String   @id @default(uuid())
+  orderId     String   @unique
+  
+  // 统一使用name作为主要联系人字段
+  name        String   // 收件人姓名 (必填)
+  company     String?  // 公司名称
+  phone       String   // 手机号码 (必填)
+  region      String?  // 所在地区
+  postcode    String?  // 邮政编码
+  address     String   // 详细地址 (必填)
+  
+  createdAt   DateTime @default(now())
+  
+  order       QuickOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  @@index([orderId])
+}
+
+model OrderDeclaration {
+  id              String   @id @default(uuid())
+  orderId         String
+  
+  trackingNumber  String?  // 包裹级别的快递单号 (区别于QuickOrder.trackingNumber)
+  productName     String   // 品名* (必填)
+  length          Decimal? @db.Decimal(8, 2) // 长(cm) - 使用Decimal保证精度
+  width           Decimal? @db.Decimal(8, 2) // 宽(cm)
+  height          Decimal? @db.Decimal(8, 2) // 高(cm)
+  weight          Decimal  @db.Decimal(10, 3) // 重量(kg)* (必填，3位小数支持0.001kg精度)
+  cnyUnitPrice    Decimal? @db.Decimal(10, 2) // 单价(¥) 人民币
+  phpUnitPrice    Decimal? @db.Decimal(10, 2) // 单价(₱) 菲律宾比索
+  channelUnitPricePhp Decimal? @db.Decimal(10, 2) // 渠道单价(₱)
+  channelUnitPricePhp Decimal? @db.Decimal(10, 2) // 渠道单价(₱)
+  
+  createdAt       DateTime @default(now())
+  
+  order           QuickOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  @@index([orderId])
+  @@index([productName]) // 支持产品名称搜索
+}
+
+model OrderContainer {
+  id              String        @id @default(uuid())
+  orderId         String
+  
+  containerType   ContainerType // 订柜箱型 (20GP/40GP/40HQ/45HQ)
+  quantity        Int           // 柜数 (必填)
+  weight          Decimal?      @db.Decimal(10, 2) // 重量(kg)
+  productsJson    String?       @db.Text // 编辑产品详情 (JSON格式存储)
+  
+  createdAt       DateTime      @default(now())
+  
+  order           QuickOrder    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  @@index([orderId])
+}
+
+model CustomerAddress {
+  id          String      @id @default(uuid())
+  userId      String
+  
+  addressType AddressType // 地址类型: PICKUP | RECIPIENT
+  label       String?     // 地址标签 (如: "公司地址", "家庭地址")
+  
+  name        String      // 联系人姓名 (必填)
+  company     String?     // 公司名称
+  phone       String      // 手机号码 (必填)
+  region      String?     // 所在地区
+  postcode    String?     // 邮政编码
+  address     String      // 详细地址 (必填)
+  
+  isDefault   Boolean     @default(false) // 是否默认地址
+  
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, addressType, isDefault])
+  @@index([userId, createdAt(sort: Desc)]) // 最近使用地址排序
+}
+
+model BatchImportTask {
+  id              String            @id @default(uuid())
+  userId          String
+  
+  fileUrl         String            // 上传文件路径
+  fileName        String?           // 原始文件名
+  fileSize        Int?              // 文件大小(bytes)
+  warehouse       String            // 国内仓库
+  destination     String            // 目的地
+  
+  status          BatchImportStatus @default(UPLOADING)
+  totalRows       Int               @default(0)   // 总行数
+  successCount    Int               @default(0)   // 成功条数
+  failedCount     Int               @default(0)   // 失败条数
+  errorLog        String?           @db.Text // 错误日志 (JSON格式)
+  
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  
+  user            User              @relation(fields: [userId], references: [id], onDelete: Restrict)
+  orders          QuickOrder[]      // 此批次创建的订单
+  
+  @@index([userId, status, createdAt(sort: Desc)])
+}
+
+// ============================================
+// EXISTING MODEL EXTENSIONS
+// ============================================
+// These changes need to be applied to the existing models in schema.prisma
+
+// --- User Model Extension ---
+// Add to existing User model:
+//   quickOrders       QuickOrder[]
+//   customerAddresses CustomerAddress[]
+//   batchImportTasks  BatchImportTask[]
+
+// --- Shipment Model Extension ---
+// Add to existing Shipment model:
+//   quickOrderId      String?   @unique
+//   quickOrder        QuickOrder? @relation(fields: [quickOrderId], references: [id])
+// 
+// Note: This allows Shipment to link to either Order or QuickOrder
+
+// --- Payment Model Extension ---
+// Add to existing Payment model:
+//   quickOrderId      String?   @unique
+//   quickOrder        QuickOrder? @relation(fields: [quickOrderId], references: [id])
+//
+// Note: This allows Payment to link to either Order or QuickOrder

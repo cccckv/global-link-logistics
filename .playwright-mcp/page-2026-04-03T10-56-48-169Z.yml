@@ -1,0 +1,233 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - link [ref=e4] [cursor=pointer]:
+      - /url: index.php
+      - img [ref=e5]
+    - generic [ref=e6]:
+      - link "首页" [ref=e7] [cursor=pointer]:
+        - /url: index.php
+      - link "会员中心" [ref=e8] [cursor=pointer]:
+        - /url: user.php
+      - link "最新消息" [ref=e9] [cursor=pointer]:
+        - /url: article_cat.php?id=21
+      - link "常见问题" [ref=e10] [cursor=pointer]:
+        - /url: article_cat.php?id=17
+      - link "主营业务" [ref=e11] [cursor=pointer]:
+        - /url: business.php
+      - link "物流查询" [ref=e12] [cursor=pointer]:
+        - /url: hy_track.php
+      - link "运费估算" [ref=e13] [cursor=pointer]:
+        - /url: hy_gusuan.php
+    - img [ref=e16]
+    - generic [ref=e18]:
+      - link "退出登录" [ref=e19] [cursor=pointer]:
+        - /url: user.php?act=logout
+      - generic [ref=e20]:
+        - img [ref=e22]
+        - generic [ref=e23]: 欢迎您，jiay0202
+  - generic [ref=e25]:
+    - generic [ref=e32]: 咨询
+    - generic [ref=e36]: 订单
+  - generic [ref=e41]:
+    - generic [ref=e42]:
+      - link "账户管理" [ref=e43] [cursor=pointer]:
+        - /url: user.php
+        - generic: 账户管理
+      - link "快件下单" [ref=e45] [cursor=pointer]:
+        - /url: hy_order.php?act=add
+        - generic: 快件下单
+      - link "运单管理" [ref=e47] [cursor=pointer]:
+        - /url: hy_order.php?act=list
+        - generic: 运单管理
+      - link "货物认领" [ref=e49] [cursor=pointer]:
+        - /url: hy_order.php?act=renlin
+        - generic: 货物认领
+      - link "待付账单" [ref=e51] [cursor=pointer]:
+        - /url: hy_order.php?act=zd_list&status=1
+        - generic: 待付账单
+      - link "已付账单" [ref=e53] [cursor=pointer]:
+        - /url: hy_order.php?act=zd_list&status=2
+        - generic: 已付账单
+      - link "财务管理" [ref=e55] [cursor=pointer]:
+        - /url: user.php?act=wallet
+        - generic: 财务管理
+      - link "地址管理" [ref=e57] [cursor=pointer]:
+        - /url: user.php?act=address_list&mark=0
+        - generic: 地址管理
+      - link "用户设置" [ref=e59] [cursor=pointer]:
+        - /url: user.php?act=profile
+        - generic: 用户设置
+    - generic [ref=e62]:
+      - generic [ref=e63]:
+        - generic [ref=e65]: 立即下单
+        - generic [ref=e66]: 订单类型
+        - generic [ref=e67]:
+          - link "海运拼柜" [ref=e68] [cursor=pointer]:
+            - /url: hy_order.php?act=add&ysfs=1&types=0
+          - link "空运快递" [ref=e69] [cursor=pointer]:
+            - /url: hy_order.php?act=add&ysfs=2&types=0
+          - link "陆运装车" [ref=e70] [cursor=pointer]:
+            - /url: hy_order.php?act=add&ysfs=5&types=0
+          - link "批量导入拼柜" [ref=e71] [cursor=pointer]:
+            - /url: hy_order.php?act=add_pl
+          - link "海运整柜" [ref=e72] [cursor=pointer]:
+            - /url: hy_cabinet.php?act=add
+          - link "拼邮快递" [ref=e73] [cursor=pointer]:
+            - /url: hy_order.php?act=add&types=2
+        - generic [ref=e74]: 添加运输信息
+        - generic [ref=e75]:
+          - generic [ref=e76]:
+            - generic [ref=e77]: "*国内仓库"
+            - generic [ref=e80] [cursor=pointer]: 请选择仓库
+          - generic [ref=e82]:
+            - generic [ref=e83]: "*目的地"
+            - generic [ref=e86] [cursor=pointer]: 请选择目的地
+          - generic [ref=e88]:
+            - generic [ref=e89]: 快递单号
+            - textbox "请输入快递单号" [ref=e91]
+          - generic [ref=e92]:
+            - generic [ref=e93]: 快递公司
+            - generic [ref=e96] [cursor=pointer]: 请选择快递公司
+          - generic [ref=e98]:
+            - generic [ref=e99]: "*总件数"
+            - textbox "根据货物信息自动计算" [ref=e101]
+          - generic [ref=e102]:
+            - generic [ref=e103]: 备注
+            - textbox "请输入订单备注" [ref=e105]
+          - generic [ref=e106]:
+            - generic [ref=e107]: 用户唛头
+            - generic [ref=e110] [cursor=pointer]: 请选择用户唛头
+          - generic [ref=e112]:
+            - generic [ref=e113]: 唛头
+            - textbox "请输入唛头" [ref=e115]
+          - generic [ref=e116]:
+            - generic [ref=e117]: 附件上传
+            - generic [ref=e120] [cursor=pointer]: 选择文件
+        - generic [ref=e122]:
+          - generic [ref=e123]: 其他信息
+          - generic [ref=e124]:
+            - generic [ref=e125]:
+              - checkbox [ref=e126] [cursor=pointer]
+              - generic [ref=e127]:
+                - emphasis [ref=e128]
+                - generic [ref=e129]: 木架(0.00)
+            - generic [ref=e130]:
+              - checkbox [ref=e131] [cursor=pointer]
+              - generic [ref=e132]:
+                - emphasis [ref=e133]
+                - generic [ref=e134]: 报关费(11.00)
+            - generic [ref=e135]:
+              - checkbox [ref=e136] [cursor=pointer]
+              - generic [ref=e137]:
+                - emphasis [ref=e138]
+                - generic [ref=e139]: 消毒费(12.00)
+            - generic [ref=e140]:
+              - checkbox [ref=e141] [cursor=pointer]
+              - generic [ref=e142]:
+                - emphasis [ref=e143]
+                - generic [ref=e144]: 贴单费(20.00)
+            - generic [ref=e145]:
+              - checkbox [ref=e146] [cursor=pointer]
+              - generic [ref=e147]:
+                - emphasis [ref=e148]
+                - generic [ref=e149]: 派送费(10.00)
+            - generic [ref=e150]:
+              - checkbox [ref=e151] [cursor=pointer]
+              - generic [ref=e152]:
+                - emphasis [ref=e153]
+                - generic [ref=e154]: 卸车费(0.00)
+      - generic [ref=e155]:
+        - generic [ref=e156]: 填写提货信息
+        - generic [ref=e157]:
+          - generic [ref=e158]:
+            - generic [ref=e159]: 提货人管理
+            - generic [ref=e162] [cursor=pointer]: 请选择寄件人
+          - generic [ref=e164]:
+            - generic [ref=e165]: 提货联系人
+            - textbox "请输入提货联系人" [ref=e167]
+          - generic [ref=e168]:
+            - generic [ref=e169]: 公司
+            - textbox "请输入公司名称" [ref=e171]
+          - generic [ref=e172]:
+            - generic [ref=e173]: 手机号码
+            - textbox "请输入手机号码" [ref=e175]
+          - generic [ref=e176]:
+            - generic [ref=e177]: 所在地区
+            - generic [ref=e181] [cursor=pointer]: 请选择国家
+          - generic [ref=e183]:
+            - generic [ref=e184]: 邮政编码
+            - textbox "请输入邮政编码" [ref=e186]
+          - generic [ref=e187]:
+            - generic [ref=e188]: 详细地址
+            - textbox [ref=e190]
+      - generic [ref=e191]:
+        - generic [ref=e192]: 填写收件信息
+        - generic [ref=e193]:
+          - generic [ref=e194]:
+            - generic [ref=e195]: 收件人管理
+            - generic [ref=e198] [cursor=pointer]: 请选择收件人
+          - generic [ref=e200]:
+            - generic [ref=e201]: "*收件人"
+            - textbox "请输入收件人" [ref=e203]
+          - generic [ref=e204]:
+            - generic [ref=e205]: 公司
+            - textbox "请输入公司名称" [ref=e207]
+          - generic [ref=e208]:
+            - generic [ref=e209]: 手机号码
+            - textbox "请输入手机号码" [ref=e211]
+          - generic [ref=e212]:
+            - generic [ref=e213]: 所在地区
+            - generic [ref=e217] [cursor=pointer]: 请选择国家
+          - generic [ref=e219]:
+            - generic [ref=e220]: 邮政编码
+            - textbox "请输入邮政编码" [ref=e222]
+          - generic [ref=e223]:
+            - generic [ref=e224]: "*详细地址"
+            - textbox [ref=e226]
+      - generic [ref=e227]:
+        - generic [ref=e228]:
+          - generic [ref=e229]: 填写申报信息
+          - generic [ref=e230] [cursor=pointer]: 批量申报
+        - table [ref=e232]:
+          - rowgroup [ref=e233]:
+            - row "序号 快递单号 品名 长(cm) 宽(cm) 高(cm) 件数(外) 数量(内) 重量(kg) 单价(￥) 密度 操作" [ref=e234]:
+              - columnheader "序号" [ref=e235]
+              - columnheader "快递单号" [ref=e236]
+              - columnheader "品名" [ref=e237]
+              - columnheader "长(cm)" [ref=e238]
+              - columnheader "宽(cm)" [ref=e239]
+              - columnheader "高(cm)" [ref=e240]
+              - columnheader "件数(外)" [ref=e241]
+              - columnheader "数量(内)" [ref=e242]
+              - columnheader "重量(kg)" [ref=e243]
+              - columnheader "单价(￥)" [ref=e244]
+              - columnheader "密度" [ref=e245]
+              - columnheader "操作" [ref=e246]
+          - rowgroup [ref=e247]:
+            - row "1 添加" [ref=e248]:
+              - cell "1" [ref=e249]
+              - cell [ref=e250]:
+                - textbox "请输入快递单号" [ref=e253]
+              - cell [ref=e254]:
+                - textbox "请输入品名" [ref=e257]
+              - cell [ref=e258]:
+                - textbox "请输入长" [ref=e261]
+              - cell [ref=e262]:
+                - textbox "请输入宽" [ref=e265]
+              - cell [ref=e266]:
+                - textbox "请输入高" [ref=e269]
+              - cell [ref=e270]:
+                - textbox "请输入件数" [ref=e273]
+              - cell [ref=e274]:
+                - textbox "请输入数量" [ref=e277]
+              - cell [ref=e278]:
+                - textbox "请输入重量" [ref=e281]
+              - cell [ref=e282]:
+                - textbox "请输入单价" [ref=e285]
+              - cell [ref=e286]:
+                - textbox "密度" [ref=e289]
+              - cell "添加" [ref=e290]:
+                - generic [ref=e292] [cursor=pointer]: 添加
+        - generic [ref=e293]:
+          - button "提 交" [ref=e294] [cursor=pointer]
+          - button "重置" [ref=e295] [cursor=pointer]

@@ -1,0 +1,105 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - link [ref=e4] [cursor=pointer]:
+      - /url: index.php
+      - img [ref=e5]
+    - generic [ref=e6]:
+      - link "首页" [ref=e7] [cursor=pointer]:
+        - /url: index.php
+      - link "会员中心" [ref=e8] [cursor=pointer]:
+        - /url: user.php
+      - link "最新消息" [ref=e9] [cursor=pointer]:
+        - /url: article_cat.php?id=21
+      - link "常见问题" [ref=e10] [cursor=pointer]:
+        - /url: article_cat.php?id=17
+      - link "主营业务" [ref=e11] [cursor=pointer]:
+        - /url: business.php
+      - link "物流查询" [ref=e12] [cursor=pointer]:
+        - /url: hy_track.php
+      - link "运费估算" [ref=e13] [cursor=pointer]:
+        - /url: hy_gusuan.php
+    - img [ref=e16]
+    - generic [ref=e18]:
+      - link "退出登录" [ref=e19] [cursor=pointer]:
+        - /url: user.php?act=logout
+      - generic [ref=e20]:
+        - img [ref=e22]
+        - generic [ref=e23]: 欢迎您，jiay0202
+  - generic [ref=e25]:
+    - generic [ref=e32]: 咨询
+    - generic [ref=e36]: 订单
+  - generic [ref=e41]:
+    - generic [ref=e42]:
+      - link "账户管理" [ref=e43] [cursor=pointer]:
+        - /url: user.php
+        - generic: 账户管理
+      - link "快件下单" [ref=e45] [cursor=pointer]:
+        - /url: hy_order.php?act=add
+        - generic: 快件下单
+      - link "运单管理" [ref=e47] [cursor=pointer]:
+        - /url: hy_order.php?act=list
+        - generic: 运单管理
+      - link "货物认领" [ref=e49] [cursor=pointer]:
+        - /url: hy_order.php?act=renlin
+        - generic: 货物认领
+      - link "待付账单" [ref=e51] [cursor=pointer]:
+        - /url: hy_order.php?act=zd_list&status=1
+        - generic: 待付账单
+      - link "已付账单" [ref=e53] [cursor=pointer]:
+        - /url: hy_order.php?act=zd_list&status=2
+        - generic: 已付账单
+      - link "财务管理" [ref=e55] [cursor=pointer]:
+        - /url: user.php?act=wallet
+        - generic: 财务管理
+      - link "地址管理" [ref=e57] [cursor=pointer]:
+        - /url: user.php?act=address_list&mark=0
+        - generic: 地址管理
+      - link "用户设置" [ref=e59] [cursor=pointer]:
+        - /url: user.php?act=profile
+        - generic: 用户设置
+    - generic [ref=e62]:
+      - generic [ref=e64]: 立即下单
+      - generic [ref=e65]: 订单类型
+      - generic [ref=e66]:
+        - link "海运拼柜" [ref=e67] [cursor=pointer]:
+          - /url: hy_order.php?act=add&ysfs=1&types=0
+        - link "空运快递" [ref=e68] [cursor=pointer]:
+          - /url: hy_order.php?act=add&ysfs=2&types=0
+        - link "陆运装车" [ref=e69] [cursor=pointer]:
+          - /url: hy_order.php?act=add&ysfs=5&types=0
+        - link "批量导入拼柜" [ref=e70] [cursor=pointer]:
+          - /url: hy_order.php?act=add_pl
+        - link "海运整柜" [ref=e71] [cursor=pointer]:
+          - /url: hy_cabinet.php?act=add
+        - link "拼邮快递" [ref=e72] [cursor=pointer]:
+          - /url: hy_order.php?act=add&types=2
+      - generic [ref=e73]: 运输信息
+      - generic [ref=e75]:
+        - paragraph [ref=e76]:
+          - text: 1、请下载
+          - link "《申报模板》" [ref=e77] [cursor=pointer]:
+            - /url: ../xls/input_demo.xls
+          - text: ，按模板格式填写相关资料；
+        - link "下载模板" [ref=e79] [cursor=pointer]:
+          - /url: xls/input_demo.xls?1775214350
+          - generic [ref=e81]: 下载模板
+        - paragraph [ref=e82]: 2.上传填写好的文件，上传说明：正确选择要上传的文件，上传成功后，可以对上传的单号进行修改。
+        - generic [ref=e83]:
+          - generic [ref=e84]:
+            - generic [ref=e85]: "*国内仓库"
+            - generic [ref=e88] [cursor=pointer]: 广州仓库
+          - generic [ref=e90]:
+            - generic [ref=e91]: "*目的地"
+            - generic [ref=e94] [cursor=pointer]: 中国香港
+          - generic [ref=e96]:
+            - generic [ref=e97]: "*附件上传"
+            - generic [ref=e99]:
+              - generic [ref=e100]:
+                - img [ref=e101]
+                - generic [ref=e102]:
+                  - generic [ref=e103]: 将文件拖此处，或
+                  - generic [ref=e104] [cursor=pointer]: 点击上传
+              - paragraph [ref=e105]: 只能上传xls、xlsx格式文件
+          - generic [ref=e108]:
+            - button "提 交" [ref=e109] [cursor=pointer]
+            - button "重置表单" [ref=e110] [cursor=pointer]

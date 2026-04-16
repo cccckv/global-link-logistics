@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { quickOrderApi } from '../lib/api';
 import type { QuickOrder } from '../lib/api';
+import { fetchWithAuth } from '../lib/fetchWithAuth';
 import { subscribeToTracking } from '../lib/socket';
 import {
   Package,
@@ -75,9 +76,7 @@ const WaybillDetail: React.FC = () => {
 
     const loadBlob = async () => {
       try {
-        const token = localStorage.getItem('jwt_token');
-        const res = await fetch(`/api/vouchers/${previewVoucher.id}`, {
-          headers: { Authorization: token ? `Bearer ${token}` : '' },
+        const res = await fetchWithAuth(`/api/vouchers/${previewVoucher.id}`, {
           signal: controller.signal,
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -101,10 +100,7 @@ const WaybillDetail: React.FC = () => {
   }, [previewVoucher?.id]);
 
   const handleDownload = async (voucher: QuickOrder['paymentVouchers'][0]) => {
-    const token = localStorage.getItem('jwt_token');
-    const res = await fetch(`/api/vouchers/${voucher.id}`, {
-      headers: { Authorization: token ? `Bearer ${token}` : '' },
-    });
+    const res = await fetchWithAuth(`/api/vouchers/${voucher.id}`);
     if (!res.ok) return;
     const blob = await res.blob();
     const a = document.createElement('a');

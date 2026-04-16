@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { quickOrderApi, paymentCollectionApi } from '../lib/api';
+import { fetchWithAuth } from '../lib/fetchWithAuth';
 import type { QuickOrder, PaymentCollection } from '../lib/api';
 import { subscribeToTracking } from '../lib/socket';
 import {
@@ -17,6 +18,7 @@ import {
   File,
   Image as ImageIcon,
   FileBadge,
+  Save,
 } from 'lucide-react';
 
 const OrderDetail: React.FC = () => {
@@ -29,6 +31,8 @@ const OrderDetail: React.FC = () => {
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [blobLoading, setBlobLoading] = useState(false);
   const [blobType, setBlobType] = useState<string | null>(null);
+  const [editedPayments, setEditedPayments] = useState<Map<string, Partial<PaymentCollection>>>(new Map());
+  const [isSaving, setIsSaving] = useState(false);
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
@@ -99,9 +103,7 @@ const OrderDetail: React.FC = () => {
 
     const loadBlob = async () => {
       try {
-        const token = localStorage.getItem('jwt_token');
-        const res = await fetch(`/api/vouchers/${previewVoucher.id}`, {
-          headers: { Authorization: token ? `Bearer ${token}` : '' },
+        const res = await fetchWithAuth(`/api/vouchers/${previewVoucher.id}`, {
           signal: controller.signal,
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -125,10 +127,7 @@ const OrderDetail: React.FC = () => {
   }, [previewVoucher?.id]);
 
   const handleDownload = async (voucher: QuickOrder['paymentVouchers'][0]) => {
-    const token = localStorage.getItem('jwt_token');
-    const res = await fetch(`/api/vouchers/${voucher.id}`, {
-      headers: { Authorization: token ? `Bearer ${token}` : '' },
-    });
+    const res = await fetchWithAuth(`/api/vouchers/${voucher.id}`);
     if (!res.ok) return;
     const blob = await res.blob();
     const a = document.createElement('a');
@@ -138,6 +137,58 @@ const OrderDetail: React.FC = () => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(a.href);
+  };
+
+  const handlePaymentFieldChange = (
+    collectionId: string,
+    field: keyof PaymentCollection,
+    value: number
+  ) => {
+    setEditedPayments((prev) => {
+      const newMap = new Map(prev);
+      const existing = newMap.get(collectionId) || {};
+      newMap.set(collectionId, { ...existing, [field]: value });
+      return newMap;
+    });
+  };
+
+  const getPaymentValue = (
+    collection: PaymentCollection,
+    field: keyof PaymentCollection
+  ): number => {
+    const edited = editedPayments.get(collection.id);
+    if (edited && field in edited) {
+      return edited[field] as number;
+    }
+    return collection[field] as number;
+  };
+
+  const handleSavePayments = async () => {
+    if (!orderId || editedPayments.size === 0) return;
+
+    setIsSaving(true);
+    try {
+      const updates = Array.from(editedPayments.entries()).map(([id, changes]) => {
+        const collection = paymentCollections.find((c) => c.id === id);
+        return {
+          declarationId: collection?.declarationId || '',
+          ...changes,
+        };
+      });
+
+      await paymentCollectionApi.batchUpdate(orderId, updates);
+      
+      const { data } = await paymentCollectionApi.getAll({ orderId });
+      setPaymentCollections(data.data);
+      setEditedPayments(new Map());
+      
+      alert('保存成功！');
+    } catch (error) {
+      console.error('保存收款记录失败:', error);
+      alert('保存失败，请重试');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const getStatusText = (status: string) => {
@@ -392,10 +443,26 @@ const OrderDetail: React.FC = () => {
 
           {user.userRole === 'ADMIN' && (
             <div className="px-6 py-4 border-t border-gray-100">
-              <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                <DollarSign className="w-5 h-5 text-gray-400" />
-                订单收款记录
-              </h2>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <DollarSign className="w-5 h-5 text-gray-400" />
+                  订单收款记录
+                </h2>
+                {paymentCollections.length > 0 && (
+                  <button
+                    onClick={handleSavePayments}
+                    disabled={isSaving || editedPayments.size === 0}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition ${
+                      isSaving || editedPayments.size === 0
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'bg-primary text-white hover:bg-primary-dark'
+                    }`}
+                  >
+                    <Save className="w-4 h-4" />
+                    {isSaving ? '保存中...' : `保存修改${editedPayments.size > 0 ? ` (${editedPayments.size})` : ''}`}
+                  </button>
+                )}
+              </div>
               {loadingPayments ? (
                 <div className="flex items-center justify-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -426,27 +493,111 @@ const OrderDetail: React.FC = () => {
                             {collection.declaration?.productName || '-'}
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-900 text-center">
-                            ₱{collection.channelUnitPricePhp.toFixed(2)}
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={getPaymentValue(collection, 'channelUnitPricePhp')}
+                              onChange={(e) =>
+                                handlePaymentFieldChange(
+                                  collection.id,
+                                  'channelUnitPricePhp',
+                                  parseFloat(e.target.value) || 0
+                                )
+                              }
+                              className="w-24 px-2 py-1 border border-gray-300 rounded text-center focus:ring-2 focus:ring-primary focus:border-transparent"
+                            />
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-900 text-center">
-                            ¥{collection.receivableFreightAmount.toFixed(2)}
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={getPaymentValue(collection, 'receivableFreightAmount')}
+                              onChange={(e) =>
+                                handlePaymentFieldChange(
+                                  collection.id,
+                                  'receivableFreightAmount',
+                                  parseFloat(e.target.value) || 0
+                                )
+                              }
+                              className="w-24 px-2 py-1 border border-gray-300 rounded text-center focus:ring-2 focus:ring-primary focus:border-transparent"
+                            />
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-900 text-center">
-                            ¥{collection.receivableOtherAmount?.toFixed(2) || '0.00'}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-900 text-center font-semibold">
-                            ¥{collection.actualReceivedAmount.toFixed(2)}
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={getPaymentValue(collection, 'receivableOtherAmount')}
+                              onChange={(e) =>
+                                handlePaymentFieldChange(
+                                  collection.id,
+                                  'receivableOtherAmount',
+                                  parseFloat(e.target.value) || 0
+                                )
+                              }
+                              className="w-24 px-2 py-1 border border-gray-300 rounded text-center focus:ring-2 focus:ring-primary focus:border-transparent"
+                            />
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-900 text-center">
-                            ¥{collection.channelFreightCost?.toFixed(2) || '0.00'}
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={getPaymentValue(collection, 'actualReceivedAmount')}
+                              onChange={(e) =>
+                                handlePaymentFieldChange(
+                                  collection.id,
+                                  'actualReceivedAmount',
+                                  parseFloat(e.target.value) || 0
+                                )
+                              }
+                              className="w-24 px-2 py-1 border border-gray-300 rounded text-center font-semibold focus:ring-2 focus:ring-primary focus:border-transparent"
+                            />
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-900 text-center">
-                            ¥{collection.channelOtherCost?.toFixed(2) || '0.00'}
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={getPaymentValue(collection, 'channelFreightCost')}
+                              onChange={(e) =>
+                                handlePaymentFieldChange(
+                                  collection.id,
+                                  'channelFreightCost',
+                                  parseFloat(e.target.value) || 0
+                                )
+                              }
+                              className="w-24 px-2 py-1 border border-gray-300 rounded text-center focus:ring-2 focus:ring-primary focus:border-transparent"
+                            />
                           </td>
-                          <td className={`px-4 py-3 text-sm text-center font-semibold ${
-                            (collection.profit || 0) >= 0 ? 'text-green-600' : 'text-red-600'
-                          }`}>
-                            ¥{collection.profit?.toFixed(2) || '0.00'}
+                          <td className="px-4 py-3 text-sm text-gray-900 text-center">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={getPaymentValue(collection, 'channelOtherCost')}
+                              onChange={(e) =>
+                                handlePaymentFieldChange(
+                                  collection.id,
+                                  'channelOtherCost',
+                                  parseFloat(e.target.value) || 0
+                                )
+                              }
+                              className="w-24 px-2 py-1 border border-gray-300 rounded text-center focus:ring-2 focus:ring-primary focus:border-transparent"
+                            />
+                          </td>
+                          <td className="px-4 py-3 text-sm text-center">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={getPaymentValue(collection, 'profit')}
+                              onChange={(e) =>
+                                handlePaymentFieldChange(
+                                  collection.id,
+                                  'profit',
+                                  parseFloat(e.target.value) || 0
+                                )
+                              }
+                              className={`w-24 px-2 py-1 border border-gray-300 rounded text-center font-semibold focus:ring-2 focus:ring-primary focus:border-transparent ${
+                                (getPaymentValue(collection, 'profit') || 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                              }`}
+                            />
                           </td>
                         </tr>
                       ))}

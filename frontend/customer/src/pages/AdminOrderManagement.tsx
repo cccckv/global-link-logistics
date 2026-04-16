@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { Search, Edit, X, Upload, FileText } from 'lucide-react';
 import { quickOrderApi, paymentCollectionApi } from '../lib/api';
 import type { QuickOrder, PaymentCollection } from '../lib/api';
+import { fetchWithAuth } from '../lib/fetchWithAuth';
 
 const getTypeLabel = (type: string) => {
   const labels: Record<string, string> = {
@@ -203,11 +204,8 @@ export default function AdminOrderManagement() {
       const formData = new FormData();
       formData.append('file', voucherFile);
 
-      const uploadResponse = await fetch('/api/upload', {
+      const uploadResponse = await fetchWithAuth('/api/upload', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`,
-        },
         body: formData,
       });
 
@@ -517,10 +515,7 @@ export default function AdminOrderManagement() {
                         <div key={voucher.id} className="flex items-center gap-2 text-sm">
                           <button
                             onClick={async () => {
-                              const token = localStorage.getItem('jwt_token');
-                              const res = await fetch(`/api/vouchers/${voucher.id}`, {
-                                headers: { Authorization: token ? `Bearer ${token}` : '' },
-                              });
+                              const res = await fetchWithAuth(`/api/vouchers/${voucher.id}`);
                               if (!res.ok) return;
                               const blob = await res.blob();
                               const a = document.createElement('a');

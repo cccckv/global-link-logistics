@@ -1,5 +1,5 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Package, LogOut, User, MapPin, Menu, X, Search, Zap, Users, List, DollarSign } from 'lucide-react';
+import { Package, LogOut, User, MapPin, Menu, X, Search, Zap, Users, List, DollarSign, Ship } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 export default function Sidebar() {
@@ -36,17 +36,11 @@ export default function Sidebar() {
 
     loadUser();
 
-    const handleStorageChange = () => {
-      loadUser();
-    };
-
+    const handleStorageChange = () => { loadUser(); };
     window.addEventListener('storage', handleStorageChange);
-    
-    const interval = setInterval(loadUser, 1000);
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
-      clearInterval(interval);
     };
   }, []);
 
@@ -79,7 +73,7 @@ export default function Sidebar() {
   const NavItem = ({ to, icon: Icon, label }: { to: string; icon: any; label: string }) => (
     <Link
       to={to}
-      className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-all ${
+      className={`flex items-center space-x-3 px-4 py-3 rounded-lg ${
         isActive(to)
           ? 'bg-primary text-white'
           : 'text-gray-300 hover:bg-primary-dark/50 hover:text-white'
@@ -138,10 +132,10 @@ export default function Sidebar() {
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
           <NavItem to="/order/list" icon={List} label="运单管理" />
           <NavItem to="/external-tracking" icon={Search} label="外部查询" />
+          <NavItem to="/vessel-position" icon={Ship} label="船舶查询" />
           {user?.userRole === 'ADMIN' && (
             <>
               <NavItem to="/order/quick" icon={Zap} label="快速下单" />
-              <NavItem to="/tracking-dashboard" icon={MapPin} label="物流追踪" />
               <NavItem to="/admin/order-management" icon={DollarSign} label="订单收款" />
               <NavItem to="/user-management" icon={Users} label="用户管理" />
             </>

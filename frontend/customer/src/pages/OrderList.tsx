@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { quickOrderApi, type QuickOrder, type QuickOrderStatus, type QuickOrderType } from '../lib/api';
 import { Package, Search, Download, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -175,7 +176,7 @@ export default function OrderList() {
   };
 
   const handleExport = () => {
-    alert('导出Excel功能开发中');
+    toast.info('导出Excel功能开发中');
   };
 
   const handlePageChange = (newPage: number) => {

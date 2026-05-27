@@ -12,6 +12,7 @@ import { uploadRoutes } from './modules/order/upload.routes';
 import { trackingRoutes } from './modules/tracking/routes';
 import { paymentRoutes } from './modules/payment/routes';
 import { userRoutes } from './modules/user/user.routes';
+import { vesselRoutes } from './modules/vessel/routes';
 import { authenticate } from './lib/jwt';
 
 const fastify = Fastify({
@@ -64,6 +65,7 @@ async function start() {
     await fastify.register(trackingRoutes, { prefix: '/api/tracking' });
     await fastify.register(paymentRoutes, { prefix: '/api/payments' });
     await fastify.register(userRoutes, { prefix: '/api/users' });
+    await fastify.register(vesselRoutes, { prefix: '/api/vessel' });
 
     fastify.get('/health', async () => {
       return { status: 'ok', timestamp: new Date().toISOString() };

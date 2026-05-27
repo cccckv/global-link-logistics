@@ -17,17 +17,23 @@ interface CreateQuickOrderInput {
   mark?: string;
   originPort?: string;
   destinationPort?: string;
+  voyageNumber?: string;
+  markUserId?: string;
   batchTaskId?: string;
+  receivedAt?: string;
+  receiptUrl?: string;
+  receiptFileName?: string;
+  carPickupReceivable?: number;
+  carPickupActual?: number;
   
-  pickupAddress?: {
-    name: string;
+  recipientAddress: {    name: string;
     company?: string;
     phone: string;
     region?: string;
     address: string;
   };
-  
-  recipientAddress: {
+
+  overseasAddress?: {
     name: string;
     company?: string;
     phone: string;
@@ -38,6 +44,7 @@ interface CreateQuickOrderInput {
   declarations?: Array<{
     trackingNumber?: string;
     productName: string;
+    quantity: number;
     length?: number;
     width?: number;
     height?: number;
@@ -45,6 +52,7 @@ interface CreateQuickOrderInput {
     cnyUnitPrice?: number;
     phpUnitPrice?: number;
     channelUnitPricePhp?: number;
+    channelUnitPriceCny?: number;
   }>;
   
   containers?: Array<{
@@ -123,12 +131,15 @@ export class QuickOrderService {
     const declarationsData = input.declarations?.map(d => ({
       trackingNumber: d.trackingNumber,
       productName: d.productName,
+      quantity: d.quantity,
       length: d.length ? new Prisma.Decimal(d.length) : null,
       width: d.width ? new Prisma.Decimal(d.width) : null,
       height: d.height ? new Prisma.Decimal(d.height) : null,
       weight: new Prisma.Decimal(d.weight),
       cnyUnitPrice: d.cnyUnitPrice ? new Prisma.Decimal(d.cnyUnitPrice) : null,
       phpUnitPrice: d.phpUnitPrice ? new Prisma.Decimal(d.phpUnitPrice) : null,
+      channelUnitPricePhp: d.channelUnitPricePhp ? new Prisma.Decimal(d.channelUnitPricePhp) : null,
+      channelUnitPriceCny: d.channelUnitPriceCny ? new Prisma.Decimal(d.channelUnitPriceCny) : null,
     })) || [];
 
     // 准备整柜明细数据
@@ -139,16 +150,16 @@ export class QuickOrderService {
       productsJson: c.productsJson,
     })) || [];
 
-    let pickupAddressId: string | undefined;
     let recipientAddressId: string;
-
-    if (input.pickupAddress) {
-      const pickupAddr = await contactService.upsertPickupAddress(userId, input.pickupAddress);
-      pickupAddressId = pickupAddr.id;
-    }
+    let overseasAddressId: string | undefined;
 
     const recipientAddr = await contactService.upsertRecipientAddress(userId, input.recipientAddress);
     recipientAddressId = recipientAddr.id;
+
+    if (input.overseasAddress) {
+      const overseasAddr = await contactService.upsertOverseasAddress(input.markUserId || userId, input.overseasAddress);
+      overseasAddressId = overseasAddr.id;
+    }
 
     const order = await prisma.quickOrder.create({
       data: {
@@ -162,11 +173,14 @@ export class QuickOrderService {
         mark: input.mark,
         originPort: input.originPort,
         destinationPort: input.destinationPort,
+        voyageNumber: input.voyageNumber,
+        markUserId: input.markUserId,
         batchTaskId: input.batchTaskId,
+        receivedAt: input.receivedAt ? new Date(input.receivedAt) : undefined,
         status: 'PENDING',
         
-        pickupAddressId,
         recipientAddressId,
+        overseasAddressId,
         
         declarations: declarationsData.length > 0 ? {
           create: declarationsData,
@@ -177,30 +191,65 @@ export class QuickOrderService {
         } : undefined,
       },
       include: {
-        pickupAddress: true,
         recipientAddress: true,
+        overseasAddress: true,
         declarations: true,
         containers: true,
       },
     });
 
-    if (order.declarations.length > 0 && input.declarations) {
-      const channelPriceMap = new Map(
-        input.declarations.map((d, idx) => [idx, d.channelUnitPricePhp])
-      );
-      
-      await prisma.orderPaymentCollection.createMany({
-        data: order.declarations.map((declaration, idx) => ({
+    if (input.receiptUrl && input.receiptFileName) {
+      await prisma.orderPaymentVoucher.create({
+        data: {
           orderId: order.id,
-          declarationId: declaration.id,
-          channelUnitPricePhp: channelPriceMap.get(idx) ? new Prisma.Decimal(channelPriceMap.get(idx)!) : new Prisma.Decimal(0),
-          receivableFreightAmount: new Prisma.Decimal(0),
-          receivableOtherAmount: new Prisma.Decimal(0),
-          actualReceivedAmount: new Prisma.Decimal(0),
-          channelFreightCost: new Prisma.Decimal(0),
-          channelOtherCost: new Prisma.Decimal(0),
-          profit: new Prisma.Decimal(0),
-        })),
+          fileUrl: input.receiptUrl,
+          fileName: input.receiptFileName,
+          voucherType: 'RECEIPT',
+        },
+      });
+    }
+
+    if (declarationsData.length > 0) {
+      const decls = input.declarations!;
+      const totalPieces = decls.reduce((s, d) => s + (d.quantity || 1), 0);
+      const totalWeight = decls.reduce((s, d) => s + (d.weight || 0) * (d.quantity || 1), 0);
+      const totalVolume = decls.reduce((s, d) => {
+        if (d.length && d.width && d.height) {
+          return s + (d.length * d.width * d.height / 1_000_000) * (d.quantity || 1);
+        }
+        return s;
+      }, 0);
+      const isSeaLcl = input.orderType === 'SEA_LCL';
+      const receivableUsePhp = decls.some(d => !!d.phpUnitPrice);
+      const payableUsePhp = decls.some(d => !!d.channelUnitPricePhp);
+      const receivableAmount = decls.reduce((s, d) => {
+        const price = receivableUsePhp ? (d.phpUnitPrice || 0) : (d.cnyUnitPrice || 0);
+        const factor = isSeaLcl
+          ? (d.length && d.width && d.height ? (d.length * d.width * d.height / 1_000_000) : 0)
+          : (d.weight || 0);
+        return s + price * factor * (d.quantity || 1);
+      }, 0);
+      const payableAmount = decls.reduce((s, d) => {
+        const price = payableUsePhp ? (d.channelUnitPricePhp || 0) : (d.channelUnitPriceCny || 0);
+        const factor = isSeaLcl
+          ? (d.length && d.width && d.height ? (d.length * d.width * d.height / 1_000_000) : 0)
+          : (d.weight || 0);
+        return s + price * factor * (d.quantity || 1);
+      }, 0);
+
+      await prisma.orderPaymentCollection.create({
+        data: {
+          orderId: order.id,
+          totalPieces,
+          totalWeight: new Prisma.Decimal(totalWeight),
+          totalVolume: totalVolume > 0 ? new Prisma.Decimal(totalVolume) : null,
+          receivableAmount: new Prisma.Decimal(receivableAmount),
+          payableAmount: new Prisma.Decimal(payableAmount),
+          receivableCurrency: receivableUsePhp ? 'PHP' : 'CNY',
+          payableCurrency: payableUsePhp ? 'PHP' : 'CNY',
+          carPickupReceivable: input.carPickupReceivable ? new Prisma.Decimal(input.carPickupReceivable) : null,
+          carPickupActual: input.carPickupActual ? new Prisma.Decimal(input.carPickupActual) : null,
+        },
       });
     }
 
@@ -240,8 +289,8 @@ export class QuickOrderService {
       prisma.quickOrder.findMany({
         where,
         include: {
-          pickupAddress: true,
           recipientAddress: true,
+          overseasAddress: true,
           declarations: true,
           containers: true,
           shipment: true,
@@ -272,8 +321,8 @@ export class QuickOrderService {
     const order = await prisma.quickOrder.findFirst({
       where: { id, userId },
       include: {
-        pickupAddress: true,
         recipientAddress: true,
+        overseasAddress: true,
         declarations: {
           orderBy: { createdAt: 'asc' },
         },
@@ -305,6 +354,7 @@ export class QuickOrderService {
   async update(id: string, userId: string, data: {
     status?: QuickOrderStatus;
     note?: string;
+    voyageNumber?: string;
   }) {
     // 验证权限
     const order = await prisma.quickOrder.findFirst({
@@ -320,7 +370,6 @@ export class QuickOrderService {
       where: { id },
       data,
       include: {
-        pickupAddress: true,
         recipientAddress: true,
         declarations: true,
         containers: true,

@@ -2,7 +2,9 @@ import { FastifyInstance } from 'fastify';
 import { QuickOrderService } from './quick-order.service';
 import { getUserFromRequest } from '../../lib/jwt';
 import { authorize } from '../../lib/auth';
-import { QuickOrderType, QuickOrderStatus } from '@prisma/client';
+import { PrismaClient, Prisma, QuickOrderType, QuickOrderStatus } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 const service = new QuickOrderService();
 
@@ -15,15 +17,14 @@ interface CreateQuickOrderBody {
   mark?: string;
   originPort?: string;
   destinationPort?: string;
-  
-  pickupAddress?: {
-    name: string;
-    company?: string;
-    phone: string;
-    region?: string;
-    address: string;
-  };
-  
+  voyageNumber?: string;
+  markUserId?: string;
+  receivedAt?: string;
+  receiptUrl?: string;
+  receiptFileName?: string;
+  carPickupReceivable?: number;
+  carPickupActual?: number;
+
   recipientAddress: {
     name: string;
     company?: string;
@@ -35,6 +36,7 @@ interface CreateQuickOrderBody {
   declarations?: Array<{
     trackingNumber?: string;
     productName: string;
+    quantity: number;
     length?: number;
     width?: number;
     height?: number;
@@ -42,6 +44,7 @@ interface CreateQuickOrderBody {
     cnyUnitPrice?: number;
     phpUnitPrice?: number;
     channelUnitPricePhp?: number;
+    channelUnitPriceCny?: number;
   }>;
   
   containers?: Array<{
@@ -84,7 +87,6 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
           status: order.status,
           destination: order.destination,
           createdAt: order.createdAt.toISOString(),
-          pickupAddress: order.pickupAddress,
           recipientAddress: order.recipientAddress,
           declarations: order.declarations.map(d => ({
             ...d,
@@ -95,6 +97,7 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
             cnyUnitPrice: d.cnyUnitPrice?.toNumber(),
             phpUnitPrice: d.phpUnitPrice?.toNumber(),
             channelUnitPricePhp: d.channelUnitPricePhp?.toNumber(),
+            channelUnitPriceCny: d.channelUnitPriceCny?.toNumber(),
           })),
           containers: order.containers.map(c => ({
             ...c,
@@ -147,13 +150,10 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
           mark: order.mark,
           originPort: order.originPort,
           destinationPort: order.destinationPort,
+          voyageNumber: order.voyageNumber,
           createdAt: order.createdAt.toISOString(),
           updatedAt: order.updatedAt?.toISOString(),
-          pickupAddress: order.pickupAddress ? {
-            ...order.pickupAddress,
-            createdAt: order.pickupAddress.createdAt.toISOString(),
-            updatedAt: order.pickupAddress.updatedAt.toISOString(),
-          } : undefined,
+          receivedAt: order.receivedAt?.toISOString(),
           recipientAddress: order.recipientAddress ? {
             ...order.recipientAddress,
             createdAt: order.recipientAddress.createdAt.toISOString(),
@@ -163,6 +163,7 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
             id: d.id,
             trackingNumber: d.trackingNumber,
             productName: d.productName,
+            quantity: d.quantity,
             length: d.length?.toNumber(),
             width: d.width?.toNumber(),
             height: d.height?.toNumber(),
@@ -170,6 +171,7 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
             cnyUnitPrice: d.cnyUnitPrice?.toNumber(),
             phpUnitPrice: d.phpUnitPrice?.toNumber(),
             channelUnitPricePhp: d.channelUnitPricePhp?.toNumber(),
+            channelUnitPriceCny: d.channelUnitPriceCny?.toNumber(),
           })),
           containers: order.containers?.map(c => ({
             id: c.id,
@@ -222,30 +224,35 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
         mark: order.mark,
         originPort: order.originPort,
         destinationPort: order.destinationPort,
+        voyageNumber: order.voyageNumber,
         createdAt: order.createdAt.toISOString(),
         updatedAt: order.updatedAt.toISOString(),
-        
-        pickupAddress: order.pickupAddress ? {
-          ...order.pickupAddress,
-          createdAt: order.pickupAddress.createdAt.toISOString(),
-          updatedAt: order.pickupAddress.updatedAt.toISOString(),
-        } : undefined,
+        receivedAt: order.receivedAt?.toISOString(),
         recipientAddress: order.recipientAddress ? {
           ...order.recipientAddress,
           createdAt: order.recipientAddress.createdAt.toISOString(),
           updatedAt: order.recipientAddress.updatedAt.toISOString(),
+        } : undefined,
+
+        overseasAddress: order.overseasAddress ? {
+          ...order.overseasAddress,
+          createdAt: order.overseasAddress.createdAt.toISOString(),
+          updatedAt: order.overseasAddress.updatedAt.toISOString(),
         } : undefined,
         
         declarations: order.declarations.map(d => ({
           id: d.id,
           trackingNumber: d.trackingNumber,
           productName: d.productName,
+          quantity: d.quantity,
           length: d.length?.toNumber(),
           width: d.width?.toNumber(),
           height: d.height?.toNumber(),
           weight: d.weight.toNumber(),
           cnyUnitPrice: d.cnyUnitPrice?.toNumber(),
           phpUnitPrice: d.phpUnitPrice?.toNumber(),
+          channelUnitPricePhp: d.channelUnitPricePhp?.toNumber(),
+          channelUnitPriceCny: d.channelUnitPriceCny?.toNumber(),
         })),
         
         containers: order.containers.map(c => ({
@@ -296,22 +303,123 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
           fileUrl: v.fileUrl,
           fileName: v.fileName,
           fileType: v.fileType,
+          voucherType: v.voucherType,
           uploadedAt: v.uploadedAt.toISOString(),
         })) || [],
         
-        paymentCollections: order.paymentCollections?.map(pc => ({
-          id: pc.id,
-          orderId: pc.orderId,
-          declarationId: pc.declarationId,
-          channelUnitPricePhp: pc.channelUnitPricePhp.toNumber(),
-          receivableFreightAmount: pc.receivableFreightAmount.toNumber(),
-          receivableOtherAmount: pc.receivableOtherAmount?.toNumber(),
-          actualReceivedAmount: pc.actualReceivedAmount.toNumber(),
-          channelFreightCost: pc.channelFreightCost?.toNumber(),
-          channelOtherCost: pc.channelOtherCost?.toNumber(),
-          profit: pc.profit?.toNumber(),
-        })) || [],
+        paymentCollection: order.paymentCollections?.[0] ? (() => {
+          const pc = order.paymentCollections[0];
+          return {
+            id: pc.id,
+            orderId: pc.orderId,
+            totalPieces: pc.totalPieces,
+            totalVolume: pc.totalVolume?.toNumber() ?? null,
+            totalWeight: pc.totalWeight?.toNumber() ?? null,
+            receivableAmount: pc.receivableAmount.toNumber(),
+            payableAmount: pc.payableAmount.toNumber(),
+            receivableCurrency: pc.receivableCurrency,
+            payableCurrency: pc.payableCurrency,
+            carPickupReceivable: pc.carPickupReceivable?.toNumber() ?? null,
+            carPickupActual: pc.carPickupActual?.toNumber() ?? null,
+          };
+        })() : null,
       };
+    }
+  );
+
+  fastify.put<{
+    Params: { id: string };
+    Body: { declarations: Array<{
+      id?: string;
+      trackingNumber?: string;
+      productName: string;
+      quantity: number;
+      length?: number;
+      width?: number;
+      height?: number;
+      weight: number;
+      cnyUnitPrice?: number;
+      phpUnitPrice?: number;
+      channelUnitPricePhp?: number;
+      channelUnitPriceCny?: number;
+    }> };
+  }>(
+    '/:id/declarations',
+    { preHandler: [fastify.authenticate, authorize(['ADMIN'])] },
+    async (request, reply) => {
+      try {
+        const { id } = request.params;
+        const { declarations } = request.body;
+        await prisma.orderDeclaration.deleteMany({ where: { orderId: id } });
+        await prisma.orderDeclaration.createMany({
+          data: declarations.map(d => ({ orderId: id, ...d })),
+        });
+        const updated = await prisma.orderDeclaration.findMany({ where: { orderId: id } });
+
+        const order = await prisma.quickOrder.findUnique({ where: { id }, select: { orderType: true } });
+        if (order) {
+          const isSeaLcl = order.orderType === 'SEA_LCL';
+          const totalPieces = declarations.reduce((s, d) => s + (d.quantity || 1), 0);
+          const totalWeight = declarations.reduce((s, d) => s + (d.weight || 0) * (d.quantity || 1), 0);
+          const totalVolume = declarations.reduce((s, d) => {
+            if (d.length && d.width && d.height) return s + (d.length * d.width * d.height / 1_000_000) * (d.quantity || 1);
+            return s;
+          }, 0);
+          const receivableUsePhp = declarations.some(d => !!d.phpUnitPrice);
+          const payableUsePhp = declarations.some(d => !!d.channelUnitPricePhp);
+          const receivableAmount = declarations.reduce((s, d) => {
+            const price = receivableUsePhp ? (d.phpUnitPrice || 0) : (d.cnyUnitPrice || 0);
+            const factor = isSeaLcl
+              ? (d.length && d.width && d.height ? (d.length * d.width * d.height / 1_000_000) : 0)
+              : (d.weight || 0);
+            return s + price * factor * (d.quantity || 1);
+          }, 0);
+          const payableAmount = declarations.reduce((s, d) => {
+            const price = payableUsePhp ? (d.channelUnitPricePhp || 0) : (d.channelUnitPriceCny || 0);
+            const factor = isSeaLcl
+              ? (d.length && d.width && d.height ? (d.length * d.width * d.height / 1_000_000) : 0)
+              : (d.weight || 0);
+            return s + price * factor * (d.quantity || 1);
+          }, 0);
+          await prisma.orderPaymentCollection.upsert({
+            where: { orderId: id },
+            update: {
+              totalPieces,
+              totalWeight: new Prisma.Decimal(totalWeight),
+              totalVolume: totalVolume > 0 ? new Prisma.Decimal(totalVolume) : null,
+              receivableAmount: new Prisma.Decimal(receivableAmount),
+              payableAmount: new Prisma.Decimal(payableAmount),
+              receivableCurrency: receivableUsePhp ? 'PHP' : 'CNY',
+              payableCurrency: payableUsePhp ? 'PHP' : 'CNY',
+            },
+            create: {
+              orderId: id,
+              totalPieces,
+              totalWeight: new Prisma.Decimal(totalWeight),
+              totalVolume: totalVolume > 0 ? new Prisma.Decimal(totalVolume) : null,
+              receivableAmount: new Prisma.Decimal(receivableAmount),
+              payableAmount: new Prisma.Decimal(payableAmount),
+              receivableCurrency: receivableUsePhp ? 'PHP' : 'CNY',
+              payableCurrency: payableUsePhp ? 'PHP' : 'CNY',
+            },
+          });
+        }
+
+        return updated.map(d => ({
+          ...d,
+          length: d.length?.toNumber(),
+          width: d.width?.toNumber(),
+          height: d.height?.toNumber(),
+          weight: d.weight.toNumber(),
+          cnyUnitPrice: d.cnyUnitPrice?.toNumber(),
+          phpUnitPrice: d.phpUnitPrice?.toNumber(),
+          channelUnitPricePhp: d.channelUnitPricePhp?.toNumber(),
+          channelUnitPriceCny: d.channelUnitPriceCny?.toNumber(),
+        }));
+      } catch (error: any) {
+        fastify.log.error(error);
+        return reply.code(500).send({ error: error.message });
+      }
     }
   );
 
@@ -320,6 +428,7 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
     Body: { 
       status?: QuickOrderStatus;
       note?: string;
+      voyageNumber?: string;
     };
   }>(
     '/:id',
@@ -387,6 +496,37 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
       const counts = await service.getStatusCounts(user.userId);
       
       return counts;
+    }
+  );
+
+  fastify.post<{
+    Params: { id: string };
+    Body: { fileUrl: string; fileName?: string; fileType?: string; voucherType?: string };
+  }>(
+    '/:id/vouchers',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const user = getUserFromRequest(request);
+        const { id } = request.params;
+        const { fileUrl, fileName, fileType, voucherType } = request.body;
+        const order = await prisma.quickOrder.findFirst({ where: { id, userId: user.userId }, select: { id: true } });
+        if (!order) return reply.code(404).send({ error: 'Order not found' });
+        const voucher = await prisma.orderPaymentVoucher.create({
+          data: { orderId: id, fileUrl, fileName, fileType, voucherType: (voucherType as any) || 'PAYMENT' },
+        });
+        return reply.code(201).send({
+          id: voucher.id,
+          fileUrl: voucher.fileUrl,
+          fileName: voucher.fileName,
+          fileType: voucher.fileType,
+          voucherType: voucher.voucherType,
+          uploadedAt: voucher.uploadedAt.toISOString(),
+        });
+      } catch (error: any) {
+        fastify.log.error(error);
+        return reply.code(500).send({ error: error.message });
+      }
     }
   );
 }

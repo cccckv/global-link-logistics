@@ -225,6 +225,12 @@ const WaybillDetail: React.FC = () => {
                       <td className="px-4 py-3 text-sm text-gray-900" colSpan={3}>{order.userMark}</td>
                     </tr>
                   )}
+                  {order.voyageNumber && (
+                    <tr>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-500 bg-gray-50">船号/航次</td>
+                      <td className="px-4 py-3 text-sm text-gray-900" colSpan={3}>{order.voyageNumber}</td>
+                    </tr>
+                  )}
                   {order.declarations && order.declarations.some(d => d.trackingNumber) && (
                     <tr>
                       <td className="px-4 py-3 text-sm font-medium text-gray-500 bg-gray-50 align-top">包裹快递单号</td>
@@ -245,44 +251,6 @@ const WaybillDetail: React.FC = () => {
               </table>
             </div>
           </div>
-
-          {/* 提货人信息表格 */}
-          {order.pickupAddress && (
-            <div className="px-6 py-4 border-t border-gray-100">
-              <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                <User className="w-5 h-5 text-gray-400" />
-                提货人信息
-              </h2>
-              <div className="overflow-x-auto rounded-lg border border-gray-300">
-                <table className="w-full border-collapse">
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    <tr>
-                      <td className="px-4 py-3 text-sm font-medium text-gray-500 bg-gray-50 w-1/4">联系人</td>
-                      <td className="px-4 py-3 text-sm text-gray-900">{order.pickupAddress.name}</td>
-                      <td className="px-4 py-3 text-sm font-medium text-gray-500 bg-gray-50 w-1/4">手机号码</td>
-                      <td className="px-4 py-3 text-sm text-gray-900">{order.pickupAddress.phone}</td>
-                    </tr>
-                    {order.pickupAddress.company && (
-                      <tr>
-                        <td className="px-4 py-3 text-sm font-medium text-gray-500 bg-gray-50">公司名称</td>
-                        <td className="px-4 py-3 text-sm text-gray-900" colSpan={3}>{order.pickupAddress.company}</td>
-                      </tr>
-                    )}
-                    <tr>
-                      <td className="px-4 py-3 text-sm font-medium text-gray-500 bg-gray-50">所在地区</td>
-                      <td className="px-4 py-3 text-sm text-gray-900" colSpan={3}>
-                        {order.pickupAddress.region || '-'}
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="px-4 py-3 text-sm font-medium text-gray-500 bg-gray-50">详细地址</td>
-                      <td className="px-4 py-3 text-sm text-gray-900" colSpan={3}>{order.pickupAddress.address}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
 
           {/* 收件人信息表格 */}
           <div className="px-6 py-4 border-t border-gray-100">
@@ -336,8 +304,8 @@ const WaybillDetail: React.FC = () => {
                       <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-left">品名</th>
                       <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">体积(m³)</th>
                       <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">重量(kg)</th>
-                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">单价(￥)</th>
-                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">单价(₱)</th>
+                <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">应收单价(￥)</th>
+                <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">应收单价(₱)</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -361,6 +329,49 @@ const WaybillDetail: React.FC = () => {
               </div>
             </div>
           )}
+
+          {order.declarations && order.declarations.length > 0 && (() => {
+            const decls = order.declarations!;
+            const totalPieces = decls.reduce((sum, d) => sum + (d.quantity || 0), 0);
+            const volM3 = (d: typeof decls[0]) =>
+              d.length && d.width && d.height
+                ? (d.length * d.width * d.height) / 1_000_000
+                : 0;
+            const receivableUsePhp = decls.some(d => !!d.phpUnitPrice);
+            const payableUsePhp = decls.some(d => !!d.channelUnitPricePhp);
+            const totalReceivable = decls.reduce((sum, d) => {
+              const price = receivableUsePhp ? (d.phpUnitPrice || 0) : (d.cnyUnitPrice || 0);
+              return sum + price * volM3(d) * (d.quantity || 0);
+            }, 0);
+            const totalPayable = decls.reduce((sum, d) => {
+              const price = payableUsePhp ? (d.channelUnitPricePhp || 0) : (d.channelUnitPriceCny || 0);
+              return sum + price * volM3(d) * (d.quantity || 0);
+            }, 0);
+            const receivableSymbol = receivableUsePhp ? '₱' : '¥';
+            const payableSymbol = payableUsePhp ? '₱' : '¥';
+            return (
+              <div className="px-6 py-4 border-t border-gray-100">
+                <div className="grid grid-cols-3 gap-6 p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+                  <div>
+                    <span className="text-gray-500">总件数</span>
+                    <p className="text-lg font-semibold text-gray-900 mt-1">{totalPieces} 件</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">应收总价</span>
+                    <p className="text-lg font-semibold text-blue-600 mt-1">
+                      {totalReceivable > 0 ? `${receivableSymbol}${totalReceivable.toFixed(2)}` : '-'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">应付总价</span>
+                    <p className="text-lg font-semibold text-orange-600 mt-1">
+                      {totalPayable > 0 ? `${payableSymbol}${totalPayable.toFixed(2)}` : '-'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           <div className="px-6 py-4 border-t border-gray-100">
             <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">

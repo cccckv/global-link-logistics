@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { userApi } from '../lib/api';
 import { Search, Plus, Edit, Trash2, X } from 'lucide-react';
 
@@ -70,7 +71,7 @@ export default function UserManagement() {
       setPagination(response.data.pagination);
     } catch (error: any) {
       console.error('加载用户列表失败:', error);
-      alert(error.response?.data?.error || '加载用户列表失败');
+      toast.error(error.response?.data?.error || '加载用户列表失败');
     } finally {
       setLoading(false);
     }
@@ -83,19 +84,19 @@ export default function UserManagement() {
 
   const handleCreate = async () => {
     if (!formData.name || !formData.phone || !formData.password) {
-      alert('请填写必填字段：用户唛头、手机号、密码');
+      toast.error('请填写必填字段：用户唛头、手机号、密码');
       return;
     }
 
     try {
       await userApi.create(formData);
-      alert('用户创建成功');
+      toast.success('用户创建成功');
       setShowCreateModal(false);
       resetForm();
       loadUsers();
     } catch (error: any) {
       console.error('创建用户失败:', error);
-      alert(error.response?.data?.error || '创建用户失败');
+      toast.error(error.response?.data?.error || '创建用户失败');
     }
   };
 
@@ -120,20 +121,20 @@ export default function UserManagement() {
     }
 
     if (Object.keys(updateData).length === 0) {
-      alert('没有修改任何内容');
+      toast.info('没有修改任何内容');
       return;
     }
 
     try {
       await userApi.update(editingUser.id, updateData);
-      alert('用户信息已更新');
+      toast.success('用户信息已更新');
       setShowEditModal(false);
       setEditingUser(null);
       resetForm();
       loadUsers();
     } catch (error: any) {
       console.error('更新用户失败:', error);
-      alert(error.response?.data?.error || '更新用户失败');
+      toast.error(error.response?.data?.error || '更新用户失败');
     }
   };
 
@@ -144,11 +145,11 @@ export default function UserManagement() {
 
     try {
       await userApi.delete(user.id);
-      alert('用户已删除');
+      toast.success('用户已删除');
       loadUsers();
     } catch (error: any) {
       console.error('删除用户失败:', error);
-      alert(error.response?.data?.error || '删除用户失败');
+      toast.error(error.response?.data?.error || '删除用户失败');
     }
   };
 

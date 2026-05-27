@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Search, Edit, X, Upload, FileText } from 'lucide-react';
+import { Search, Edit, X } from 'lucide-react';
 import { quickOrderApi, paymentCollectionApi } from '../lib/api';
 import type { QuickOrder, PaymentCollection } from '../lib/api';
 import { fetchWithAuth } from '../lib/fetchWithAuth';
@@ -63,10 +63,6 @@ export default function AdminOrderManagement() {
   const [loading, setLoading] = useState(true);
   const [editingCollection, setEditingCollection] = useState<PaymentCollection | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showVoucherModal, setShowVoucherModal] = useState(false);
-  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-  const [voucherFile, setVoucherFile] = useState<File | null>(null);
-  const [uploadingVoucher, setUploadingVoucher] = useState(false);
   const [filters, setFilters] = useState({
     keyword: '',
     page: 1,
@@ -80,13 +76,8 @@ export default function AdminOrderManagement() {
   });
 
   const [editForm, setEditForm] = useState({
-    channelUnitPricePhp: 0,
-    receivableFreightAmount: 0,
-    receivableOtherAmount: 0,
-    actualReceivedAmount: 0,
-    channelFreightCost: 0,
-    channelOtherCost: 0,
-    profit: 0,
+    carPickupReceivable: 0,
+    carPickupActual: 0,
   });
 
   const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -125,40 +116,37 @@ export default function AdminOrderManagement() {
 
   const handleEdit = async (orderId: string) => {
     try {
-      const response = await paymentCollectionApi.getAll({ orderId });
-      const collections = response.data.data;
-      if (collections.length > 0) {
-        const collection = collections[0];
-        setEditingCollection(collection);
-        setEditForm({
-          channelUnitPricePhp: collection.channelUnitPricePhp,
-          receivableFreightAmount: collection.receivableFreightAmount,
-          receivableOtherAmount: collection.receivableOtherAmount,
-          actualReceivedAmount: collection.actualReceivedAmount,
-          channelFreightCost: collection.channelFreightCost,
-          channelOtherCost: collection.channelOtherCost,
-          profit: collection.profit,
-        });
-        setShowEditModal(true);
-      } else {
-        toast.error('未找到收款记录');
-      }
-    } catch (error) {
-      console.error('Failed to load payment collection:', error);
-      toast.error('加载收款信息失败');
+      const response = await paymentCollectionApi.getByOrderId(orderId);
+      const collection = response.data;
+      setEditingCollection(collection);
+      setEditForm({
+        carPickupReceivable: collection.carPickupReceivable ?? 0,
+        carPickupActual: collection.carPickupActual ?? 0,
+      });
+      setShowEditModal(true);
+    } catch {
+      toast.error('未找到收款记录');
     }
   };
 
   const handleSave = async () => {
     if (!editingCollection) return;
-
     try {
-      await paymentCollectionApi.update(editingCollection.id, editForm);
+      await paymentCollectionApi.upsert(editingCollection.orderId, {
+        totalPieces: editingCollection.totalPieces,
+        totalVolume: editingCollection.totalVolume ?? undefined,
+        totalWeight: editingCollection.totalWeight ?? undefined,
+        receivableAmount: editingCollection.receivableAmount,
+        payableAmount: editingCollection.payableAmount,
+        receivableCurrency: editingCollection.receivableCurrency,
+        payableCurrency: editingCollection.payableCurrency,
+        carPickupReceivable: editForm.carPickupReceivable || undefined,
+        carPickupActual: editForm.carPickupActual || undefined,
+      });
       toast.success('收款信息已更新');
       setShowEditModal(false);
       loadOrders();
-    } catch (error) {
-      console.error('Failed to update payment collection:', error);
+    } catch {
       toast.error('更新失败');
     }
   };
@@ -166,66 +154,6 @@ export default function AdminOrderManagement() {
   const closeEditModal = () => {
     setShowEditModal(false);
     setEditingCollection(null);
-  };
-
-  const handleOpenVoucherModal = (orderId: string) => {
-    setSelectedOrderId(orderId);
-    setShowVoucherModal(true);
-    setVoucherFile(null);
-  };
-
-  const handleCloseVoucherModal = () => {
-    setShowVoucherModal(false);
-    setSelectedOrderId(null);
-    setVoucherFile(null);
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const maxSize = 10 * 1024 * 1024;
-      if (file.size > maxSize) {
-        toast.error('文件大小不能超过10MB');
-        return;
-      }
-      setVoucherFile(file);
-    }
-  };
-
-  const handleUploadVoucher = async () => {
-    if (!selectedOrderId || !voucherFile) {
-      toast.error('请选择文件');
-      return;
-    }
-
-    try {
-      setUploadingVoucher(true);
-      
-      const formData = new FormData();
-      formData.append('file', voucherFile);
-
-      const uploadResponse = await fetchWithAuth('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!uploadResponse.ok) {
-        throw new Error('文件上传失败');
-      }
-
-      const { fileUrl } = await uploadResponse.json();
-
-      await paymentCollectionApi.addVoucher(selectedOrderId, fileUrl, voucherFile.name);
-
-      toast.success('凭证上传成功');
-      handleCloseVoucherModal();
-      loadOrders();
-    } catch (error) {
-      console.error('Failed to upload voucher:', error);
-      toast.error('凭证上传失败');
-    } finally {
-      setUploadingVoucher(false);
-    }
   };
 
   if (loading && orders.length === 0) {
@@ -350,17 +278,9 @@ export default function AdminOrderManagement() {
                         })}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          onClick={() => handleOpenVoucherModal(order.orderId)}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition"
-                          title="添加收款凭证"
-                        >
-                          <Upload className="w-4 h-4" />
-                          添加凭证
-                        </button>
                       </td>
                     </tr>
-                  ))
+                   ))
                 )}
               </tbody>
             </table>
@@ -390,7 +310,6 @@ export default function AdminOrderManagement() {
         </div>
       </div>
 
-      {/* Edit Modal */}
       {showEditModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
@@ -406,138 +325,44 @@ export default function AdminOrderManagement() {
 
             {editingCollection && (
               <div className="p-6 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">订单编号</label>
-                    <input
-                      type="text"
-                      value={editingCollection.order?.orderNumber || 'N/A'}
-                      disabled
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">商品名称</label>
-                    <input
-                      type="text"
-                      value={editingCollection.declaration?.productName || 'N/A'}
-                      disabled
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">渠道单价(₱) *</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={editForm.channelUnitPricePhp}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditForm({ ...editForm, channelUnitPricePhp: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">应收运费金额(¥)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={editForm.receivableFreightAmount}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditForm({ ...editForm, receivableFreightAmount: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">应收其他金额(¥)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={editForm.receivableOtherAmount}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditForm({ ...editForm, receivableOtherAmount: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">实收金额(¥)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={editForm.actualReceivedAmount}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditForm({ ...editForm, actualReceivedAmount: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">渠道运费成本(¥)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={editForm.channelFreightCost}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditForm({ ...editForm, channelFreightCost: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">渠道其他成本(¥)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={editForm.channelOtherCost}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditForm({ ...editForm, channelOtherCost: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">利润(¥)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={editForm.profit}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditForm({ ...editForm, profit: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  />
-                </div>
-
-                {editingCollection.vouchers && editingCollection.vouchers.length > 0 && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">收款凭证</label>
-                    <div className="space-y-2">
-                      {editingCollection.vouchers.map((voucher: { id: string; fileUrl: string; fileName?: string; uploadedAt: string }) => (
-                        <div key={voucher.id} className="flex items-center gap-2 text-sm">
-                          <button
-                            onClick={async () => {
-                              const res = await fetchWithAuth(`/api/vouchers/${voucher.id}`);
-                              if (!res.ok) return;
-                              const blob = await res.blob();
-                              const a = document.createElement('a');
-                              a.href = URL.createObjectURL(blob);
-                              a.download = voucher.fileName || '凭证';
-                              document.body.appendChild(a);
-                              a.click();
-                              document.body.removeChild(a);
-                              URL.revokeObjectURL(a.href);
-                            }}
-                            className="text-blue-600 hover:underline"
-                          >
-                            {voucher.fileName || '查看凭证'}
-                          </button>
-                          <span className="text-gray-500">
-                            {new Date(voucher.uploadedAt).toLocaleDateString('zh-CN')}
-                          </span>
-                        </div>
-                      ))}
+                <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg text-sm">
+                  {[
+                    { label: '订单编号', value: editingCollection.order?.orderNumber || '-' },
+                    { label: '总件数', value: `${editingCollection.totalPieces} 件` },
+                    { label: '总重量', value: editingCollection.totalWeight != null ? `${editingCollection.totalWeight.toFixed(3)} kg` : '-' },
+                    { label: '应收总价', value: `${editingCollection.receivableCurrency === 'PHP' ? '₱' : '¥'}${editingCollection.receivableAmount.toFixed(2)}` },
+                    { label: '应付总价', value: `${editingCollection.payableCurrency === 'PHP' ? '₱' : '¥'}${editingCollection.payableAmount.toFixed(2)}` },
+                  ].map(({ label, value }) => (
+                    <div key={label}>
+                      <p className="text-xs text-gray-500">{label}</p>
+                      <p className="font-medium text-gray-900 mt-0.5">{value}</p>
                     </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">应收叫车费 (¥)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editForm.carPickupReceivable}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditForm({ ...editForm, carPickupReceivable: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    />
                   </div>
-                )}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">实收叫车费 (¥)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editForm.carPickupActual}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditForm({ ...editForm, carPickupActual: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    />
+                  </div>
+                </div>
               </div>
             )}
 
@@ -553,124 +378,6 @@ export default function AdminOrderManagement() {
                 className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition"
               >
                 保存
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showVoucherModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
-            <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-primary/5 to-transparent">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg shadow-primary/20">
-                  <FileText className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900">添加收款凭证</h2>
-                  <p className="text-xs text-gray-500">上传支付凭证图片</p>
-                </div>
-              </div>
-              <button
-                onClick={handleCloseVoucherModal}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-400" />
-              </button>
-            </div>
-
-            <div className="p-6">
-              <div
-                className={`relative border-2 border-dashed rounded-xl transition-all duration-300 ${
-                  voucherFile
-                    ? 'border-primary bg-primary/5'
-                    : 'border-gray-200 hover:border-primary/50 hover:bg-gray-50'
-                }`}
-              >
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileSelect}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                />
-                <div className="flex flex-col items-center justify-center py-8 px-4">
-                  <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 transition-colors ${
-                    voucherFile ? 'bg-primary/10' : 'bg-gray-100'
-                  }`}>
-                    {voucherFile ? (
-                      <FileText className="w-8 h-8 text-primary" />
-                    ) : (
-                      <Upload className="w-8 h-8 text-gray-400" />
-                    )}
-                  </div>
-                  {voucherFile ? (
-                    <div className="text-center">
-                      <p className="text-sm font-semibold text-gray-900 mb-1">{voucherFile.name}</p>
-                      <p className="text-xs text-gray-500">{(voucherFile.size / 1024 / 1024).toFixed(2)} MB</p>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCloseVoucherModal();
-                        }}
-                        className="mt-2 text-xs text-red-500 hover:text-red-600 transition-colors"
-                      >
-                        移除文件
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="text-center">
-                      <p className="text-sm font-medium text-gray-700 mb-1">
-                        <span className="text-primary">点击上传</span> 或拖拽文件到这里
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        支持 JPG、PNG、GIF、WebP，最大 10MB
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {voucherFile && voucherFile.type.startsWith('image/') && (
-                <div className="mt-4 relative">
-                  <div className="aspect-video rounded-xl overflow-hidden border border-gray-200 bg-gray-50">
-                    <img
-                      src={URL.createObjectURL(voucherFile)}
-                      alt="凭证预览"
-                      className="w-full h-full object-contain"
-                    />
-                  </div>
-                  <div className="absolute top-2 right-2 px-2 py-1 bg-black/60 backdrop-blur-sm rounded-lg text-white text-xs font-medium">
-                    预览
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-3 px-6 py-4 bg-gray-50/50 border-t border-gray-100">
-              <button
-                onClick={handleCloseVoucherModal}
-                className="px-5 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all disabled:opacity-50"
-                disabled={uploadingVoucher}
-              >
-                取消
-              </button>
-              <button
-                onClick={handleUploadVoucher}
-                disabled={!voucherFile || uploadingVoucher}
-                className="px-5 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-primary to-primary/90 rounded-lg hover:from-primary/90 hover:to-primary shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-primary/25 flex items-center gap-2"
-              >
-                {uploadingVoucher ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                    上传中...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="w-4 h-4" />
-                    上传凭证
-                  </>
-                )}
               </button>
             </div>
           </div>

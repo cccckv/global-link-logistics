@@ -1,28 +1,28 @@
 import { PrismaClient, Prisma } from '@prisma/client';
+import path from 'path';
+import fs from 'fs/promises';
 
 const prisma = new PrismaClient();
 
-interface UpdatePaymentCollectionInput {
-  channelUnitPricePhp?: number;
-  receivableFreightAmount?: number;
-  receivableOtherAmount?: number;
-  actualReceivedAmount?: number;
-  channelFreightCost?: number;
-  channelOtherCost?: number;
-  profit?: number;
+export interface UpsertPaymentCollectionInput {
+  totalPieces: number;
+  totalVolume?: number;
+  totalWeight?: number;
+  receivableAmount: number;
+  payableAmount: number;
+  receivableCurrency?: string;
+  payableCurrency?: string;
+  carPickupReceivable?: number;
+  carPickupActual?: number;
 }
 
-interface PaymentCollectionFilters {
+export interface PaymentCollectionFilters {
   orderId?: string;
-  declarationId?: string;
   page?: number;
   limit?: number;
 }
 
 export class PaymentCollectionService {
-  /**
-   * 获取收款记录列表
-   */
   async findAll(filters: PaymentCollectionFilters) {
     const page = filters.page || 1;
     const limit = filters.limit || 50;
@@ -30,7 +30,6 @@ export class PaymentCollectionService {
 
     const where: Prisma.OrderPaymentCollectionWhereInput = {
       ...(filters.orderId && { orderId: filters.orderId }),
-      ...(filters.declarationId && { declarationId: filters.declarationId }),
     };
 
     const [collections, total] = await Promise.all([
@@ -43,15 +42,12 @@ export class PaymentCollectionService {
               orderNumber: true,
               orderType: true,
               status: true,
+              destination: true,
+              warehouse: true,
+              userMark: true,
+              mark: true,
               createdAt: true,
-            },
-          },
-          declaration: {
-            select: {
-              id: true,
-              productName: true,
-              weight: true,
-              trackingNumber: true,
+              user: { select: { id: true, name: true, phone: true } },
             },
           },
         },
@@ -64,21 +60,13 @@ export class PaymentCollectionService {
 
     return {
       data: collections,
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
+      pagination: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }
 
-  /**
-   * 获取单个收款记录详情
-   */
-  async findOne(id: string) {
-    const collection = await prisma.orderPaymentCollection.findUnique({
-      where: { id },
+  async findByOrderId(orderId: string) {
+    return prisma.orderPaymentCollection.findUnique({
+      where: { orderId },
       include: {
         order: {
           select: {
@@ -88,118 +76,54 @@ export class PaymentCollectionService {
             status: true,
             destination: true,
             createdAt: true,
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-              },
-            },
-          },
-        },
-        declaration: true,
-      },
-    });
-
-    return collection;
-  }
-
-  /**
-   * 更新收款记录
-   */
-  async update(id: string, data: UpdatePaymentCollectionInput) {
-    const updateData: Prisma.OrderPaymentCollectionUpdateInput = {};
-
-    if (data.channelUnitPricePhp !== undefined) {
-      updateData.channelUnitPricePhp = new Prisma.Decimal(data.channelUnitPricePhp);
-    }
-    if (data.receivableFreightAmount !== undefined) {
-      updateData.receivableFreightAmount = new Prisma.Decimal(data.receivableFreightAmount);
-    }
-    if (data.receivableOtherAmount !== undefined) {
-      updateData.receivableOtherAmount = new Prisma.Decimal(data.receivableOtherAmount);
-    }
-    if (data.actualReceivedAmount !== undefined) {
-      updateData.actualReceivedAmount = new Prisma.Decimal(data.actualReceivedAmount);
-    }
-    if (data.channelFreightCost !== undefined) {
-      updateData.channelFreightCost = new Prisma.Decimal(data.channelFreightCost);
-    }
-    if (data.channelOtherCost !== undefined) {
-      updateData.channelOtherCost = new Prisma.Decimal(data.channelOtherCost);
-    }
-    if (data.profit !== undefined) {
-      updateData.profit = new Prisma.Decimal(data.profit);
-    }
-
-    const updated = await prisma.orderPaymentCollection.update({
-      where: { id },
-      data: updateData,
-      include: {
-        order: {
-          select: {
-            id: true,
-            orderNumber: true,
-          },
-        },
-        declaration: {
-          select: {
-            id: true,
-            productName: true,
+            user: { select: { id: true, name: true, phone: true } },
           },
         },
       },
     });
-
-    return updated;
   }
 
-  /**
-   * 批量更新订单的所有收款记录
-   */
-  async batchUpdateByOrder(orderId: string, updates: Array<{ declarationId: string } & UpdatePaymentCollectionInput>) {
-    const results = await Promise.all(
-      updates.map(async (update) => {
-        const { declarationId, ...data } = update;
-        
-        const collection = await prisma.orderPaymentCollection.findFirst({
-          where: {
-            orderId,
-            declarationId,
-          },
-        });
+  async upsert(orderId: string, data: UpsertPaymentCollectionInput) {
+    const payload = {
+      totalPieces: data.totalPieces,
+      totalVolume: data.totalVolume != null ? new Prisma.Decimal(data.totalVolume) : null,
+      totalWeight: data.totalWeight != null ? new Prisma.Decimal(data.totalWeight) : null,
+      receivableAmount: new Prisma.Decimal(data.receivableAmount),
+      payableAmount: new Prisma.Decimal(data.payableAmount),
+      receivableCurrency: data.receivableCurrency ?? 'CNY',
+      payableCurrency: data.payableCurrency ?? 'PHP',
+      carPickupReceivable: data.carPickupReceivable != null ? new Prisma.Decimal(data.carPickupReceivable) : null,
+      carPickupActual: data.carPickupActual != null ? new Prisma.Decimal(data.carPickupActual) : null,
+    };
 
-        if (!collection) {
-          throw new Error(`Payment collection not found for declaration ${declarationId}`);
-        }
-
-        return this.update(collection.id, data);
-      })
-    );
-
-    return results;
-  }
-
-  async addVoucher(orderId: string, fileUrl: string, fileName?: string, fileType?: string, fileSize?: number) {
-    const voucher = await prisma.orderPaymentVoucher.create({
-      data: {
-        orderId,
-        fileUrl,
-        fileName,
-        fileType,
-        fileSize,
-      },
+    return prisma.orderPaymentCollection.upsert({
+      where: { orderId },
+      create: { orderId, ...payload },
+      update: payload,
     });
-
-    return voucher;
   }
 
-  /**
-   * 删除收款凭证
-   */
+  async addVoucher(orderId: string, fileUrl: string, fileName?: string, fileType?: string) {
+    return prisma.orderPaymentVoucher.create({
+      data: { orderId, fileUrl, fileName, fileType },
+    });
+  }
+
   async deleteVoucher(voucherId: string) {
-    await prisma.orderPaymentVoucher.delete({
+    const voucher = await prisma.orderPaymentVoucher.findUnique({
       where: { id: voucherId },
+      select: { fileUrl: true },
     });
+
+    await prisma.orderPaymentVoucher.delete({ where: { id: voucherId } });
+
+    if (voucher?.fileUrl) {
+      try {
+        const urlPath = voucher.fileUrl.replace(/^\/api\//, '');
+        const filePath = path.join(process.cwd(), urlPath);
+        await fs.unlink(filePath);
+      } catch {
+      }
+    }
   }
 }

@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { Toaster } from 'sonner';
 import PublicLayout from './layouts/PublicLayout';
 import DashboardLayout from './layouts/DashboardLayout';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -7,7 +8,6 @@ import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
-import Tracking from './pages/Tracking';
 import QuickOrder from './pages/QuickOrder';
 import OrderList from './pages/OrderList';
 import OrderDetail from './pages/OrderDetail';
@@ -15,21 +15,21 @@ import WaybillDetail from './pages/WaybillDetail';
 import ExternalTracking from './pages/ExternalTracking';
 import UserManagement from './pages/UserManagement';
 import AdminOrderManagement from './pages/AdminOrderManagement';
+import VesselPosition from './pages/VesselPosition';
 
 export default function App() {
   return (
     <BrowserRouter>
+      <Toaster position="top-right" richColors closeButton />
       <Routes>
         <Route element={<PublicLayout />}>
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/tracking" element={<Tracking />} />
         </Route>
 
         <Route element={<DashboardLayout />}>
-          <Route path="/tracking-dashboard" element={<Tracking />} />
           <Route
             path="/user-management"
             element={
@@ -55,6 +55,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <ExternalTracking />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/vessel-position"
+            element={
+              <ProtectedRoute>
+                <VesselPosition />
               </ProtectedRoute>
             }
           />

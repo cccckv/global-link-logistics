@@ -78,6 +78,7 @@ export interface PaymentVoucher {
   fileUrl: string;
   fileName?: string;
   fileType?: string;
+  voucherType?: string;
   uploadedAt: string;
 }
 
@@ -136,6 +137,7 @@ export interface QuickOrderAddress {
 export interface QuickOrderDeclaration {
   trackingNumber?: string;
   productName: string;
+  quantity: number;
   length?: number;
   width?: number;
   height?: number;
@@ -143,6 +145,7 @@ export interface QuickOrderDeclaration {
   cnyUnitPrice?: number;
   phpUnitPrice?: number;
   channelUnitPricePhp?: number;
+  channelUnitPriceCny?: number;
 }
 
 export interface QuickOrderContainer {
@@ -162,8 +165,10 @@ export interface CreateQuickOrderInput {
   attachmentUrl?: string;
   originPort?: string;
   destinationPort?: string;
-  pickupAddress?: QuickOrderAddress;
+  voyageNumber?: string;
+  receivedAt?: string;
   recipientAddress: QuickOrderAddress;
+  overseasAddress?: QuickOrderAddress;
   declarations?: QuickOrderDeclaration[];
   containers?: QuickOrderContainer[];
 }
@@ -181,10 +186,12 @@ export interface QuickOrder {
   attachmentUrl?: string;
   originPort?: string;
   destinationPort?: string;
+  voyageNumber?: string;
+  receivedAt?: string;
   createdAt: string;
   updatedAt?: string;
-  pickupAddress?: QuickOrderAddress & { id: string };
   recipientAddress: QuickOrderAddress & { id: string };
+  overseasAddress?: QuickOrderAddress & { id: string };
   declarations?: Array<QuickOrderDeclaration & { id: string }>;
   containers?: Array<QuickOrderContainer & { id: string }>;
   shipment?: Shipment;
@@ -211,34 +218,43 @@ export const quickOrderApi = {
   getDetail: (orderId: string) =>
     api.get<QuickOrder>(`/orders/quick/${orderId}`),
 
-  update: (orderId: string, data: { status?: QuickOrderStatus; note?: string; attachmentUrl?: string }) =>
+  update: (orderId: string, data: { status?: QuickOrderStatus; note?: string; attachmentUrl?: string; voyageNumber?: string }) =>
     api.patch<QuickOrder>(`/orders/quick/${orderId}`, data),
 
   cancel: (orderId: string) =>
     api.delete<{ orderId: string; orderNumber: string; status: string; message: string }>(`/orders/quick/${orderId}`),
-  
+
+  updateDeclarations: (orderId: string, declarations: QuickOrderDeclaration[]) =>
+    api.put(`/orders/quick/${orderId}/declarations`, { declarations }),
+
+  addPaymentVoucher: (orderId: string, fileUrl: string, fileName?: string, fileType?: string, voucherType?: string) =>
+    api.post<PaymentVoucher>(`/orders/quick/${orderId}/vouchers`, { fileUrl, fileName, fileType, voucherType }),
+
   getCounts: () =>
     api.get<{ all: number; pending: number; confirmed: number; inTransit: number; delivered: number; cancelled: number }>('/orders/quick/counts'),
 };
 
 export const contactApi = {
-  getPickupAddresses: () =>
-    api.get<{ data: ContactAddress[] }>('/contacts/pickup'),
-  
   getRecipientAddresses: () =>
     api.get<{ data: ContactAddress[] }>('/contacts/recipient'),
-  
-  setDefaultPickup: (id: string) =>
-    api.put<ContactAddress>(`/contacts/pickup/${id}/set-default`),
+
+  getOverseasAddresses: () =>
+    api.get<{ data: ContactAddress[] }>('/contacts/overseas'),
+
+  getOverseasAddressesByUserId: (userId: string) =>
+    api.get<{ data: ContactAddress[] }>('/contacts/overseas/by-user', { params: { forUserId: userId } }),
   
   setDefaultRecipient: (id: string) =>
     api.put<ContactAddress>(`/contacts/recipient/${id}/set-default`),
-  
-  deletePickup: (id: string) =>
-    api.delete<{ message: string }>(`/contacts/pickup/${id}`),
+
+  setDefaultOverseas: (id: string) =>
+    api.put<ContactAddress>(`/contacts/overseas/${id}/set-default`),
   
   deleteRecipient: (id: string) =>
     api.delete<{ message: string }>(`/contacts/recipient/${id}`),
+
+  deleteOverseas: (id: string) =>
+    api.delete<{ message: string }>(`/contacts/overseas/${id}`),
 };
 
 export interface UserListResponse {
@@ -285,14 +301,15 @@ export const userApi = {
 export interface PaymentCollection {
   id: string;
   orderId: string;
-  declarationId: string;
-  channelUnitPricePhp: number;
-  receivableFreightAmount: number;
-  receivableOtherAmount: number;
-  actualReceivedAmount: number;
-  channelFreightCost: number;
-  channelOtherCost: number;
-  profit: number;
+  totalPieces: number;
+  totalVolume: number | null;
+  totalWeight: number | null;
+  receivableAmount: number;
+  payableAmount: number;
+  receivableCurrency: string;
+  payableCurrency: string;
+  carPickupReceivable: number | null;
+  carPickupActual: number | null;
   createdAt: string;
   updatedAt: string;
   order?: {
@@ -300,32 +317,12 @@ export interface PaymentCollection {
     orderNumber: string;
     orderType: string;
     status: string;
-    createdAt: string;
-    warehouse?: string;
     destination: string;
-    totalPackages?: number;
+    warehouse?: string;
     userMark?: string;
     mark?: string;
-    declarations?: Array<{
-      id: string;
-      productName: string;
-      weight: number;
-      trackingNumber?: string;
-      length?: number;
-      width?: number;
-      height?: number;
-    }>;
-    containers?: Array<{
-      id: string;
-      containerType: string;
-      quantity: number;
-    }>;
-  };
-  declaration?: {
-    id: string;
-    productName: string;
-    weight: number;
-    trackingNumber?: string;
+    createdAt: string;
+    user?: { id: string; name: string; phone: string };
   };
 }
 
@@ -339,32 +336,109 @@ export interface PaymentCollectionListResponse {
   };
 }
 
-export interface UpdatePaymentCollectionData {
-  channelUnitPricePhp?: number;
-  receivableFreightAmount?: number;
-  receivableOtherAmount?: number;
-  actualReceivedAmount?: number;
-  channelFreightCost?: number;
-  channelOtherCost?: number;
-  profit?: number;
+export interface UpsertPaymentCollectionData {
+  totalPieces: number;
+  totalVolume?: number;
+  totalWeight?: number;
+  receivableAmount: number;
+  payableAmount: number;
+  receivableCurrency?: string;
+  payableCurrency?: string;
+  carPickupReceivable?: number;
+  carPickupActual?: number;
 }
 
 export const paymentCollectionApi = {
-  getAll: (params?: { orderId?: string; declarationId?: string; page?: number; limit?: number }) =>
+  getAll: (params?: { orderId?: string; page?: number; limit?: number }) =>
     api.get<PaymentCollectionListResponse>('/payment-collections', { params }),
-  
-  getOne: (id: string) =>
-    api.get<PaymentCollection>(`/payment-collections/${id}`),
-  
-  update: (id: string, data: UpdatePaymentCollectionData) =>
-    api.patch<PaymentCollection>(`/payment-collections/${id}`, data),
-  
-  batchUpdate: (orderId: string, updates: Array<{ declarationId: string } & UpdatePaymentCollectionData>) =>
-    api.post(`/payment-collections/batch/${orderId}`, { updates }),
-  
-  addVoucher: (orderId: string, fileUrl: string, fileName?: string, fileType?: string, fileSize?: number) =>
-    api.post(`/payment-collections/vouchers/${orderId}`, { fileUrl, fileName, fileType, fileSize }),
-  
+
+  getByOrderId: (orderId: string) =>
+    api.get<PaymentCollection>(`/payment-collections/order/${orderId}`),
+
+  upsert: (orderId: string, data: UpsertPaymentCollectionData) =>
+    api.put<PaymentCollection>(`/payment-collections/order/${orderId}`, data),
+
+  addVoucher: (orderId: string, fileUrl: string, fileName?: string, fileType?: string) =>
+    api.post(`/payment-collections/vouchers/${orderId}`, { fileUrl, fileName, fileType }),
+
   deleteVoucher: (voucherId: string) =>
     api.delete(`/payment-collections/vouchers/${voucherId}`),
+};
+
+export interface VesselSearchResult {
+  matchType: number;
+  mmsi: number;
+  imo: number;
+  callSign: string;
+  shipName: string;
+  dataSource: number;
+  lastTime: string;
+  lastTimeUtc: number;
+}
+
+export interface VesselPosition {
+  mmsi: number;
+  imo: number;
+  callSign: string;
+  shipName: string;
+  shipCnName: string;
+  shipType: number;
+  length: number;
+  width: number;
+  draught: number;
+  destination: string;
+  destinationCode: string;
+  eta: string;
+  lat: number;
+  lng: number;
+  sog: number;
+  cog: number;
+  heading: number;
+  rot: number;
+  lastTime: string;
+  lastTimeUtc: number;
+}
+
+export interface VesselSearchApiResponse {
+  success: boolean;
+  total: number;
+  data: VesselSearchResult[];
+  error?: string;
+  message?: string;
+}
+
+export interface VesselPositionApiResponse {
+  success: boolean;
+  data?: VesselPosition;
+  error?: string;
+  message?: string;
+}
+
+export const vesselApi = {
+  searchVessels: (keywords: string, max?: number) =>
+    api.get<VesselSearchApiResponse>('/vessel/search', { params: { keywords, max } }),
+  
+  getPosition: (mmsi: string) =>
+    api.get<VesselPositionApiResponse>('/vessel/position', { params: { mmsi } }),
+};
+
+export const uploadApi = {
+  uploadReceipt: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post<{ fileUrl: string; fileName: string; fileType: string }>(
+      '/upload/receipt',
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+  },
+  uploadPaymentVoucher: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post<{ fileUrl: string; fileName: string; fileType: string }>(
+      '/upload',
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+  },
 };

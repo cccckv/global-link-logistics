@@ -19,8 +19,8 @@ model User {
   deletedAt          DateTime?
   userRole           UserRoleEnum            @default(USER)
   batchImportTasks   BatchImportTask[]
-  pickupAddresses    OrderPickupAddress[]    @relation("UserPickupAddresses")
   recipientAddresses OrderRecipientAddress[] @relation("UserRecipientAddresses")
+  overseasAddresses  OrderOverseasAddress[]  @relation("UserOverseasAddresses")
   payments           Payment[]
   markedOrders       QuickOrder[]            @relation("MarkUser")
   quickOrders        QuickOrder[]
@@ -70,12 +70,13 @@ model QuickOrder {
   mark               String?
   originPort         String?
   destinationPort    String?
+  voyageNumber       String?
   batchTaskId        String?
   status             QuickOrderStatus         @default(PENDING)
   createdAt          DateTime                 @default(now())
   updatedAt          DateTime                 @updatedAt
-  pickupAddressId    String?
   recipientAddressId String
+  overseasAddressId  String?
   markUserId         String?
   shippedAt          DateTime?
   receivedAt         DateTime?
@@ -86,8 +87,8 @@ model QuickOrder {
   payment            Payment?
   batchTask          BatchImportTask?         @relation(fields: [batchTaskId], references: [id])
   markUser           User?                    @relation("MarkUser", fields: [markUserId], references: [id])
-  pickupAddress      OrderPickupAddress?      @relation("OrderPickupAddress", fields: [pickupAddressId], references: [id])
   recipientAddress   OrderRecipientAddress    @relation("OrderRecipientAddress", fields: [recipientAddressId], references: [id])
+  overseasAddress    OrderOverseasAddress?    @relation("OrderOverseasAddress", fields: [overseasAddressId], references: [id])
   user               User                     @relation(fields: [userId], references: [id])
   shipment           Shipment?
 
@@ -96,26 +97,6 @@ model QuickOrder {
   @@index([orderNumber])
   @@index([batchTaskId])
   @@index([createdAt(sort: Desc)])
-}
-
-model OrderPickupAddress {
-  id        String       @id @default(uuid())
-  userId    String
-  name      String
-  company   String?
-  phone     String
-  region    String?
-  address   String
-  isDefault Boolean      @default(false)
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
-  user      User         @relation("UserPickupAddresses", fields: [userId], references: [id], onDelete: Cascade)
-  orders    QuickOrder[] @relation("OrderPickupAddress")
-
-  @@unique([userId, phone])
-  @@unique([userId, phone, name])
-  @@index([userId, isDefault])
-  @@index([userId, updatedAt])
 }
 
 model OrderRecipientAddress {
@@ -138,11 +119,32 @@ model OrderRecipientAddress {
   @@index([userId, updatedAt])
 }
 
+model OrderOverseasAddress {
+  id        String       @id @default(uuid())
+  userId    String
+  name      String
+  company   String?
+  phone     String
+  region    String?
+  address   String
+  isDefault Boolean      @default(false)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  user      User         @relation("UserOverseasAddresses", fields: [userId], references: [id], onDelete: Cascade)
+  orders    QuickOrder[] @relation("OrderOverseasAddress")
+
+  @@unique([userId, phone])
+  @@unique([userId, phone, name])
+  @@index([userId, isDefault])
+  @@index([userId, updatedAt])
+}
+
 model OrderDeclaration {
   id                 String                   @id @default(uuid())
   orderId            String
   trackingNumber     String?
   productName        String
+  quantity           Int                      @default(1)
   length             Decimal?                 @db.Decimal(8, 2)
   width              Decimal?                 @db.Decimal(8, 2)
   height             Decimal?                 @db.Decimal(8, 2)
@@ -150,8 +152,9 @@ model OrderDeclaration {
   cnyUnitPrice       Decimal?                 @db.Decimal(10, 2)
   createdAt          DateTime                 @default(now())
   phpUnitPrice       Decimal?                 @db.Decimal(10, 2)
+  channelUnitPriceCny Decimal?                @db.Decimal(10, 2)
+  channelUnitPricePhp Decimal?                @db.Decimal(10, 2)
   order              QuickOrder               @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  paymentCollections OrderPaymentCollection[]
 
   @@index([orderId])
   @@index([productName])
@@ -244,36 +247,37 @@ model Payment {
 }
 
 model OrderPaymentCollection {
-  id                      String                @id @default(uuid())
-  orderId                 String
-  declarationId           String?
-  channelUnitPricePhp     Decimal               @db.Decimal(10, 2)
-  receivableFreightAmount Decimal               @db.Decimal(10, 2)
-  receivableOtherAmount   Decimal?              @db.Decimal(10, 2)
-  actualReceivedAmount    Decimal               @db.Decimal(10, 2)
-  channelFreightCost      Decimal?              @db.Decimal(10, 2)
-  channelOtherCost        Decimal?              @db.Decimal(10, 2)
-  profit                  Decimal?              @db.Decimal(10, 2)
-  createdAt               DateTime              @default(now())
-  updatedAt               DateTime              @updatedAt
-  declaration             OrderDeclaration?     @relation(fields: [declarationId], references: [id])
-  order                   QuickOrder            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id                  String     @id @default(uuid())
+  orderId             String     @unique
+  totalPieces         Int        @default(0)
+  totalVolume         Decimal?   @db.Decimal(12, 4)
+  totalWeight         Decimal?   @db.Decimal(10, 3)
+  receivableAmount    Decimal    @db.Decimal(10, 2)
+  payableAmount       Decimal    @db.Decimal(10, 2)
+  receivableCurrency  String     @default("CNY")
+  payableCurrency     String     @default("PHP")
+  carPickupReceivable Decimal?   @db.Decimal(10, 2)
+  carPickupActual     Decimal?   @db.Decimal(10, 2)
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+  order               QuickOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([orderId])
-  @@index([declarationId])
   @@index([createdAt])
 }
 
 model OrderPaymentVoucher {
-  id         String     @id @default(uuid())
-  orderId    String
-  fileUrl    String
-  fileName   String?
-  fileType   String?
-  uploadedAt DateTime   @default(now())
-  order      QuickOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id          String             @id @default(uuid())
+  orderId     String
+  fileUrl     String
+  fileName    String?
+  fileType    String?
+  voucherType OrderVoucherType   @default(PAYMENT)
+  uploadedAt  DateTime           @default(now())
+  order       QuickOrder         @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([orderId])
+  @@index([orderId, voucherType])
 }
 
 enum UserType {
@@ -323,4 +327,9 @@ enum BatchImportStatus {
 enum UserRoleEnum {
   ADMIN
   USER
+}
+
+enum OrderVoucherType {
+  PAYMENT
+  RECEIPT
 }

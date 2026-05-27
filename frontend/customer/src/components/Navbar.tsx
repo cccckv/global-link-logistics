@@ -41,21 +41,14 @@ export default function Navbar() {
 
   return (
     <nav className="bg-primary-dark text-white shadow-lg">
-      <div className="container mx-auto px-4 py-4">
-        <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between w-full px-6 py-4">
+        <div className="flex items-center justify-between w-full">
           <Link to="/" className="flex items-center space-x-2 text-xl font-bold">
             <Package className="w-8 h-8 text-accent-cyan" />
             <span className="bg-gradient-to-r from-white to-accent-cyan bg-clip-text text-transparent">Global Link Logistics</span>
           </Link>
 
-          <div className="flex items-center space-x-6">
-            <Link to="/" className="hover:text-accent-cyan transition">
-              首页
-            </Link>
-            <Link to="/tracking" className="hover:text-accent-cyan transition">
-              物流追踪
-            </Link>
-
+          <div className="flex items-center justify-end space-x-6">
             {user ? (
               <>
                 <div className="flex items-center space-x-4">

@@ -1,4 +1,7 @@
 import { FastifyRequest } from 'fastify';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 export interface JWTPayload {
   userId: string;
@@ -11,8 +14,19 @@ export interface JWTPayload {
 export async function authenticate(request: FastifyRequest) {
   try {
     await request.jwtVerify();
-  } catch (err) {
-    throw new Error('Authentication required');
+  } catch {
+    const err = Object.assign(new Error('Authentication required'), { statusCode: 401 });
+    throw err;
+  }
+
+  const payload = request.user as JWTPayload;
+  const exists = await prisma.user.findUnique({
+    where: { id: payload.userId },
+    select: { id: true },
+  });
+  if (!exists) {
+    const err = Object.assign(new Error('Session expired, please login again'), { statusCode: 401 });
+    throw err;
   }
 }
 

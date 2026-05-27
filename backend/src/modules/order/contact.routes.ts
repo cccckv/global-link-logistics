@@ -1,27 +1,14 @@
 import { FastifyInstance } from 'fastify';
 import { ContactService } from './contact.service';
 import { getUserFromRequest } from '../../lib/jwt';
+import { authorize } from '../../lib/auth';
 
 const service = new ContactService();
 
 export async function contactRoutes(fastify: FastifyInstance) {
   fastify.get(
-    '/pickup',
-    {
-      preHandler: [fastify.authenticate],
-    },
-    async (request) => {
-      const user = getUserFromRequest(request);
-      const addresses = await service.getPickupAddresses(user.userId);
-      return { data: addresses };
-    }
-  );
-
-  fastify.get(
     '/recipient',
-    {
-      preHandler: [fastify.authenticate],
-    },
+    { preHandler: [fastify.authenticate] },
     async (request) => {
       const user = getUserFromRequest(request);
       const addresses = await service.getRecipientAddresses(user.userId);
@@ -29,29 +16,32 @@ export async function contactRoutes(fastify: FastifyInstance) {
     }
   );
 
-  fastify.put<{ Params: { id: string } }>(
-    '/pickup/:id/set-default',
-    {
-      preHandler: [fastify.authenticate],
-    },
+  fastify.get(
+    '/overseas',
+    { preHandler: [fastify.authenticate] },
+    async (request) => {
+      const user = getUserFromRequest(request);
+      const addresses = await service.getOverseasAddresses(user.userId);
+      return { data: addresses };
+    }
+  );
+
+  fastify.get<{ Querystring: { forUserId: string } }>(
+    '/overseas/by-user',
+    { preHandler: [fastify.authenticate, authorize(['ADMIN'])] },
     async (request, reply) => {
-      try {
-        const user = getUserFromRequest(request);
-        const { id } = request.params;
-        const address = await service.setDefaultPickupAddress(user.userId, id);
-        return address;
-      } catch (error: any) {
-        fastify.log.error(error);
-        return reply.code(404).send({ error: error.message });
+      const { forUserId } = request.query;
+      if (!forUserId) {
+        return reply.code(400).send({ error: 'forUserId is required' });
       }
+      const addresses = await service.getOverseasAddresses(forUserId);
+      return { data: addresses };
     }
   );
 
   fastify.put<{ Params: { id: string } }>(
     '/recipient/:id/set-default',
-    {
-      preHandler: [fastify.authenticate],
-    },
+    { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       try {
         const user = getUserFromRequest(request);
@@ -65,17 +55,15 @@ export async function contactRoutes(fastify: FastifyInstance) {
     }
   );
 
-  fastify.delete<{ Params: { id: string } }>(
-    '/pickup/:id',
-    {
-      preHandler: [fastify.authenticate],
-    },
+  fastify.put<{ Params: { id: string } }>(
+    '/overseas/:id/set-default',
+    { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       try {
         const user = getUserFromRequest(request);
         const { id } = request.params;
-        await service.deletePickupAddress(user.userId, id);
-        return { message: 'Address deleted successfully' };
+        const address = await service.setDefaultOverseasAddress(user.userId, id);
+        return address;
       } catch (error: any) {
         fastify.log.error(error);
         return reply.code(404).send({ error: error.message });
@@ -85,14 +73,28 @@ export async function contactRoutes(fastify: FastifyInstance) {
 
   fastify.delete<{ Params: { id: string } }>(
     '/recipient/:id',
-    {
-      preHandler: [fastify.authenticate],
-    },
+    { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       try {
         const user = getUserFromRequest(request);
         const { id } = request.params;
         await service.deleteRecipientAddress(user.userId, id);
+        return { message: 'Address deleted successfully' };
+      } catch (error: any) {
+        fastify.log.error(error);
+        return reply.code(404).send({ error: error.message });
+      }
+    }
+  );
+
+  fastify.delete<{ Params: { id: string } }>(
+    '/overseas/:id',
+    { preHandler: [fastify.authenticate] },
+    async (request, reply) => {
+      try {
+        const user = getUserFromRequest(request);
+        const { id } = request.params;
+        await service.deleteOverseasAddress(user.userId, id);
         return { message: 'Address deleted successfully' };
       } catch (error: any) {
         fastify.log.error(error);

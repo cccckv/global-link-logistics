@@ -4,6 +4,19 @@ import { toast } from 'sonner';
 import { Download, Loader2 } from 'lucide-react';
 import { quickOrderApi, contactApi, userApi, uploadApi, type QuickOrderType, type ContactAddress } from '../lib/api';
 
+const DESTINATION_PORTS: Record<string, string[]> = {
+  vietnam: ['胡志明港', '海防港', '岘港港', '归仁港', '头顿港'],
+  thailand: ['林查班港', '曼谷港', '兰差邦港', '宋卡港'],
+  malaysia: ['巴生港', '槟城港', '柔佛港', '关丹港', '山打根港'],
+  singapore: ['新加坡港'],
+  indonesia: ['丹戎不碌港', '泗水港', '棉兰港', '马辰港', '望加锡港', '巨港港'],
+  philippines: ['马尼拉南港', '马尼拉北港', '宿务港', '达沃港', '苏比克湾港', '伊洛伊洛港'],
+  myanmar: ['仰光港', '土瓦港', '皎漂港'],
+  cambodia: ['西哈努克港', '金边港'],
+  laos: ['万象内陆港', '沙湾拿吉港'],
+  brunei: ['摩拉港', '斯里巴加湾港'],
+};
+
 interface User {
   id: string;
   name: string;
@@ -41,6 +54,8 @@ interface ContainerItem {
   phpUnitPrice: string;
   channelUnitPricePhp: string;
   channelUnitPriceCny: string;
+  receivableCurrency: 'CNY' | 'PHP';
+  payableCurrency: 'CNY' | 'PHP';
 }
 
 interface FormData {
@@ -73,6 +88,13 @@ interface FormData {
   packages: PackageItem[];
   originPort: string;
   destinationPort: string;
+  billOfLading: string;
+  containerNumber: string;
+  loadingDate: string;
+  eta: string;
+  portGateFee: string;
+  truckingFee: string;
+  customsCertFee: string;
   containers: ContainerItem[];
 }
 
@@ -129,6 +151,13 @@ const initialFormData: FormData = {
   ],
   originPort: '',
   destinationPort: '',
+  billOfLading: '',
+  containerNumber: '',
+  loadingDate: '',
+  eta: '',
+  portGateFee: '',
+  truckingFee: '',
+  customsCertFee: '',
   containers: [
     {
       id: 1,
@@ -141,6 +170,8 @@ const initialFormData: FormData = {
       phpUnitPrice: '',
       channelUnitPricePhp: '',
       channelUnitPriceCny: '',
+      receivableCurrency: 'CNY' as const,
+      payableCurrency: 'CNY' as const,
     },
   ],
 };
@@ -322,6 +353,8 @@ export default function QuickOrder() {
       phpUnitPrice: '',
       channelUnitPricePhp: '',
       channelUnitPriceCny: '',
+      receivableCurrency: 'CNY' as const,
+      payableCurrency: 'CNY' as const,
     }]);
   };
 
@@ -377,22 +410,39 @@ export default function QuickOrder() {
     }
 
     if (currentTabType === 'fcl') {
-      if (!currentData.originPort) {
-        toast.error('请选择起运港');
+      if (!currentData.warehouse) {
+        toast.error('请选择起运点');
         return;
       }
-      if (!currentData.destinationPort) {
-        toast.error('请选择目的港');
+      if (!currentData.destination) {
+        toast.error('请选择目的地');
         return;
       }
       
       const hasEmptyContainer = currentData.containers.some(c => 
-        !c.quantity || !c.weight || !c.productName || !c.channelUnitPricePhp
+        !c.quantity || !c.weight || !c.productName
       );
       if (hasEmptyContainer) {
-        toast.error('请填写所有集装箱的件数、重量、产品名称和应付单价');
+        toast.error('请填写所有集装箱的件数、重量、产品名称');
         return;
       }
+
+      const missingReceivablePrice = currentData.containers.some(c =>
+        !c.cnyUnitPrice && !c.phpUnitPrice
+      );
+      if (missingReceivablePrice) {
+        toast.error('请填写所有集装箱的应收总价');
+        return;
+      }
+
+      const missingPayablePrice = currentData.containers.some(c =>
+        !c.channelUnitPricePhp && !c.channelUnitPriceCny
+      );
+      if (missingPayablePrice) {
+        toast.error('请填写所有集装箱的应付总价');
+        return;
+      }
+      
       
       const invalidQuantity = currentData.containers.some(c => 
         parseInt(c.quantity) <= 0
@@ -409,24 +459,6 @@ export default function QuickOrder() {
         toast.error('集装箱重量必须大于0');
         return;
       }
-
-      const invalidChannelPrice = currentData.containers.some(c => 
-        parseFloat(c.channelUnitPricePhp) <= 0
-      );
-      if (invalidChannelPrice) {
-        toast.error('应付单价必须大于0');
-        return;
-      }
-    }
-
-    if (currentTabType === 'standard') {
-      const missingChannelUnitPrice = currentData.packages.some(p =>
-        p.productName && p.weight && !p.channelUnitPricePhp
-      );
-      if (missingChannelUnitPrice) {
-        toast.error('请填写每条申报信息的应付单价(₱)');
-        return;
-      }
     }
 
     if (currentTabType === 'standard' && !currentData.warehouse) {
@@ -436,16 +468,16 @@ export default function QuickOrder() {
 
     if (currentTabType === 'standard') {
       const filledPackages = currentData.packages.filter(p => p.productName && p.weight);
-      const receivableHasCny = filledPackages.some(p => p.cnyUnitPrice && !p.phpUnitPrice);
-      const receivableHasPhp = filledPackages.some(p => p.phpUnitPrice);
-      if (receivableHasCny && receivableHasPhp) {
-        toast.error('应收单价请统一使用同一货币（CNY 或 PHP），不能混填');
+
+      const missingReceivable = filledPackages.some(p => !p.cnyUnitPrice && !p.phpUnitPrice);
+      if (missingReceivable) {
+        toast.error('请填写每条申报信息的应收单价');
         return;
       }
-      const payableHasCny = filledPackages.some(p => p.channelUnitPriceCny && !p.channelUnitPricePhp);
-      const payableHasPhp = filledPackages.some(p => p.channelUnitPricePhp);
-      if (payableHasCny && payableHasPhp) {
-        toast.error('应付单价请统一使用同一货币（CNY 或 PHP），不能混填');
+
+      const missingPayable = filledPackages.some(p => !p.channelUnitPriceCny && !p.channelUnitPricePhp);
+      if (missingPayable) {
+        toast.error('请填写每条申报信息的应付单价');
         return;
       }
     }
@@ -474,7 +506,7 @@ export default function QuickOrder() {
         receiptUrl: receiptUrl || undefined,
         receiptFileName: receiptFileName || undefined,
         mark: currentData.mark || undefined,
-        voyageNumber: currentData.voyageNumber || undefined,
+        voyageNumber: activeTab !== 'AIR' ? (currentData.voyageNumber || undefined) : undefined,
         carPickupReceivable: currentData.carPickupReceivable ? parseFloat(currentData.carPickupReceivable) : undefined,
         carPickupActual: currentData.carPickupActual ? parseFloat(currentData.carPickupActual) : undefined,
         recipientAddress: {
@@ -497,8 +529,15 @@ export default function QuickOrder() {
       }
 
       if (currentTabType === 'fcl') {
-        orderData.originPort = currentData.originPort || undefined;
+        orderData.warehouse = currentData.warehouse || undefined;
         orderData.destinationPort = currentData.destinationPort || undefined;
+        orderData.billOfLading = currentData.billOfLading || undefined;
+        orderData.containerNumber = currentData.containerNumber || undefined;
+        orderData.loadingDate = currentData.loadingDate || undefined;
+        orderData.eta = currentData.eta || undefined;
+        orderData.portGateFee = currentData.portGateFee ? parseFloat(currentData.portGateFee) : undefined;
+        orderData.truckingFee = currentData.truckingFee ? parseFloat(currentData.truckingFee) : undefined;
+        orderData.customsCertFee = currentData.customsCertFee ? parseFloat(currentData.customsCertFee) : undefined;
         orderData.containers = currentData.containers.map(c => ({
           containerType: c.containerType,
           quantity: parseInt(c.quantity) || 0,
@@ -511,10 +550,12 @@ export default function QuickOrder() {
           weight: c.weight ? parseFloat(c.weight) : 0,
           cnyUnitPrice: c.cnyUnitPrice ? parseFloat(c.cnyUnitPrice) : undefined,
           phpUnitPrice: c.phpUnitPrice ? parseFloat(c.phpUnitPrice) : undefined,
-          channelUnitPricePhp: parseFloat(c.channelUnitPricePhp),
+          channelUnitPricePhp: c.channelUnitPricePhp ? parseFloat(c.channelUnitPricePhp) : undefined,
+          channelUnitPriceCny: c.channelUnitPriceCny ? parseFloat(c.channelUnitPriceCny) : undefined,
         }));
       } else if (currentTabType === 'standard') {
         orderData.warehouse = currentData.warehouse;
+        if (activeTab !== 'AIR') orderData.destinationPort = currentData.destinationPort || undefined;
         orderData.declarations = currentData.packages.map(p => ({
           trackingNumber: p.trackingNumber || undefined,
           productName: p.productName,
@@ -583,6 +624,7 @@ export default function QuickOrder() {
 
   const handleTabChange = (tab: ShipmentType) => {
     setActiveTab(tab);
+    if (tab === 'AIR') updateFormData('destinationPort', '');
   };
 
   const currentTabType = SHIPMENT_TABS.find(t => t.key === activeTab)?.type || 'standard';
@@ -616,114 +658,152 @@ export default function QuickOrder() {
               </div>
             </div>
 
-            {currentTabType === 'fcl' ? (
-              <div className="px-8 py-8">
-                <h2 className="text-lg font-medium text-gray-900 mb-6">添加运输信息</h2>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">
-                      <span className="text-red-500">*</span>渠道
-                    </label>
-                    <select
-                      value={currentData.warehouse}
-                      onChange={(e) => updateFormData('warehouse', e.target.value)}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">请选择渠道</option>
-                      <option value="yiwu">义乌</option>
-                      <option value="longyan">龙岩</option>
-                      <option value="guangzhou">广州</option>
-                    </select>
-                  </div>
+             {currentTabType === 'fcl' ? (
+               <div className="px-8 py-8">
+                 <h2 className="text-lg font-medium text-gray-900 mb-6">添加运输信息</h2>
+                 
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                   <div className="space-y-2">
+                     <label className="block text-sm font-medium text-gray-700">
+                       <span className="text-red-500">*</span>起运点
+                     </label>
+                     <select
+                       value={currentData.warehouse}
+                       onChange={(e) => updateFormData('warehouse', e.target.value)}
+                       className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                     >
+                       <option value="">请选择起运点</option>
+                       <option value="青岛">青岛</option>
+                       <option value="天津">天津</option>
+                       <option value="上海">上海</option>
+                       <option value="宁波">宁波</option>
+                       <option value="厦门">厦门</option>
+                       <option value="广州">广州</option>
+                     </select>
+                   </div>
 
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">
-                      <span className="text-red-500">*</span>目的地
-                    </label>
-                    <select
-                      value={currentData.destination}
-                      onChange={(e) => updateFormData('destination', e.target.value)}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">请选择目的地</option>
-                      <option value="vietnam">越南</option>
-                      <option value="thailand">泰国</option>
-                      <option value="malaysia">马来西亚</option>
-                      <option value="singapore">新加坡</option>
-                      <option value="indonesia">印度尼西亚</option>
-                      <option value="philippines">菲律宾</option>
-                      <option value="myanmar">缅甸</option>
-                      <option value="cambodia">柬埔寨</option>
-                      <option value="laos">老挝</option>
-                      <option value="brunei">文莱</option>
-                    </select>
-                  </div>
+                   <div className="space-y-2">
+                     <label className="block text-sm font-medium text-gray-700">
+                       <span className="text-red-500">*</span>目的地
+                     </label>
+                     <select
+                       value={currentData.destination}
+                       onChange={(e) => { updateFormData('destination', e.target.value); updateFormData('destinationPort', ''); }}
+                       className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                     >
+                       <option value="">请选择目的地</option>
+                       <option value="vietnam">越南</option>
+                       <option value="thailand">泰国</option>
+                       <option value="malaysia">马来西亚</option>
+                       <option value="singapore">新加坡</option>
+                       <option value="indonesia">印度尼西亚</option>
+                       <option value="philippines">菲律宾</option>
+                       <option value="myanmar">缅甸</option>
+                       <option value="cambodia">柬埔寨</option>
+                       <option value="laos">老挝</option>
+                       <option value="brunei">文莱</option>
+                     </select>
+                   </div>
 
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">
-                      起运港口 <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={currentData.originPort}
-                      onChange={(e) => updateFormData('originPort', e.target.value)}
-                      required
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">请选择起运港口</option>
-                      <option value="shanghai">上海港</option>
-                      <option value="ningbo">宁波港</option>
-                      <option value="shenzhen">深圳港</option>
-                      <option value="guangzhou">广州港</option>
-                    </select>
-                  </div>
+                   {currentData.destination && (
+                   <div className="space-y-2">
+                     <label className="block text-sm font-medium text-gray-700">目的地港口</label>
+                     <select
+                       value={currentData.destinationPort}
+                       onChange={(e) => updateFormData('destinationPort', e.target.value)}
+                       className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                     >
+                       <option value="">请选择目的地港口</option>
+                       {(DESTINATION_PORTS[currentData.destination] || []).map(port => (
+                         <option key={port} value={port}>{port}</option>
+                       ))}
+                     </select>
+                   </div>
+                   )}
 
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">
-                      目的港口 <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={currentData.destinationPort}
-                      onChange={(e) => updateFormData('destinationPort', e.target.value)}
-                      required
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">请选择目的港口</option>
-                      <option value="hongkong">香港港</option>
-                      <option value="singapore">新加坡港</option>
-                      <option value="losangeles">洛杉矶港</option>
-                      <option value="rotterdam">鹿特丹港</option>
-                    </select>
-                  </div>
+                   <div className="space-y-2">
+                     <label className="block text-sm font-medium text-gray-700">航运航次</label>
+                     <input
+                       type="text"
+                       placeholder="请输入航运航次"
+                       value={currentData.voyageNumber}
+                       onChange={(e) => updateFormData('voyageNumber', e.target.value)}
+                       className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                     />
+                   </div>
 
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">备注</label>
-                    <input
-                      type="text"
-                      placeholder="请输入订单备注"
-                      value={currentData.note}
-                      onChange={(e) => updateFormData('note', e.target.value)}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
+                   <div className="space-y-2">
+                     <label className="block text-sm font-medium text-gray-700">提单号</label>
+                     <input
+                       type="text"
+                       placeholder="请输入提单号"
+                       value={currentData.billOfLading}
+                       onChange={(e) => updateFormData('billOfLading', e.target.value)}
+                       className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                     />
+                   </div>
 
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">用户唛头</label>
-                    <select
-                      value={currentData.userMarkId}
-                      onChange={(e) => handleUserMarkSelect(e.target.value)}
-                      disabled={isLoadingUsers}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-                    >
-                      <option value="">请选择用户唛头</option>
-                      {regularUsers.map((user) => (
-                        <option key={user.id} value={user.id}>
-                          {user.name} ({user.phone})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+                   <div className="space-y-2">
+                     <label className="block text-sm font-medium text-gray-700">柜号</label>
+                     <input
+                       type="text"
+                       placeholder="请输入柜号"
+                       value={currentData.containerNumber}
+                       onChange={(e) => updateFormData('containerNumber', e.target.value)}
+                       className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                     />
+                   </div>
+
+                   <div className="space-y-2">
+                     <label className="block text-sm font-medium text-gray-700">装柜时间</label>
+                     <input
+                       type="date"
+                       value={currentData.loadingDate}
+                       onChange={(e) => updateFormData('loadingDate', e.target.value)}
+                       onClick={(e) => { const el = e.currentTarget; if ('showPicker' in el) (el as HTMLInputElement).showPicker(); }}
+                       className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer"
+                     />
+                   </div>
+
+                   <div className="space-y-2">
+                     <label className="block text-sm font-medium text-gray-700">预计到港时间</label>
+                     <input
+                       type="date"
+                       value={currentData.eta}
+                       onChange={(e) => updateFormData('eta', e.target.value)}
+                       onClick={(e) => { const el = e.currentTarget; if ('showPicker' in el) (el as HTMLInputElement).showPicker(); }}
+                       className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer"
+                     />
+                   </div>
+
+                   <div className="space-y-2">
+                     <label className="block text-sm font-medium text-gray-700">备注</label>
+                     <input
+                       type="text"
+                       placeholder="请输入订单备注"
+                       value={currentData.note}
+                       onChange={(e) => updateFormData('note', e.target.value)}
+                       className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                     />
+                   </div>
+
+                   <div className="space-y-2">
+                     <label className="block text-sm font-medium text-gray-700">用户唛头</label>
+                     <select
+                       value={currentData.userMarkId}
+                       onChange={(e) => handleUserMarkSelect(e.target.value)}
+                       disabled={isLoadingUsers}
+                       className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                     >
+                       <option value="">请选择用户唛头</option>
+                       {regularUsers.map((user) => (
+                         <option key={user.id} value={user.id}>
+                           {user.name} ({user.phone})
+                         </option>
+                       ))}
+                     </select>
+                   </div>
+                 </div>
 
                 <div className="border-b pb-8 mb-8">
                   <div className="flex items-center justify-between mb-6">
@@ -957,12 +1037,10 @@ export default function QuickOrder() {
                           <th className="border-b border-r border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center w-16">序号</th>
                           <th className="border-b border-r border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center min-w-[150px]">订柜箱型</th>
                           <th className="border-b border-r border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center w-32">件数</th>
-                          <th className="border-b border-r border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center w-32">单件重量(kg)</th>
+                          <th className="border-b border-r border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center w-32">总重量(kg)</th>
                           <th className="border-b border-r border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center min-w-[150px]">产品名称 <span className="text-red-500">*</span></th>
-                          <th className="border-b border-r border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center w-32">应收单价(￥)</th>
-                          <th className="border-b border-r border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center w-32">应收单价(₱)</th>
-                          <th className="border-b border-r border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center w-32">应付单价(₱) <span className="text-red-500">*</span></th>
-                          <th className="border-b border-r border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center w-32">应付单价(￥)</th>
+                          <th className="border-b border-r border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center w-40">应收总价 <span className="text-red-500">*</span></th>
+                          <th className="border-b border-r border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center w-40">应付总价 <span className="text-red-500">*</span></th>
                           <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center w-32">操作</th>
                         </tr>
                       </thead>
@@ -1001,7 +1079,7 @@ export default function QuickOrder() {
                                 type="number"
                                 value={container.weight}
                                 onChange={(e) => updateContainer(container.id, 'weight', e.target.value)}
-                                placeholder="请输入单件重量"
+                                 placeholder="请输入总重量"
                                 min="0.01"
                                 step="0.01"
                                 required
@@ -1020,54 +1098,75 @@ export default function QuickOrder() {
                               />
                             </td>
 
-                            <td className="border-b border-r border-gray-300 px-3 py-2">
-                              <input
-                                type="number"
-                                value={container.cnyUnitPrice}
-                                onChange={(e) => updateContainer(container.id, 'cnyUnitPrice', e.target.value)}
-                                placeholder="应收单价￥"
-                                min="0"
-                                step="0.01"
-                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 text-center"
-                              />
-                            </td>
+                             <td className="border-b border-r border-gray-300 px-3 py-2">
+                               <div className="flex gap-1">
+                                 <select
+                                   value={container.receivableCurrency}
+                                   onChange={(e) => {
+                                     const cur = e.target.value as 'CNY' | 'PHP';
+                                     updateContainer(container.id, 'receivableCurrency', cur);
+                                     updateContainer(container.id, 'cnyUnitPrice', '');
+                                     updateContainer(container.id, 'phpUnitPrice', '');
+                                   }}
+                                   className="px-2 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 w-16"
+                                 >
+                                   <option value="CNY">¥</option>
+                                   <option value="PHP">₱</option>
+                                 </select>
+                                 <input
+                                   type="number"
+                                   placeholder="总价"
+                                   value={container.receivableCurrency === 'CNY' ? container.cnyUnitPrice : container.phpUnitPrice}
+                                   onChange={(e) => {
+                                     if (container.receivableCurrency === 'CNY') {
+                                       updateContainer(container.id, 'cnyUnitPrice', e.target.value);
+                                       updateContainer(container.id, 'phpUnitPrice', '');
+                                     } else {
+                                       updateContainer(container.id, 'phpUnitPrice', e.target.value);
+                                       updateContainer(container.id, 'cnyUnitPrice', '');
+                                     }
+                                   }}
+                                   min="0"
+                                   step="0.01"
+                                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 text-center"
+                                 />
+                               </div>
+                             </td>
 
-                            <td className="border-b border-r border-gray-300 px-3 py-2">
-                              <input
-                                type="number"
-                                value={container.phpUnitPrice}
-                                onChange={(e) => updateContainer(container.id, 'phpUnitPrice', e.target.value)}
-                                placeholder="应收单价₱"
-                                min="0"
-                                step="0.01"
-                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 text-center"
-                              />
-                            </td>
-
-                            <td className="border-b border-r border-gray-300 px-3 py-2">
-                              <input
-                                type="number"
-                                value={container.channelUnitPricePhp}
-                                onChange={(e) => updateContainer(container.id, 'channelUnitPricePhp', e.target.value)}
-                                placeholder="应付单价₱"
-                                min="0"
-                                step="0.01"
-                                required
-                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 text-center"
-                              />
-                            </td>
-
-                            <td className="border-b border-r border-gray-300 px-3 py-2">
-                              <input
-                                type="number"
-                                value={container.channelUnitPriceCny}
-                                onChange={(e) => updateContainer(container.id, 'channelUnitPriceCny', e.target.value)}
-                                placeholder="应付单价￥"
-                                min="0"
-                                step="0.01"
-                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 text-center"
-                              />
-                            </td>
+                             <td className="border-b border-r border-gray-300 px-3 py-2">
+                               <div className="flex gap-1">
+                                 <select
+                                   value={container.payableCurrency}
+                                   onChange={(e) => {
+                                     const cur = e.target.value as 'CNY' | 'PHP';
+                                     updateContainer(container.id, 'payableCurrency', cur);
+                                     updateContainer(container.id, 'channelUnitPricePhp', '');
+                                     updateContainer(container.id, 'channelUnitPriceCny', '');
+                                   }}
+                                   className="px-2 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 w-16"
+                                 >
+                                   <option value="CNY">¥</option>
+                                   <option value="PHP">₱</option>
+                                 </select>
+                                 <input
+                                   type="number"
+                                   placeholder="总价"
+                                   value={container.payableCurrency === 'CNY' ? container.channelUnitPriceCny : container.channelUnitPricePhp}
+                                   onChange={(e) => {
+                                     if (container.payableCurrency === 'CNY') {
+                                       updateContainer(container.id, 'channelUnitPriceCny', e.target.value);
+                                       updateContainer(container.id, 'channelUnitPricePhp', '');
+                                     } else {
+                                       updateContainer(container.id, 'channelUnitPricePhp', e.target.value);
+                                       updateContainer(container.id, 'channelUnitPriceCny', '');
+                                     }
+                                   }}
+                                   min="0"
+                                   step="0.01"
+                                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 text-center"
+                                 />
+                               </div>
+                             </td>
                             
                             <td className="border-b border-gray-300 px-3 py-2">
                               <div className="flex items-center justify-center gap-2">
@@ -1110,13 +1209,110 @@ export default function QuickOrder() {
                     </table>
                   </div>
 
+                  <div className="mt-6 p-6 border border-gray-200 rounded-lg">
+                    <h3 className="text-base font-medium text-gray-900 mb-4">其他费用</h3>
+                    <div className="grid grid-cols-2 gap-6 max-w-2xl">
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">港杂费 (¥)</label>
+                        <input
+                          type="number"
+                          placeholder="0.00"
+                          value={currentData.portGateFee}
+                          onChange={(e) => updateFormData('portGateFee', e.target.value)}
+                          min="0"
+                          step="0.01"
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">拖车费 (¥)</label>
+                        <input
+                          type="number"
+                          placeholder="0.00"
+                          value={currentData.truckingFee}
+                          onChange={(e) => updateFormData('truckingFee', e.target.value)}
+                          min="0"
+                          step="0.01"
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">报关产地证费 (¥)</label>
+                        <input
+                          type="number"
+                          placeholder="0.00"
+                          value={currentData.customsCertFee}
+                          onChange={(e) => updateFormData('customsCertFee', e.target.value)}
+                          min="0"
+                          step="0.01"
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {(() => {
+                    const containers = currentData.containers;
+                    const receivableUsePhp = containers[0]?.receivableCurrency === 'PHP';
+                    const payableUsePhp = containers[0]?.payableCurrency === 'PHP';
+                    const baseReceivable = containers.reduce((sum, c) => {
+                      return sum + (c.receivableCurrency === 'PHP' ? (parseFloat(c.phpUnitPrice) || 0) : (parseFloat(c.cnyUnitPrice) || 0));
+                    }, 0);
+                    const basePayable = containers.reduce((sum, c) => {
+                      return sum + (c.payableCurrency === 'PHP' ? (parseFloat(c.channelUnitPricePhp) || 0) : (parseFloat(c.channelUnitPriceCny) || 0));
+                    }, 0);
+                     const portGateFee = parseFloat(currentData.portGateFee) || 0;
+                    const truckingFee = parseFloat(currentData.truckingFee) || 0;
+                    const customsCertFee = parseFloat(currentData.customsCertFee) || 0;
+                    const totalOther = portGateFee + truckingFee + customsCertFee;
+                    const receivableSymbol = receivableUsePhp ? '₱' : '¥';
+                    const payableSymbol = payableUsePhp ? '₱' : '¥';
+                    const finalReceivable = baseReceivable + (receivableUsePhp ? 0 : totalOther);
+                    const finalPayable = basePayable + (payableUsePhp ? 0 : totalOther);
+                    return (
+                      <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="grid grid-cols-3 gap-6 text-sm">
+                          <div>
+                            <span className="text-gray-500">应收总价（含其他费用）</span>
+                            <p className="text-lg font-semibold text-blue-600 mt-1">
+                              {finalReceivable > 0 || (receivableUsePhp && totalOther > 0)
+                                ? `${receivableSymbol}${(receivableUsePhp ? baseReceivable : finalReceivable).toFixed(2)}${receivableUsePhp && totalOther > 0 ? ` + ¥${totalOther.toFixed(2)}` : ''}`
+                                : '-'}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">应付总价（含其他费用）</span>
+                            <p className="text-lg font-semibold text-orange-600 mt-1">
+                              {finalPayable > 0 || (payableUsePhp && totalOther > 0)
+                                ? `${payableSymbol}${(payableUsePhp ? basePayable : finalPayable).toFixed(2)}${payableUsePhp && totalOther > 0 ? ` + ¥${totalOther.toFixed(2)}` : ''}`
+                                : '-'}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">其他费用合计</span>
+                            <p className="text-lg font-semibold text-gray-700 mt-1">
+                              {totalOther > 0 ? `¥${totalOther.toFixed(2)}` : '-'}
+                            </p>
+                          </div>
+                        </div>
+                        {totalOther > 0 && (
+                          <div className="mt-3 pt-3 border-t border-blue-200 text-sm text-gray-500 flex flex-wrap gap-4">
+                            {portGateFee > 0 && <span>港杂费：¥{portGateFee.toFixed(2)}</span>}
+                            {truckingFee > 0 && <span>拖车费：¥{truckingFee.toFixed(2)}</span>}
+                            {customsCertFee > 0 && <span>报关产地证费：¥{customsCertFee.toFixed(2)}</span>}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   {submitError && (
                     <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
                       {submitError}
                     </div>
                   )}
                   
-                  <div className="flex gap-4">
+                  <div className="flex gap-4 mt-8">
                     <button
                       type="submit"
                       disabled={isSubmitting}
@@ -1241,31 +1437,47 @@ export default function QuickOrder() {
                     </select>
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">
-                      <span className="text-red-500">*</span>目的地
-                    </label>
-                    <select
-                      value={currentData.destination}
-                      onChange={(e) => updateFormData('destination', e.target.value)}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">请选择目的地</option>
-                      <option value="vietnam">越南</option>
-                      <option value="thailand">泰国</option>
-                      <option value="malaysia">马来西亚</option>
-                      <option value="singapore">新加坡</option>
-                      <option value="indonesia">印度尼西亚</option>
-                      <option value="philippines">菲律宾</option>
-                      <option value="myanmar">缅甸</option>
-                      <option value="cambodia">柬埔寨</option>
-                      <option value="laos">老挝</option>
-                      <option value="brunei">文莱</option>
-                    </select>
-                  </div>
+                   <div className="space-y-2">
+                     <label className="block text-sm font-medium text-gray-700">
+                       <span className="text-red-500">*</span>目的地
+                     </label>
+                     <select
+                       value={currentData.destination}
+                       onChange={(e) => { updateFormData('destination', e.target.value); updateFormData('destinationPort', ''); }}
+                       className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                     >
+                       <option value="">请选择目的地</option>
+                       <option value="vietnam">越南</option>
+                       <option value="thailand">泰国</option>
+                       <option value="malaysia">马来西亚</option>
+                       <option value="singapore">新加坡</option>
+                       <option value="indonesia">印度尼西亚</option>
+                       <option value="philippines">菲律宾</option>
+                       <option value="myanmar">缅甸</option>
+                       <option value="cambodia">柬埔寨</option>
+                       <option value="laos">老挝</option>
+                       <option value="brunei">文莱</option>
+                     </select>
+                   </div>
 
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">备注</label>
+                   {currentData.destination && activeTab !== 'AIR' && (
+                   <div className="space-y-2">
+                     <label className="block text-sm font-medium text-gray-700">目的地港口</label>
+                     <select
+                       value={currentData.destinationPort}
+                       onChange={(e) => updateFormData('destinationPort', e.target.value)}
+                       className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                     >
+                       <option value="">请选择目的地港口</option>
+                       {(DESTINATION_PORTS[currentData.destination] || []).map(port => (
+                         <option key={port} value={port}>{port}</option>
+                       ))}
+                     </select>
+                   </div>
+                   )}
+
+                   <div className="space-y-2">
+                     <label className="block text-sm font-medium text-gray-700">备注</label>
                     <input
                       type="text"
                       placeholder="请输入订单备注"
@@ -1275,6 +1487,7 @@ export default function QuickOrder() {
                     />
                   </div>
 
+                  {activeTab !== 'AIR' && (
                   <div className="space-y-2">
                     <label className="block text-sm font-medium text-gray-700">船号/航次</label>
                     <input
@@ -1285,6 +1498,7 @@ export default function QuickOrder() {
                       className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
+                  )}
 
                   <div className="space-y-2">
                     <label className="block text-sm font-medium text-gray-700">用户唛头</label>
@@ -1618,9 +1832,9 @@ export default function QuickOrder() {
                           <th className="border-b border-r border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center w-28">高(cm)</th>
                           <th className="border-b border-r border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center w-32">体积(m³)</th>
                           <th className="border-b border-r border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center w-28">单件重量(kg)</th>
-                          <th className="border-b border-r border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center w-40">应收单价</th>
-                          <th className="border-b border-r border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center w-40">应付单价</th>
-                          <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center w-24">操作</th>
+                           <th className="border-b border-r border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center w-40">应收单价</th>
+                           <th className="border-b border-r border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center w-40">应付单价</th>
+                           <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center w-24">操作</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white">
@@ -1699,7 +1913,7 @@ export default function QuickOrder() {
                             <td className="border-b border-r border-gray-300 px-3 py-2">
                               <input
                                 type="number"
-                                placeholder="单件重量"
+                                 placeholder="单件重量"
                                 value={pkg.weight}
                                 onChange={(e) => updatePackage(pkg.id, 'weight', e.target.value)}
                                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -1855,14 +2069,11 @@ export default function QuickOrder() {
                       }
                     };
 
-                    const receivableUsePhp = pkgs.some(p => !!p.phpUnitPrice);
-                    const payableUsePhp = pkgs.some(p => !!p.channelUnitPricePhp);
+                    const totalReceivable = pkgs.reduce((sum, p) => sum + calcLine(p, p.phpUnitPrice ? 'phpUnitPrice' : 'cnyUnitPrice'), 0);
+                    const totalPayable = pkgs.reduce((sum, p) => sum + calcLine(p, p.channelUnitPricePhp ? 'channelUnitPricePhp' : 'channelUnitPriceCny'), 0);
 
-                    const totalReceivable = pkgs.reduce((sum, p) => sum + calcLine(p, receivableUsePhp ? 'phpUnitPrice' : 'cnyUnitPrice'), 0);
-                    const totalPayable = pkgs.reduce((sum, p) => sum + calcLine(p, payableUsePhp ? 'channelUnitPricePhp' : 'channelUnitPriceCny'), 0);
-
-                    const receivableSymbol = receivableUsePhp ? '₱' : '¥';
-                    const payableSymbol = payableUsePhp ? '₱' : '¥';
+                    const receivableSymbol = '¥/₱';
+                    const payableSymbol = '¥/₱';
 
                     const totalVolM3 = pkgs.reduce((sum, p) => {
                       const l = parseFloat(p.length), w = parseFloat(p.width), h = parseFloat(p.height);

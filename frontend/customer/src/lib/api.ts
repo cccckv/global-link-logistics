@@ -22,9 +22,13 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('jwt_token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
+      const url = error.config?.url || '';
+      const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/register');
+      if (!isAuthEndpoint) {
+        localStorage.removeItem('jwt_token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
@@ -112,7 +116,7 @@ export const trackingApi = {
 
 
 export type QuickOrderType = 'SEA_LCL' | 'AIR' | 'LAND' | 'SEA_FCL' | 'PARCEL' | 'BATCH';
-export type QuickOrderStatus = 'PENDING' | 'CONFIRMED' | 'IN_TRANSIT' | 'DELIVERED' | 'CANCELLED';
+export type QuickOrderStatus = 'LOADING' | 'SAILING' | 'ARRIVED' | 'CUSTOMS' | 'DISPATCHING';
 
 export interface ContactAddress {
   id: string;
@@ -166,7 +170,16 @@ export interface CreateQuickOrderInput {
   originPort?: string;
   destinationPort?: string;
   voyageNumber?: string;
+  billOfLading?: string;
+  containerNumber?: string;
+  loadingDate?: string;
+  eta?: string;
   receivedAt?: string;
+  carPickupReceivable?: number;
+  carPickupActual?: number;
+  portGateFee?: number;
+  truckingFee?: number;
+  customsCertFee?: number;
   recipientAddress: QuickOrderAddress;
   overseasAddress?: QuickOrderAddress;
   declarations?: QuickOrderDeclaration[];
@@ -187,6 +200,10 @@ export interface QuickOrder {
   originPort?: string;
   destinationPort?: string;
   voyageNumber?: string;
+  billOfLading?: string;
+  containerNumber?: string;
+  loadingDate?: string;
+  eta?: string;
   receivedAt?: string;
   createdAt: string;
   updatedAt?: string;
@@ -213,6 +230,7 @@ export const quickOrderApi = {
     searchType?: 'trackingNumber' | 'orderNumber' | 'productName' | 'warehouseNumber';
     keyword?: string;
     mark?: string;
+    warehouse?: string;
   }) => api.get<{ data: QuickOrder[]; pagination: { total: number; page: number; limit: number; totalPages: number } }>('/orders/quick', { params }),
   
   getDetail: (orderId: string) =>
@@ -231,7 +249,10 @@ export const quickOrderApi = {
     api.post<PaymentVoucher>(`/orders/quick/${orderId}/vouchers`, { fileUrl, fileName, fileType, voucherType }),
 
   getCounts: () =>
-    api.get<{ all: number; pending: number; confirmed: number; inTransit: number; delivered: number; cancelled: number }>('/orders/quick/counts'),
+    api.get<{ all: number; loading: number; sailing: number; arrived: number; customs: number; dispatching: number }>('/orders/quick/counts'),
+
+  batchUpdateStatus: (orderIds: string[], status: QuickOrderStatus) =>
+    api.patch<{ updatedCount: number; updatedIds: string[] }>('/orders/quick/batch-status', { orderIds, status }),
 };
 
 export const contactApi = {
@@ -310,6 +331,9 @@ export interface PaymentCollection {
   payableCurrency: string;
   carPickupReceivable: number | null;
   carPickupActual: number | null;
+  portGateFee: number | null;
+  truckingFee: number | null;
+  customsCertFee: number | null;
   createdAt: string;
   updatedAt: string;
   order?: {

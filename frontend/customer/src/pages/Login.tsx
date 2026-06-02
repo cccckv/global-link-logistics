@@ -26,7 +26,6 @@ export default function Login() {
     } else {
       navigate('/external-tracking');
     }
-      window.location.reload();
     } catch (err: any) {
       setError(err.response?.data?.error || '登录失败，请检查手机号和密码');
     } finally {

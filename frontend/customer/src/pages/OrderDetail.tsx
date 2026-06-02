@@ -152,11 +152,11 @@ const OrderDetail: React.FC = () => {
 
   const getStatusText = (status: string) => {
     const statusMap: Record<string, string> = {
-      pending: '待确认',
-      confirmed: '已确认',
-      in_transit: '运输中',
-      delivered: '已送达',
-      cancelled: '已取消',
+      loading: '装柜',
+      sailing: '开船',
+      arrived: '靠港',
+      customs: '清关',
+      dispatching: '拆派',
     };
     return statusMap[status.toLowerCase()] || status;
   };
@@ -225,9 +225,9 @@ const OrderDetail: React.FC = () => {
             </div>
             <span
               className={`px-4 py-2 rounded-full text-sm font-medium ${
-                order.status.toLowerCase() === 'delivered'
+                order.status.toLowerCase() === 'dispatching'
                   ? 'bg-green-100 text-green-800'
-                  : order.status.toLowerCase() === 'pending'
+                  : order.status.toLowerCase() === 'loading'
                   ? 'bg-yellow-100 text-yellow-800'
                   : 'bg-blue-100 text-blue-800'
               }`}
@@ -315,6 +315,30 @@ const OrderDetail: React.FC = () => {
                       )}
                     </td>
                   </tr>
+                  {order.billOfLading && (
+                    <tr>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-500 bg-gray-50">提单号</td>
+                      <td className="px-4 py-3 text-sm text-gray-900" colSpan={3}>{order.billOfLading}</td>
+                    </tr>
+                  )}
+                  {order.containerNumber && (
+                    <tr>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-500 bg-gray-50">柜号</td>
+                      <td className="px-4 py-3 text-sm text-gray-900" colSpan={3}>{order.containerNumber}</td>
+                    </tr>
+                  )}
+                  {order.loadingDate && (
+                    <tr>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-500 bg-gray-50">装柜时间</td>
+                      <td className="px-4 py-3 text-sm text-gray-900" colSpan={3}>{new Date(order.loadingDate).toLocaleDateString('zh-CN')}</td>
+                    </tr>
+                  )}
+                  {order.eta && (
+                    <tr>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-500 bg-gray-50">预计到港时间</td>
+                      <td className="px-4 py-3 text-sm text-gray-900" colSpan={3}>{new Date(order.eta).toLocaleDateString('zh-CN')}</td>
+                    </tr>
+                  )}
                   {order.declarations && order.declarations.some(d => d.trackingNumber) && (
                     <tr>
                       <td className="px-4 py-3 text-sm font-medium text-gray-500 bg-gray-50 align-top">包裹快递单号</td>
@@ -448,31 +472,39 @@ const OrderDetail: React.FC = () => {
                   <thead>
                     <tr className="bg-gray-50">
                       <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">序号</th>
-                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-left">快递单号</th>
+                      {order.orderType === 'SEA_FCL' && <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">箱型</th>}
+                      {order.orderType !== 'SEA_FCL' && <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-left">快递单号</th>}
                       <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-left">品名</th>
                       <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">件数</th>
-                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">长(cm)</th>
-                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">宽(cm)</th>
-                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">高(cm)</th>
-                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">单件重量(kg)</th>
-                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">体积(m³)</th>
-                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">应收单价</th>
-                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">应付单价</th>
+                      {order.orderType !== 'SEA_FCL' && <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">长(cm)</th>}
+                      {order.orderType !== 'SEA_FCL' && <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">宽(cm)</th>}
+                      {order.orderType !== 'SEA_FCL' && <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">高(cm)</th>}
+                      <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">{order.orderType === 'SEA_FCL' ? '总重量(kg)' : '单件重量(kg)'}</th>
+                      {order.orderType !== 'SEA_FCL' && <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">体积(m³)</th>}
+                      {order.orderType !== 'SEA_FCL' && <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">应收单价</th>}
+                      {order.orderType !== 'SEA_FCL' && <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">应付单价</th>}
                       <th className="border-b border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 text-center">操作</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {editingDecls.map((decl, index) => (
-                      <tr key={decl._key} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm text-gray-900 text-center">{index + 1}</td>
-                        <td className="px-4 py-3 text-sm">
-                          <input
-                            type="text"
-                            value={decl.trackingNumber || ''}
-                            onChange={e => { const v = e.target.value; setEditingDecls(prev => prev.map((d, i) => i === index ? { ...d, trackingNumber: v } : d)); setDeclsChanged(true); }}
-                            className="w-full px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          />
-                        </td>
+                       <tr key={decl._key} className="hover:bg-gray-50">
+                         <td className="px-4 py-3 text-sm text-gray-900 text-center">{index + 1}</td>
+                         {order.orderType === 'SEA_FCL' && (
+                           <td className="px-4 py-3 text-sm text-gray-900 text-center">
+                             {decl.containerType === 'GP_20' ? '20GP' : decl.containerType === 'GP_40' ? '40GP' : decl.containerType === 'HQ_40' ? '40HQ' : decl.containerType === 'HQ_45' ? '45HQ' : '-'}
+                           </td>
+                         )}
+                         {order.orderType !== 'SEA_FCL' && (
+                          <td className="px-4 py-3 text-sm">
+                            <input
+                              type="text"
+                              value={decl.trackingNumber || ''}
+                              onChange={e => { const v = e.target.value; setEditingDecls(prev => prev.map((d, i) => i === index ? { ...d, trackingNumber: v } : d)); setDeclsChanged(true); }}
+                              className="w-full px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                          </td>
+                        )}
                         <td className="px-4 py-3 text-sm">
                           <input
                             type="text"
@@ -489,30 +521,36 @@ const OrderDetail: React.FC = () => {
                             className="w-full px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                           />
                         </td>
-                        <td className="px-4 py-3 text-sm">
-                          <input
-                            type="number"
-                            value={decl.length ?? ''}
-                            onChange={e => { const v = e.target.value === '' ? undefined : Number(e.target.value); setEditingDecls(prev => prev.map((d, i) => i === index ? { ...d, length: v } : d)); setDeclsChanged(true); }}
-                            className="w-full px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          />
-                        </td>
-                        <td className="px-4 py-3 text-sm">
-                          <input
-                            type="number"
-                            value={decl.width ?? ''}
-                            onChange={e => { const v = e.target.value === '' ? undefined : Number(e.target.value); setEditingDecls(prev => prev.map((d, i) => i === index ? { ...d, width: v } : d)); setDeclsChanged(true); }}
-                            className="w-full px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          />
-                        </td>
-                        <td className="px-4 py-3 text-sm">
-                          <input
-                            type="number"
-                            value={decl.height ?? ''}
-                            onChange={e => { const v = e.target.value === '' ? undefined : Number(e.target.value); setEditingDecls(prev => prev.map((d, i) => i === index ? { ...d, height: v } : d)); setDeclsChanged(true); }}
-                            className="w-full px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          />
-                        </td>
+                        {order.orderType !== 'SEA_FCL' && (
+                          <td className="px-4 py-3 text-sm">
+                            <input
+                              type="number"
+                              value={decl.length ?? ''}
+                              onChange={e => { const v = e.target.value === '' ? undefined : Number(e.target.value); setEditingDecls(prev => prev.map((d, i) => i === index ? { ...d, length: v } : d)); setDeclsChanged(true); }}
+                              className="w-full px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                          </td>
+                        )}
+                        {order.orderType !== 'SEA_FCL' && (
+                          <td className="px-4 py-3 text-sm">
+                            <input
+                              type="number"
+                              value={decl.width ?? ''}
+                              onChange={e => { const v = e.target.value === '' ? undefined : Number(e.target.value); setEditingDecls(prev => prev.map((d, i) => i === index ? { ...d, width: v } : d)); setDeclsChanged(true); }}
+                              className="w-full px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                          </td>
+                        )}
+                        {order.orderType !== 'SEA_FCL' && (
+                          <td className="px-4 py-3 text-sm">
+                            <input
+                              type="number"
+                              value={decl.height ?? ''}
+                              onChange={e => { const v = e.target.value === '' ? undefined : Number(e.target.value); setEditingDecls(prev => prev.map((d, i) => i === index ? { ...d, height: v } : d)); setDeclsChanged(true); }}
+                              className="w-full px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                          </td>
+                        )}
                         <td className="px-4 py-3 text-sm">
                           <input
                             type="number"
@@ -521,71 +559,77 @@ const OrderDetail: React.FC = () => {
                             className="w-full px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                           />
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-900 text-center">
-                          {decl.length && decl.width && decl.height
-                            ? ((decl.length * decl.width * decl.height / 1000000) * decl.quantity).toFixed(4)
-                            : '-'}
-                        </td>
-                        <td className="px-4 py-3 text-sm">
-                          <div className="flex gap-1">
-                            <select
-                              value={decl._receivableCur}
-                              onChange={e => {
-                                const cur = e.target.value as 'CNY' | 'PHP';
-                                setEditingDecls(prev => prev.map((d, i) => i === index ? { ...d, _receivableCur: cur, cnyUnitPrice: undefined, phpUnitPrice: undefined } : d));
-                                setDeclsChanged(true);
-                              }}
-                              className="px-1 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 w-14"
-                            >
-                              <option value="CNY">¥</option>
-                              <option value="PHP">₱</option>
-                            </select>
-                            <input
-                              type="number"
-                              value={decl._receivableCur === 'PHP' ? (decl.phpUnitPrice ?? '') : (decl.cnyUnitPrice ?? '')}
-                              onChange={e => {
-                                const v = e.target.value === '' ? undefined : Number(e.target.value);
-                                setEditingDecls(prev => prev.map((d, i) => i === index
-                                  ? decl._receivableCur === 'PHP'
-                                    ? { ...d, phpUnitPrice: v, cnyUnitPrice: undefined }
-                                    : { ...d, cnyUnitPrice: v, phpUnitPrice: undefined }
-                                  : d));
-                                setDeclsChanged(true);
-                              }}
-                              className="w-full px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            />
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-sm">
-                          <div className="flex gap-1">
-                            <select
-                              value={decl._payableCur}
-                              onChange={e => {
-                                const cur = e.target.value as 'CNY' | 'PHP';
-                                setEditingDecls(prev => prev.map((d, i) => i === index ? { ...d, _payableCur: cur, channelUnitPricePhp: undefined, channelUnitPriceCny: undefined } : d));
-                                setDeclsChanged(true);
-                              }}
-                              className="px-1 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 w-14"
-                            >
-                              <option value="CNY">¥</option>
-                              <option value="PHP">₱</option>
-                            </select>
-                            <input
-                              type="number"
-                              value={decl._payableCur === 'PHP' ? (decl.channelUnitPricePhp ?? '') : (decl.channelUnitPriceCny ?? '')}
-                              onChange={e => {
-                                const v = e.target.value === '' ? undefined : Number(e.target.value);
-                                setEditingDecls(prev => prev.map((d, i) => i === index
-                                  ? decl._payableCur === 'PHP'
-                                    ? { ...d, channelUnitPricePhp: v, channelUnitPriceCny: undefined }
-                                    : { ...d, channelUnitPriceCny: v, channelUnitPricePhp: undefined }
-                                  : d));
-                                setDeclsChanged(true);
-                              }}
-                              className="w-full px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                            />
-                          </div>
-                        </td>
+                        {order.orderType !== 'SEA_FCL' && (
+                          <td className="px-4 py-3 text-sm text-gray-900 text-center">
+                            {decl.length && decl.width && decl.height
+                              ? ((decl.length * decl.width * decl.height / 1000000) * decl.quantity).toFixed(4)
+                              : '-'}
+                          </td>
+                        )}
+                        {order.orderType !== 'SEA_FCL' && (
+                          <td className="px-4 py-3 text-sm">
+                            <div className="flex gap-1">
+                              <select
+                                value={decl._receivableCur}
+                                onChange={e => {
+                                  const cur = e.target.value as 'CNY' | 'PHP';
+                                  setEditingDecls(prev => prev.map((d, i) => i === index ? { ...d, _receivableCur: cur, cnyUnitPrice: undefined, phpUnitPrice: undefined } : d));
+                                  setDeclsChanged(true);
+                                }}
+                                className="px-1 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 w-14"
+                              >
+                                <option value="CNY">¥</option>
+                                <option value="PHP">₱</option>
+                              </select>
+                              <input
+                                type="number"
+                                value={decl._receivableCur === 'PHP' ? (decl.phpUnitPrice ?? '') : (decl.cnyUnitPrice ?? '')}
+                                onChange={e => {
+                                  const v = e.target.value === '' ? undefined : Number(e.target.value);
+                                  setEditingDecls(prev => prev.map((d, i) => i === index
+                                    ? decl._receivableCur === 'PHP'
+                                      ? { ...d, phpUnitPrice: v, cnyUnitPrice: undefined }
+                                      : { ...d, cnyUnitPrice: v, phpUnitPrice: undefined }
+                                    : d));
+                                  setDeclsChanged(true);
+                                }}
+                                className="w-full px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              />
+                            </div>
+                          </td>
+                        )}
+                        {order.orderType !== 'SEA_FCL' && (
+                          <td className="px-4 py-3 text-sm">
+                            <div className="flex gap-1">
+                              <select
+                                value={decl._payableCur}
+                                onChange={e => {
+                                  const cur = e.target.value as 'CNY' | 'PHP';
+                                  setEditingDecls(prev => prev.map((d, i) => i === index ? { ...d, _payableCur: cur, channelUnitPricePhp: undefined, channelUnitPriceCny: undefined } : d));
+                                  setDeclsChanged(true);
+                                }}
+                                className="px-1 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 w-14"
+                              >
+                                <option value="CNY">¥</option>
+                                <option value="PHP">₱</option>
+                              </select>
+                              <input
+                                type="number"
+                                value={decl._payableCur === 'PHP' ? (decl.channelUnitPricePhp ?? '') : (decl.channelUnitPriceCny ?? '')}
+                                onChange={e => {
+                                  const v = e.target.value === '' ? undefined : Number(e.target.value);
+                                  setEditingDecls(prev => prev.map((d, i) => i === index
+                                    ? decl._payableCur === 'PHP'
+                                      ? { ...d, channelUnitPricePhp: v, channelUnitPriceCny: undefined }
+                                      : { ...d, channelUnitPriceCny: v, channelUnitPricePhp: undefined }
+                                    : d));
+                                  setDeclsChanged(true);
+                                }}
+                                className="w-full px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              />
+                            </div>
+                          </td>
+                        )}
                         <td className="px-4 py-3 text-sm text-center">
                           <button
                             onClick={() => {
@@ -616,6 +660,7 @@ const OrderDetail: React.FC = () => {
 
           {(() => {
             const decls = editingDecls;
+            const isFcl = order.orderType === 'SEA_FCL';
             const totalPieces = decls.reduce((sum, d) => sum + (d.quantity || 0), 0);
             const volM3 = (d: typeof decls[0]) =>
               d.length && d.width && d.height
@@ -625,16 +670,20 @@ const OrderDetail: React.FC = () => {
             const receivableUsePhp = decls.some(d => !!d.phpUnitPrice);
             const payableUsePhp = decls.some(d => !!d.channelUnitPricePhp);
             const isSeaLcl = order.orderType === 'SEA_LCL';
-            const totalReceivable = decls.reduce((sum, d) => {
-              const price = receivableUsePhp ? (d.phpUnitPrice || 0) : (d.cnyUnitPrice || 0);
-              const factor = isSeaLcl ? volM3(d) : (d.weight || 0);
-              return sum + price * factor * (d.quantity || 0);
-            }, 0);
-            const totalPayable = decls.reduce((sum, d) => {
-              const price = payableUsePhp ? (d.channelUnitPricePhp || 0) : (d.channelUnitPriceCny || 0);
-              const factor = isSeaLcl ? volM3(d) : (d.weight || 0);
-              return sum + price * factor * (d.quantity || 0);
-            }, 0);
+            const totalReceivable = isFcl
+              ? decls.reduce((sum, d) => sum + (receivableUsePhp ? (d.phpUnitPrice || 0) : (d.cnyUnitPrice || 0)), 0)
+              : decls.reduce((sum, d) => {
+                  const price = receivableUsePhp ? (d.phpUnitPrice || 0) : (d.cnyUnitPrice || 0);
+                  const factor = isSeaLcl ? volM3(d) : (d.weight || 0);
+                  return sum + price * factor * (d.quantity || 0);
+                }, 0);
+            const totalPayable = isFcl
+              ? decls.reduce((sum, d) => sum + (payableUsePhp ? (d.channelUnitPricePhp || 0) : (d.channelUnitPriceCny || 0)), 0)
+              : decls.reduce((sum, d) => {
+                  const price = payableUsePhp ? (d.channelUnitPricePhp || 0) : (d.channelUnitPriceCny || 0);
+                  const factor = isSeaLcl ? volM3(d) : (d.weight || 0);
+                  return sum + price * factor * (d.quantity || 0);
+                }, 0);
             const receivableSymbol = receivableUsePhp ? '₱' : '¥';
             const payableSymbol = payableUsePhp ? '₱' : '¥';
             return (
@@ -675,20 +724,68 @@ const OrderDetail: React.FC = () => {
                 <div className="text-center py-8 text-gray-500">暂无收款记录</div>
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                  {[
-                    { label: '总件数', value: `${paymentCollection.totalPieces} 件` },
-                    { label: '总体积', value: paymentCollection.totalVolume != null ? `${paymentCollection.totalVolume.toFixed(4)} m³` : '-' },
-                    { label: '总重量', value: paymentCollection.totalWeight != null ? `${paymentCollection.totalWeight.toFixed(3)} kg` : '-' },
-                    { label: '应收总价', value: paymentCollection.receivableAmount != null ? `${paymentCollection.receivableCurrency === 'PHP' ? '₱' : '¥'}${paymentCollection.receivableAmount.toFixed(2)}` : '-', highlight: 'blue' },
-                    { label: '应付总价', value: paymentCollection.payableAmount != null ? `${paymentCollection.payableCurrency === 'PHP' ? '₱' : '¥'}${paymentCollection.payableAmount.toFixed(2)}` : '-', highlight: 'orange' },
-                    { label: '应收叫车费', value: paymentCollection.carPickupReceivable != null ? `¥${paymentCollection.carPickupReceivable.toFixed(2)}` : '-' },
-                    { label: '应付叫车费', value: paymentCollection.carPickupActual != null ? `¥${paymentCollection.carPickupActual.toFixed(2)}` : '-' },
-                  ].map(({ label, value, highlight }) => (
-                    <div key={label}>
-                      <p className="text-xs text-gray-500">{label}</p>
-                      <p className={`text-base font-semibold mt-0.5 ${highlight === 'blue' ? 'text-blue-600' : highlight === 'orange' ? 'text-orange-600' : 'text-gray-900'}`}>{value}</p>
-                    </div>
-                  ))}
+                  {(() => {
+                    const isFcl = order.orderType === 'SEA_FCL';
+                    const recvSymbol = paymentCollection.receivableCurrency === 'PHP' ? '₱' : '¥';
+                    const paySymbol = paymentCollection.payableCurrency === 'PHP' ? '₱' : '¥';
+                    const otherTotal = (paymentCollection.portGateFee ?? 0)
+                      + (paymentCollection.truckingFee ?? 0)
+                      + (paymentCollection.customsCertFee ?? 0);
+                    if (isFcl) {
+                      const finalReceivable = paymentCollection.receivableCurrency === 'PHP'
+                        ? null
+                        : (paymentCollection.receivableAmount ?? 0) + otherTotal;
+                      const finalPayable = paymentCollection.payableCurrency === 'PHP'
+                        ? null
+                        : (paymentCollection.payableAmount ?? 0) + otherTotal;
+                      const fclItems = [
+                        { label: '总件数', value: `${paymentCollection.totalPieces} 件` },
+                        { label: '总重量', value: paymentCollection.totalWeight != null ? `${paymentCollection.totalWeight.toFixed(3)} kg` : '-' },
+                        { label: '港杂费', value: paymentCollection.portGateFee != null ? `¥${paymentCollection.portGateFee.toFixed(2)}` : '-' },
+                        { label: '拖车费', value: paymentCollection.truckingFee != null ? `¥${paymentCollection.truckingFee.toFixed(2)}` : '-' },
+                        { label: '报关产地证费', value: paymentCollection.customsCertFee != null ? `¥${paymentCollection.customsCertFee.toFixed(2)}` : '-' },
+                        {
+                          label: '应收总价',
+                          value: paymentCollection.receivableAmount != null
+                            ? (finalReceivable != null
+                              ? `¥${finalReceivable.toFixed(2)}`
+                              : `${recvSymbol}${paymentCollection.receivableAmount.toFixed(2)}${otherTotal > 0 ? ` + ¥${otherTotal.toFixed(2)}` : ''}`)
+                            : '-',
+                          highlight: 'blue' as const,
+                        },
+                        {
+                          label: '应付总价',
+                          value: paymentCollection.payableAmount != null
+                            ? (finalPayable != null
+                              ? `¥${finalPayable.toFixed(2)}`
+                              : `${paySymbol}${paymentCollection.payableAmount.toFixed(2)}${otherTotal > 0 ? ` + ¥${otherTotal.toFixed(2)}` : ''}`)
+                            : '-',
+                          highlight: 'orange' as const,
+                        },
+                      ];
+                      return fclItems.map(({ label, value, highlight }) => (
+                        <div key={label}>
+                          <p className="text-xs text-gray-500">{label}</p>
+                          <p className={`text-base font-semibold mt-0.5 ${highlight === 'blue' ? 'text-blue-600' : highlight === 'orange' ? 'text-orange-600' : 'text-gray-900'}`}>{value}</p>
+                        </div>
+                      ));
+                    }
+                    const nonFclItems = [
+                      { label: '总件数', value: `${paymentCollection.totalPieces} 件` },
+                      { label: '总体积', value: paymentCollection.totalVolume != null ? `${paymentCollection.totalVolume.toFixed(4)} m³` : '-' },
+                      { label: '总重量', value: paymentCollection.totalWeight != null ? `${paymentCollection.totalWeight.toFixed(3)} kg` : '-' },
+                      { label: '应收总价', value: paymentCollection.receivableAmount != null ? `${recvSymbol}${paymentCollection.receivableAmount.toFixed(2)}` : '-', highlight: 'blue' as const },
+                      { label: '应付总价', value: paymentCollection.payableAmount != null ? `${paySymbol}${paymentCollection.payableAmount.toFixed(2)}` : '-', highlight: 'orange' as const },
+                      { label: '应收叫车费', value: paymentCollection.carPickupReceivable != null ? `¥${paymentCollection.carPickupReceivable.toFixed(2)}` : '-' },
+                      { label: '应付叫车费', value: paymentCollection.carPickupActual != null ? `¥${paymentCollection.carPickupActual.toFixed(2)}` : '-' },
+                    ];
+                    return nonFclItems.map(({ label, value, highlight }) => (
+                      <div key={label}>
+                        <p className="text-xs text-gray-500">{label}</p>
+                        <p className={`text-base font-semibold mt-0.5 ${highlight === 'blue' ? 'text-blue-600' : highlight === 'orange' ? 'text-orange-600' : 'text-gray-900'}`}>{value}</p>
+                      </div>
+                    ));
+                  })()}
                 </div>
               )}
             </div>

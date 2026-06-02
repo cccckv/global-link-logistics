@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { quickOrderApi, type QuickOrder, type QuickOrderStatus, type QuickOrderType } from '../lib/api';
 import { Package, Search, Download, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 
-type TabKey = 'all' | 'pending' | 'approved' | 'fcl_pending' | 'fcl_approved' | 'loading' | 'containerized' | 'receiving' | 'completed';
+type TabKey = 'all' | 'loading' | 'sailing' | 'arrived' | 'customs' | 'dispatching';
 type SearchType = 'warehouseNumber' | 'orderNumber' | 'trackingNumber' | 'productName';
 
 const searchTypeLabels: Record<SearchType, string> = {
@@ -16,14 +16,11 @@ const searchTypeLabels: Record<SearchType, string> = {
 
 const tabStatusMap: Record<TabKey, QuickOrderStatus | QuickOrderType | undefined> = {
   all: undefined,
-  pending: 'PENDING',
-  approved: 'CONFIRMED',
-  fcl_pending: 'PENDING',
-  fcl_approved: 'CONFIRMED',
-  loading: 'IN_TRANSIT',
-  containerized: 'IN_TRANSIT',
-  receiving: 'DELIVERED',
-  completed: 'DELIVERED',
+  loading: 'LOADING',
+  sailing: 'SAILING',
+  arrived: 'ARRIVED',
+  customs: 'CUSTOMS',
+  dispatching: 'DISPATCHING',
 };
 
 export default function OrderList() {
@@ -48,11 +45,11 @@ export default function OrderList() {
 
   const [counts, setCounts] = useState({
     all: 0,
-    pending: 0,
-    confirmed: 0,
-    inTransit: 0,
-    delivered: 0,
-    cancelled: 0,
+    loading: 0,
+    sailing: 0,
+    arrived: 0,
+    customs: 0,
+    dispatching: 0,
   });
 
   useEffect(() => {
@@ -85,10 +82,6 @@ export default function OrderList() {
       const tabStatus = tabStatusMap[activeTab];
       if (tabStatus) {
         params.status = tabStatus;
-      }
-
-      if (activeTab === 'fcl_pending' || activeTab === 'fcl_approved') {
-        params.orderType = 'SEA_FCL';
       }
 
       const response = await quickOrderApi.getList(params);
@@ -195,22 +188,22 @@ export default function OrderList() {
 
   const getStatusLabel = (status: QuickOrderStatus) => {
     const labels: Record<QuickOrderStatus, string> = {
-      PENDING: '待入库',
-      CONFIRMED: '待装柜',
-      IN_TRANSIT: '运输中',
-      DELIVERED: '已完成',
-      CANCELLED: '已取消',
+      LOADING: '装柜',
+      SAILING: '开船',
+      ARRIVED: '靠港',
+      CUSTOMS: '清关',
+      DISPATCHING: '拆派',
     };
     return labels[status] || status;
   };
 
   const getStatusColor = (status: QuickOrderStatus) => {
     const colors: Record<QuickOrderStatus, string> = {
-      PENDING: 'text-yellow-600 bg-yellow-50',
-      CONFIRMED: 'text-blue-600 bg-blue-50',
-      IN_TRANSIT: 'text-purple-600 bg-purple-50',
-      DELIVERED: 'text-green-600 bg-green-50',
-      CANCELLED: 'text-red-600 bg-red-50',
+      LOADING: 'text-yellow-600 bg-yellow-50',
+      SAILING: 'text-blue-600 bg-blue-50',
+      ARRIVED: 'text-purple-600 bg-purple-50',
+      CUSTOMS: 'text-orange-600 bg-orange-50',
+      DISPATCHING: 'text-green-600 bg-green-50',
     };
     return colors[status] || 'text-gray-600 bg-gray-50';
   };
@@ -246,26 +239,13 @@ export default function OrderList() {
 
   const getTabCount = (tab: TabKey): number => {
     switch (tab) {
-      case 'all':
-        return counts.all;
-      case 'pending':
-        return counts.pending;
-      case 'approved':
-        return 0;
-      case 'fcl_pending':
-        return 0;
-      case 'fcl_approved':
-        return 0;
-      case 'loading':
-        return 0;
-      case 'containerized':
-        return counts.confirmed;
-      case 'receiving':
-        return counts.inTransit;
-      case 'completed':
-        return counts.delivered;
-      default:
-        return 0;
+      case 'all': return counts.all;
+      case 'loading': return counts.loading;
+      case 'sailing': return counts.sailing;
+      case 'arrived': return counts.arrived;
+      case 'customs': return counts.customs;
+      case 'dispatching': return counts.dispatching;
+      default: return 0;
     }
   };
 
@@ -349,44 +329,29 @@ export default function OrderList() {
               label={`全部(${getTabCount('all')})`}
             />
             <TabButton
-              active={activeTab === 'pending'}
-              onClick={() => setActiveTab('pending')}
-              label={`待入库(${getTabCount('pending')})`}
-            />
-            <TabButton
-              active={activeTab === 'approved'}
-              onClick={() => setActiveTab('approved')}
-              label={`申请出库(${getTabCount('approved')})`}
-            />
-            <TabButton
-              active={activeTab === 'fcl_pending'}
-              onClick={() => setActiveTab('fcl_pending')}
-              label={`整柜待审核(${getTabCount('fcl_pending')})`}
-            />
-            <TabButton
-              active={activeTab === 'fcl_approved'}
-              onClick={() => setActiveTab('fcl_approved')}
-              label={`整柜待提箱(${getTabCount('fcl_approved')})`}
-            />
-            <TabButton
               active={activeTab === 'loading'}
               onClick={() => setActiveTab('loading')}
-              label={`待装车(${getTabCount('loading')})`}
+              label={`装柜(${getTabCount('loading')})`}
             />
             <TabButton
-              active={activeTab === 'containerized'}
-              onClick={() => setActiveTab('containerized')}
-              label={`待装柜(${getTabCount('containerized')})`}
+              active={activeTab === 'sailing'}
+              onClick={() => setActiveTab('sailing')}
+              label={`开船(${getTabCount('sailing')})`}
             />
             <TabButton
-              active={activeTab === 'receiving'}
-              onClick={() => setActiveTab('receiving')}
-              label={`待签收(${getTabCount('receiving')})`}
+              active={activeTab === 'arrived'}
+              onClick={() => setActiveTab('arrived')}
+              label={`靠港(${getTabCount('arrived')})`}
             />
             <TabButton
-              active={activeTab === 'completed'}
-              onClick={() => setActiveTab('completed')}
-              label={`已完成(${getTabCount('completed')})`}
+              active={activeTab === 'customs'}
+              onClick={() => setActiveTab('customs')}
+              label={`清关(${getTabCount('customs')})`}
+            />
+            <TabButton
+              active={activeTab === 'dispatching'}
+              onClick={() => setActiveTab('dispatching')}
+              label={`拆派(${getTabCount('dispatching')})`}
             />
           </div>
         </div>

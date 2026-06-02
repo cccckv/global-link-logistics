@@ -8,6 +8,7 @@ interface User {
   phone: string;
   name: string;
   email?: string;
+  company?: string;
   userType: 'CUSTOMER' | 'EMPLOYEE';
   userRole: 'ADMIN' | 'USER';
   deletedAt?: string;
@@ -21,6 +22,7 @@ interface CreateUserData {
   password: string;
   userRole: 'ADMIN' | 'USER';
   email?: string;
+  company?: string;
 }
 
 interface UpdateUserData {
@@ -29,6 +31,7 @@ interface UpdateUserData {
   password?: string;
   userRole?: 'ADMIN' | 'USER';
   email?: string;
+  company?: string;
 }
 
 export default function UserManagement() {
@@ -52,6 +55,7 @@ export default function UserManagement() {
     password: '',
     userRole: 'USER',
     email: '',
+    company: '',
   });
 
   useEffect(() => {
@@ -113,6 +117,9 @@ export default function UserManagement() {
     if (formData.email !== undefined && formData.email !== editingUser.email) {
       updateData.email = formData.email || undefined;
     }
+    if (formData.company !== undefined && formData.company !== editingUser.company) {
+      updateData.company = formData.company || undefined;
+    }
     if (formData.userRole !== editingUser.userRole) {
       updateData.userRole = formData.userRole;
     }
@@ -161,6 +168,7 @@ export default function UserManagement() {
       password: '',
       userRole: user.userRole,
       email: user.email || '',
+      company: user.company || '',
     });
     setShowEditModal(true);
   };
@@ -172,6 +180,7 @@ export default function UserManagement() {
       password: '',
       userRole: 'USER',
       email: '',
+      company: '',
     });
   };
 
@@ -238,6 +247,7 @@ export default function UserManagement() {
                 <tr className="border-b border-gray-200 text-left text-sm text-gray-600">
                   <th className="pb-3 font-medium">用户唛头</th>
                   <th className="pb-3 font-medium">手机号</th>
+                  <th className="pb-3 font-medium">公司</th>
                   <th className="pb-3 font-medium">邮箱</th>
                   <th className="pb-3 font-medium">角色</th>
                   <th className="pb-3 font-medium">创建时间</th>
@@ -247,7 +257,7 @@ export default function UserManagement() {
               <tbody>
                 {users.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-gray-500">
+                    <td colSpan={7} className="py-8 text-center text-gray-500">
                       暂无用户数据
                     </td>
                   </tr>
@@ -256,6 +266,7 @@ export default function UserManagement() {
                     <tr key={user.id} className="border-b border-gray-100 hover:bg-gray-50">
                       <td className="py-4 font-medium text-gray-900">{user.name}</td>
                       <td className="py-4 text-gray-600">{user.phone}</td>
+                      <td className="py-4 text-gray-600">{user.company || '-'}</td>
                       <td className="py-4 text-gray-600">{user.email || '-'}</td>
                       <td className="py-4">
                         <span
@@ -389,6 +400,19 @@ export default function UserManagement() {
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                   placeholder="请输入邮箱（可选）"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  公司
+                </label>
+                <input
+                  type="text"
+                  value={formData.company}
+                  onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  placeholder="请输入公司名称（可选）"
                 />
               </div>
 

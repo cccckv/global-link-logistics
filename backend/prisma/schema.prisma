@@ -13,6 +13,7 @@ model User {
   passwordHash       String
   name               String
   phone              String                  @unique
+  company            String?
   userType           UserType                @default(CUSTOMER)
   createdAt          DateTime                @default(now())
   updatedAt          DateTime                @updatedAt
@@ -71,8 +72,12 @@ model QuickOrder {
   originPort         String?
   destinationPort    String?
   voyageNumber       String?
+  billOfLading       String?
+  containerNumber    String?
+  loadingDate        DateTime?
+  eta                DateTime?
   batchTaskId        String?
-  status             QuickOrderStatus         @default(PENDING)
+  status             QuickOrderStatus         @default(LOADING)
   createdAt          DateTime                 @default(now())
   updatedAt          DateTime                 @updatedAt
   recipientAddressId String
@@ -258,6 +263,10 @@ model OrderPaymentCollection {
   payableCurrency     String     @default("PHP")
   carPickupReceivable Decimal?   @db.Decimal(10, 2)
   carPickupActual     Decimal?   @db.Decimal(10, 2)
+  oceanFreight        Decimal?   @db.Decimal(10, 2)
+  portGateFee         Decimal?   @db.Decimal(10, 2)
+  truckingFee         Decimal?   @db.Decimal(10, 2)
+  customsCertFee      Decimal?   @db.Decimal(10, 2)
   createdAt           DateTime   @default(now())
   updatedAt           DateTime   @updatedAt
   order               QuickOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -302,11 +311,11 @@ enum QuickOrderType {
 }
 
 enum QuickOrderStatus {
-  PENDING
-  CONFIRMED
-  IN_TRANSIT
-  DELIVERED
-  CANCELLED
+  LOADING
+  SAILING
+  ARRIVED
+  CUSTOMS
+  DISPATCHING
 }
 
 enum ContainerType {

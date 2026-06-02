@@ -18,6 +18,10 @@ interface CreateQuickOrderInput {
   originPort?: string;
   destinationPort?: string;
   voyageNumber?: string;
+  billOfLading?: string;
+  containerNumber?: string;
+  loadingDate?: string;
+  eta?: string;
   markUserId?: string;
   batchTaskId?: string;
   receivedAt?: string;
@@ -25,6 +29,9 @@ interface CreateQuickOrderInput {
   receiptFileName?: string;
   carPickupReceivable?: number;
   carPickupActual?: number;
+  portGateFee?: number;
+  truckingFee?: number;
+  customsCertFee?: number;
   
   recipientAddress: {    name: string;
     company?: string;
@@ -73,6 +80,7 @@ interface QuickOrderFilters {
   searchType?: 'trackingNumber' | 'orderNumber' | 'productName' | 'warehouseNumber';
   keyword?: string;
   mark?: string;
+  warehouse?: string;
 }
 
 // ============================================
@@ -87,7 +95,7 @@ export class QuickOrderService {
   private generateOrderNumber(): string {
     const timestamp = Date.now();
     const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-    return `GL${timestamp}${random}`;
+    return `WH${timestamp}${random}`;
   }
 
   /**
@@ -121,13 +129,6 @@ export class QuickOrderService {
     const orderNumber = this.generateOrderNumber();
 
     // 准备申报明细数据
-    if (input.declarations && input.declarations.length > 0) {
-      const missingChannelPrice = input.declarations.some(d => d.channelUnitPricePhp === undefined || d.channelUnitPricePhp === null);
-      if (missingChannelPrice) {
-        throw new Error('每条申报信息必须填写渠道单价');
-      }
-    }
-
     const declarationsData = input.declarations?.map(d => ({
       trackingNumber: d.trackingNumber,
       productName: d.productName,
@@ -174,10 +175,14 @@ export class QuickOrderService {
         originPort: input.originPort,
         destinationPort: input.destinationPort,
         voyageNumber: input.voyageNumber,
+        billOfLading: input.billOfLading,
+        containerNumber: input.containerNumber,
+        loadingDate: input.loadingDate ? new Date(input.loadingDate) : undefined,
+        eta: input.eta ? new Date(input.eta) : undefined,
         markUserId: input.markUserId,
         batchTaskId: input.batchTaskId,
         receivedAt: input.receivedAt ? new Date(input.receivedAt) : undefined,
-        status: 'PENDING',
+        status: 'LOADING',
         
         recipientAddressId,
         overseasAddressId,
@@ -220,22 +225,27 @@ export class QuickOrderService {
         return s;
       }, 0);
       const isSeaLcl = input.orderType === 'SEA_LCL';
+      const isSeaFcl = input.orderType === 'SEA_FCL';
       const receivableUsePhp = decls.some(d => !!d.phpUnitPrice);
       const payableUsePhp = decls.some(d => !!d.channelUnitPricePhp);
-      const receivableAmount = decls.reduce((s, d) => {
-        const price = receivableUsePhp ? (d.phpUnitPrice || 0) : (d.cnyUnitPrice || 0);
-        const factor = isSeaLcl
-          ? (d.length && d.width && d.height ? (d.length * d.width * d.height / 1_000_000) : 0)
-          : (d.weight || 0);
-        return s + price * factor * (d.quantity || 1);
-      }, 0);
-      const payableAmount = decls.reduce((s, d) => {
-        const price = payableUsePhp ? (d.channelUnitPricePhp || 0) : (d.channelUnitPriceCny || 0);
-        const factor = isSeaLcl
-          ? (d.length && d.width && d.height ? (d.length * d.width * d.height / 1_000_000) : 0)
-          : (d.weight || 0);
-        return s + price * factor * (d.quantity || 1);
-      }, 0);
+      const receivableAmount = isSeaFcl
+        ? decls.reduce((s, d) => s + (receivableUsePhp ? (d.phpUnitPrice || 0) : (d.cnyUnitPrice || 0)), 0)
+        : decls.reduce((s, d) => {
+            const price = receivableUsePhp ? (d.phpUnitPrice || 0) : (d.cnyUnitPrice || 0);
+            const factor = isSeaLcl
+              ? (d.length && d.width && d.height ? (d.length * d.width * d.height / 1_000_000) : 0)
+              : (d.weight || 0);
+            return s + price * factor * (d.quantity || 1);
+          }, 0);
+      const payableAmount = isSeaFcl
+        ? decls.reduce((s, d) => s + (payableUsePhp ? (d.channelUnitPricePhp || 0) : (d.channelUnitPriceCny || 0)), 0)
+        : decls.reduce((s, d) => {
+            const price = payableUsePhp ? (d.channelUnitPricePhp || 0) : (d.channelUnitPriceCny || 0);
+            const factor = isSeaLcl
+              ? (d.length && d.width && d.height ? (d.length * d.width * d.height / 1_000_000) : 0)
+              : (d.weight || 0);
+            return s + price * factor * (d.quantity || 1);
+          }, 0);
 
       await prisma.orderPaymentCollection.create({
         data: {
@@ -249,6 +259,9 @@ export class QuickOrderService {
           payableCurrency: payableUsePhp ? 'PHP' : 'CNY',
           carPickupReceivable: input.carPickupReceivable ? new Prisma.Decimal(input.carPickupReceivable) : null,
           carPickupActual: input.carPickupActual ? new Prisma.Decimal(input.carPickupActual) : null,
+          portGateFee: input.portGateFee ? new Prisma.Decimal(input.portGateFee) : null,
+          truckingFee: input.truckingFee ? new Prisma.Decimal(input.truckingFee) : null,
+          customsCertFee: input.customsCertFee ? new Prisma.Decimal(input.customsCertFee) : null,
         },
       });
     }
@@ -281,6 +294,8 @@ export class QuickOrderService {
           { userMark: { contains: filters.mark, mode: 'insensitive' } },
         ],
       }),
+      
+      ...(filters.warehouse && { warehouse: { contains: filters.warehouse, mode: 'insensitive' as const } }),
       
       ...(filters.searchType && filters.keyword && this.buildSearchCondition(filters.searchType, filters.keyword)),
     };
@@ -355,6 +370,10 @@ export class QuickOrderService {
     status?: QuickOrderStatus;
     note?: string;
     voyageNumber?: string;
+    billOfLading?: string;
+    containerNumber?: string;
+    loadingDate?: string;
+    eta?: string;
   }) {
     // 验证权限
     const order = await prisma.quickOrder.findFirst({
@@ -365,10 +384,13 @@ export class QuickOrderService {
       throw new Error('Order not found');
     }
 
-    // 更新订单
+    const updatePayload: any = { ...data };
+    if (data.loadingDate !== undefined) updatePayload.loadingDate = data.loadingDate ? new Date(data.loadingDate) : null;
+    if (data.eta !== undefined) updatePayload.eta = data.eta ? new Date(data.eta) : null;
+
     const updated = await prisma.quickOrder.update({
       where: { id },
-      data,
+      data: updatePayload,
       include: {
         recipientAddress: true,
         declarations: true,
@@ -392,14 +414,13 @@ export class QuickOrderService {
       throw new Error('Order not found');
     }
 
-    if (order.status !== 'PENDING') {
-      throw new Error('Only pending orders can be cancelled');
+    if (order.status !== 'LOADING') {
+      throw new Error('Only loading orders can be cancelled');
     }
 
-    // 更新状态为已取消
     const cancelled = await prisma.quickOrder.update({
       where: { id },
-      data: { status: 'CANCELLED' },
+      data: { status: 'LOADING' },
     });
 
     return cancelled;
@@ -409,22 +430,39 @@ export class QuickOrderService {
    * 获取各状态订单数量统计
    */
   async getStatusCounts(userId: string) {
-    const [all, pending, confirmed, inTransit, delivered, cancelled] = await Promise.all([
+    const [all, loading, sailing, arrived, customs, dispatching] = await Promise.all([
       prisma.quickOrder.count({ where: { userId } }),
-      prisma.quickOrder.count({ where: { userId, status: 'PENDING' } }),
-      prisma.quickOrder.count({ where: { userId, status: 'CONFIRMED' } }),
-      prisma.quickOrder.count({ where: { userId, status: 'IN_TRANSIT' } }),
-      prisma.quickOrder.count({ where: { userId, status: 'DELIVERED' } }),
-      prisma.quickOrder.count({ where: { userId, status: 'CANCELLED' } }),
+      prisma.quickOrder.count({ where: { userId, status: 'LOADING' } }),
+      prisma.quickOrder.count({ where: { userId, status: 'SAILING' } }),
+      prisma.quickOrder.count({ where: { userId, status: 'ARRIVED' } }),
+      prisma.quickOrder.count({ where: { userId, status: 'CUSTOMS' } }),
+      prisma.quickOrder.count({ where: { userId, status: 'DISPATCHING' } }),
     ]);
 
     return {
       all,
-      pending,
-      confirmed,
-      inTransit,
-      delivered,
-      cancelled,
+      loading,
+      sailing,
+      arrived,
+      customs,
+      dispatching,
     };
+  }
+
+  async batchUpdateStatus(orderIds: string[], status: QuickOrderStatus): Promise<{ updatedCount: number; updatedIds: string[] }> {
+    if (!orderIds.length) return { updatedCount: 0, updatedIds: [] };
+
+    const deduped = [...new Set(orderIds)].slice(0, 200);
+
+    await prisma.$transaction(
+      deduped.map(id =>
+        prisma.quickOrder.update({
+          where: { id },
+          data: { status },
+        })
+      )
+    );
+
+    return { updatedCount: deduped.length, updatedIds: deduped };
   }
 }

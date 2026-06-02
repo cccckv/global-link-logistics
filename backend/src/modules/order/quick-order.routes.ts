@@ -18,12 +18,19 @@ interface CreateQuickOrderBody {
   originPort?: string;
   destinationPort?: string;
   voyageNumber?: string;
+  billOfLading?: string;
+  containerNumber?: string;
+  loadingDate?: string;
+  eta?: string;
   markUserId?: string;
   receivedAt?: string;
   receiptUrl?: string;
   receiptFileName?: string;
   carPickupReceivable?: number;
   carPickupActual?: number;
+  portGateFee?: number;
+  truckingFee?: number;
+  customsCertFee?: number;
 
   recipientAddress: {
     name: string;
@@ -65,9 +72,36 @@ interface QueryParams {
   searchType?: 'trackingNumber' | 'orderNumber' | 'productName' | 'warehouseNumber';
   keyword?: string;
   mark?: string;
+  warehouse?: string;
+}
+
+interface BatchStatusBody {
+  orderIds: string[];
+  status: QuickOrderStatus;
 }
 
 export async function quickOrderRoutes(fastify: FastifyInstance) {
+  fastify.patch<{ Body: BatchStatusBody }>(
+    '/batch-status',
+    { preHandler: [fastify.authenticate, authorize(['ADMIN'])] },
+    async (request, reply) => {
+      const { orderIds, status } = request.body;
+      if (!Array.isArray(orderIds) || orderIds.length === 0) {
+        return reply.code(400).send({ error: '请选择至少一条订单' });
+      }
+      if (!status) {
+        return reply.code(400).send({ error: '请选择目标状态' });
+      }
+      try {
+        const result = await service.batchUpdateStatus(orderIds, status);
+        return result;
+      } catch (error: any) {
+        fastify.log.error(error);
+        return reply.code(500).send({ error: error.message });
+      }
+    }
+  );
+
   fastify.post<{ Body: CreateQuickOrderBody }>(
     '/',
     {
@@ -133,6 +167,7 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
         searchType: query.searchType,
         keyword: query.keyword,
         mark: query.mark,
+        warehouse: query.warehouse,
       };
       
       const result = await service.findAll(user.userId, filters);
@@ -225,6 +260,10 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
         originPort: order.originPort,
         destinationPort: order.destinationPort,
         voyageNumber: order.voyageNumber,
+        billOfLading: order.billOfLading,
+        containerNumber: order.containerNumber,
+        loadingDate: order.loadingDate?.toISOString(),
+        eta: order.eta?.toISOString(),
         createdAt: order.createdAt.toISOString(),
         updatedAt: order.updatedAt.toISOString(),
         receivedAt: order.receivedAt?.toISOString(),
@@ -321,6 +360,9 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
             payableCurrency: pc.payableCurrency,
             carPickupReceivable: pc.carPickupReceivable?.toNumber() ?? null,
             carPickupActual: pc.carPickupActual?.toNumber() ?? null,
+            portGateFee: pc.portGateFee?.toNumber() ?? null,
+            truckingFee: pc.truckingFee?.toNumber() ?? null,
+            customsCertFee: pc.customsCertFee?.toNumber() ?? null,
           };
         })() : null,
       };
@@ -359,28 +401,37 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
         const order = await prisma.quickOrder.findUnique({ where: { id }, select: { orderType: true } });
         if (order) {
           const isSeaLcl = order.orderType === 'SEA_LCL';
+          const isSeaFcl = order.orderType === 'SEA_FCL';
           const totalPieces = declarations.reduce((s, d) => s + (d.quantity || 1), 0);
           const totalWeight = declarations.reduce((s, d) => s + (d.weight || 0) * (d.quantity || 1), 0);
           const totalVolume = declarations.reduce((s, d) => {
             if (d.length && d.width && d.height) return s + (d.length * d.width * d.height / 1_000_000) * (d.quantity || 1);
             return s;
           }, 0);
-          const receivableUsePhp = declarations.some(d => !!d.phpUnitPrice);
-          const payableUsePhp = declarations.some(d => !!d.channelUnitPricePhp);
-          const receivableAmount = declarations.reduce((s, d) => {
-            const price = receivableUsePhp ? (d.phpUnitPrice || 0) : (d.cnyUnitPrice || 0);
-            const factor = isSeaLcl
-              ? (d.length && d.width && d.height ? (d.length * d.width * d.height / 1_000_000) : 0)
-              : (d.weight || 0);
-            return s + price * factor * (d.quantity || 1);
-          }, 0);
-          const payableAmount = declarations.reduce((s, d) => {
-            const price = payableUsePhp ? (d.channelUnitPricePhp || 0) : (d.channelUnitPriceCny || 0);
-            const factor = isSeaLcl
-              ? (d.length && d.width && d.height ? (d.length * d.width * d.height / 1_000_000) : 0)
-              : (d.weight || 0);
-            return s + price * factor * (d.quantity || 1);
-          }, 0);
+          const receivableHasPhp = declarations.some(d => !!d.phpUnitPrice);
+          const receivableHasCny = declarations.some(d => !!d.cnyUnitPrice);
+          const payableHasPhp = declarations.some(d => !!d.channelUnitPricePhp);
+          const payableHasCny = declarations.some(d => !!d.channelUnitPriceCny);
+          const receivableCurrency = receivableHasPhp && receivableHasCny ? 'MIX' : receivableHasPhp ? 'PHP' : 'CNY';
+          const payableCurrency = payableHasPhp && payableHasCny ? 'MIX' : payableHasPhp ? 'PHP' : 'CNY';
+          const receivableAmount = isSeaFcl
+            ? declarations.reduce((s, d) => s + (d.phpUnitPrice || d.cnyUnitPrice || 0), 0)
+            : declarations.reduce((s, d) => {
+                const price = d.phpUnitPrice || d.cnyUnitPrice || 0;
+                const factor = isSeaLcl
+                  ? (d.length && d.width && d.height ? (d.length * d.width * d.height / 1_000_000) : 0)
+                  : (d.weight || 0);
+                return s + price * factor * (d.quantity || 1);
+              }, 0);
+          const payableAmount = isSeaFcl
+            ? declarations.reduce((s, d) => s + (d.channelUnitPricePhp || d.channelUnitPriceCny || 0), 0)
+            : declarations.reduce((s, d) => {
+                const price = d.channelUnitPricePhp || d.channelUnitPriceCny || 0;
+                const factor = isSeaLcl
+                  ? (d.length && d.width && d.height ? (d.length * d.width * d.height / 1_000_000) : 0)
+                  : (d.weight || 0);
+                return s + price * factor * (d.quantity || 1);
+              }, 0);
           await prisma.orderPaymentCollection.upsert({
             where: { orderId: id },
             update: {
@@ -389,8 +440,8 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
               totalVolume: totalVolume > 0 ? new Prisma.Decimal(totalVolume) : null,
               receivableAmount: new Prisma.Decimal(receivableAmount),
               payableAmount: new Prisma.Decimal(payableAmount),
-              receivableCurrency: receivableUsePhp ? 'PHP' : 'CNY',
-              payableCurrency: payableUsePhp ? 'PHP' : 'CNY',
+              receivableCurrency,
+              payableCurrency,
             },
             create: {
               orderId: id,
@@ -399,8 +450,8 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
               totalVolume: totalVolume > 0 ? new Prisma.Decimal(totalVolume) : null,
               receivableAmount: new Prisma.Decimal(receivableAmount),
               payableAmount: new Prisma.Decimal(payableAmount),
-              receivableCurrency: receivableUsePhp ? 'PHP' : 'CNY',
-              payableCurrency: payableUsePhp ? 'PHP' : 'CNY',
+              receivableCurrency,
+              payableCurrency,
             },
           });
         }
@@ -429,6 +480,10 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
       status?: QuickOrderStatus;
       note?: string;
       voyageNumber?: string;
+      billOfLading?: string;
+      containerNumber?: string;
+      loadingDate?: string;
+      eta?: string;
     };
   }>(
     '/:id',

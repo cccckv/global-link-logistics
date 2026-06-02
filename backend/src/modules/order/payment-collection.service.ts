@@ -14,12 +14,18 @@ export interface UpsertPaymentCollectionInput {
   payableCurrency?: string;
   carPickupReceivable?: number;
   carPickupActual?: number;
+  portGateFee?: number;
+  truckingFee?: number;
+  customsCertFee?: number;
 }
 
 export interface PaymentCollectionFilters {
   orderId?: string;
   page?: number;
   limit?: number;
+  orderType?: string;
+  warehouse?: string;
+  mark?: string;
 }
 
 export class PaymentCollectionService {
@@ -28,8 +34,19 @@ export class PaymentCollectionService {
     const limit = filters.limit || 50;
     const skip = (page - 1) * limit;
 
+    const orderFilter: Record<string, any> = {};
+    if (filters.orderType) orderFilter.orderType = filters.orderType;
+    if (filters.warehouse) orderFilter.warehouse = { contains: filters.warehouse, mode: 'insensitive' };
+    if (filters.mark) {
+      orderFilter.OR = [
+        { mark: { contains: filters.mark, mode: 'insensitive' } },
+        { userMark: { contains: filters.mark, mode: 'insensitive' } },
+      ];
+    }
+
     const where: Prisma.OrderPaymentCollectionWhereInput = {
       ...(filters.orderId && { orderId: filters.orderId }),
+      ...(Object.keys(orderFilter).length > 0 && { order: orderFilter }),
     };
 
     const [collections, total] = await Promise.all([
@@ -94,6 +111,9 @@ export class PaymentCollectionService {
       payableCurrency: data.payableCurrency ?? 'PHP',
       carPickupReceivable: data.carPickupReceivable != null ? new Prisma.Decimal(data.carPickupReceivable) : null,
       carPickupActual: data.carPickupActual != null ? new Prisma.Decimal(data.carPickupActual) : null,
+      portGateFee: data.portGateFee != null ? new Prisma.Decimal(data.portGateFee) : null,
+      truckingFee: data.truckingFee != null ? new Prisma.Decimal(data.truckingFee) : null,
+      customsCertFee: data.customsCertFee != null ? new Prisma.Decimal(data.customsCertFee) : null,
     };
 
     return prisma.orderPaymentCollection.upsert({

@@ -8,6 +8,9 @@ interface QueryParams {
   orderId?: string;
   page?: string;
   limit?: string;
+  orderType?: string;
+  warehouse?: string;
+  mark?: string;
 }
 
 interface UpsertBody {
@@ -41,6 +44,9 @@ function serializeCollection(c: any) {
     payableCurrency: c.payableCurrency,
     carPickupReceivable: c.carPickupReceivable?.toNumber() ?? null,
     carPickupActual: c.carPickupActual?.toNumber() ?? null,
+    portGateFee: c.portGateFee?.toNumber() ?? null,
+    truckingFee: c.truckingFee?.toNumber() ?? null,
+    customsCertFee: c.customsCertFee?.toNumber() ?? null,
     createdAt: c.createdAt.toISOString(),
     updatedAt: c.updatedAt.toISOString(),
     order: c.order ? {
@@ -63,11 +69,14 @@ export async function paymentCollectionRoutes(fastify: FastifyInstance) {
     '/',
     { preHandler: [fastify.authenticate, authorize(['ADMIN'])] },
     async (request) => {
-      const { orderId, page, limit } = request.query;
+      const { orderId, page, limit, orderType, warehouse, mark } = request.query;
       const result = await service.findAll({
         orderId,
         page: page ? parseInt(page) : undefined,
         limit: limit ? parseInt(limit) : undefined,
+        orderType,
+        warehouse,
+        mark,
       });
       return {
         data: result.data.map(serializeCollection),

@@ -44,12 +44,13 @@ export async function userRoutes(fastify: FastifyInstance) {
     },
     async (request, reply) => {
       try {
-        const { name, phone, password, userRole, email } = request.body as {
+        const { name, phone, password, userRole, email, company } = request.body as {
           name: string;
           phone: string;
           password: string;
           userRole: UserRoleEnum;
           email?: string;
+          company?: string;
         };
 
         if (!name || !phone || !password || !userRole) {
@@ -72,6 +73,7 @@ export async function userRoutes(fastify: FastifyInstance) {
           password,
           userRole,
           email,
+          company,
         });
 
         return reply.code(201).send({
@@ -96,12 +98,13 @@ export async function userRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       try {
         const { id } = request.params as { id: string };
-        const { name, phone, password, userRole, email } = request.body as {
+        const { name, phone, password, userRole, email, company } = request.body as {
           name?: string;
           phone?: string;
           password?: string;
           userRole?: UserRoleEnum;
           email?: string;
+          company?: string;
         };
 
         if (userRole && !['ADMIN', 'USER'].includes(userRole)) {
@@ -117,6 +120,7 @@ export async function userRoutes(fastify: FastifyInstance) {
           password,
           userRole,
           email,
+          company,
         });
 
         return reply.send({

@@ -15,6 +15,7 @@ export interface CreateUserData {
   password: string;
   userRole: UserRoleEnum;
   email?: string;
+  company?: string;
 }
 
 export interface UpdateUserData {
@@ -23,6 +24,7 @@ export interface UpdateUserData {
   password?: string;
   userRole?: UserRoleEnum;
   email?: string;
+  company?: string;
 }
 
 export class UserService {
@@ -49,6 +51,7 @@ export class UserService {
           name: true,
           phone: true,
           email: true,
+          company: true,
           userRole: true,
           createdAt: true,
           updatedAt: true,
@@ -104,7 +107,8 @@ export class UserService {
       data: {
         name: data.name,
         phone: data.phone,
-        email: data.email,
+        email: data.email || null,
+        company: data.company,
         passwordHash,
         userRole: data.userRole,
         userType: 'CUSTOMER',
@@ -114,6 +118,7 @@ export class UserService {
         name: true,
         phone: true,
         email: true,
+        company: true,
         userRole: true,
         createdAt: true,
       },
@@ -170,6 +175,7 @@ export class UserService {
     if (data.name) updateData.name = data.name;
     if (data.phone) updateData.phone = data.phone;
     if (data.email !== undefined) updateData.email = data.email;
+    if (data.company !== undefined) updateData.company = data.company;
     if (data.userRole) updateData.userRole = data.userRole;
     if (data.password) {
       updateData.passwordHash = await bcrypt.hash(data.password, 10);
@@ -183,6 +189,7 @@ export class UserService {
         name: true,
         phone: true,
         email: true,
+        company: true,
         userRole: true,
         updatedAt: true,
       },

@@ -170,18 +170,28 @@ export interface CreateQuickOrderInput {
   originPort?: string;
   destinationPort?: string;
   voyageNumber?: string;
+  airWaybillNumber?: string;
   billOfLading?: string;
   containerNumber?: string;
+  bookingChannel?: string;
+  customsDeclarationChannel?: string;
+  customsClearanceChannel?: string;
   loadingDate?: string;
   eta?: string;
   receivedAt?: string;
+  overseasReceivedAt?: string;
   carPickupReceivable?: number;
   carPickupActual?: number;
   portGateFee?: number;
   truckingFee?: number;
   customsCertFee?: number;
+  bookingFee?: number;
+  thcOverstayFee?: number;
+  totalShippingDays?: number;
   recipientAddress: QuickOrderAddress;
   overseasAddress?: QuickOrderAddress;
+  receipts?: { receiptUrl: string; receiptFileName: string }[];
+  overseasReceipts?: { receiptUrl: string; receiptFileName: string }[];
   declarations?: QuickOrderDeclaration[];
   containers?: QuickOrderContainer[];
 }
@@ -195,16 +205,23 @@ export interface QuickOrder {
   destination: string;
   note?: string;
   userMark?: string;
+  markUserId?: string;
   mark?: string;
   attachmentUrl?: string;
   originPort?: string;
   destinationPort?: string;
   voyageNumber?: string;
+  airWaybillNumber?: string;
   billOfLading?: string;
   containerNumber?: string;
+  bookingChannel?: string;
+  customsDeclarationChannel?: string;
+  customsClearanceChannel?: string;
   loadingDate?: string;
   eta?: string;
+  totalShippingDays?: number | null;
   receivedAt?: string;
+  overseasReceivedAt?: string;
   createdAt: string;
   updatedAt?: string;
   recipientAddress: QuickOrderAddress & { id: string };
@@ -214,6 +231,23 @@ export interface QuickOrder {
   shipment?: Shipment;
   payment?: Payment;
   paymentVouchers?: PaymentVoucher[];
+  paymentCollection?: {
+    totalPieces: number;
+    totalVolume: number | null;
+    totalWeight: number | null;
+    receivableAmount: number;
+    payableAmount: number;
+    receivableCurrency: string;
+    payableCurrency: string;
+    carPickupReceivable: number | null;
+    carPickupActual: number | null;
+    oceanFreight: number | null;
+    portGateFee: number | null;
+    truckingFee: number | null;
+    customsCertFee: number | null;
+    bookingFee: number | null;
+    thcOverstayFee: number | null;
+  } | null;
 }
 
 export const quickOrderApi = {
@@ -231,12 +265,36 @@ export const quickOrderApi = {
     keyword?: string;
     mark?: string;
     warehouse?: string;
+    exportAll?: boolean;
   }) => api.get<{ data: QuickOrder[]; pagination: { total: number; page: number; limit: number; totalPages: number } }>('/orders/quick', { params }),
   
   getDetail: (orderId: string) =>
     api.get<QuickOrder>(`/orders/quick/${orderId}`),
 
-  update: (orderId: string, data: { status?: QuickOrderStatus; note?: string; attachmentUrl?: string; voyageNumber?: string }) =>
+  update: (orderId: string, data: {
+    status?: QuickOrderStatus;
+    note?: string;
+    attachmentUrl?: string;
+    voyageNumber?: string;
+    airWaybillNumber?: string;
+    destination?: string;
+    warehouse?: string;
+    mark?: string;
+    userMark?: string;
+    markUserId?: string;
+    receivedAt?: string;
+    overseasReceivedAt?: string;
+    billOfLading?: string;
+    containerNumber?: string;
+    bookingChannel?: string;
+    customsDeclarationChannel?: string;
+    customsClearanceChannel?: string;
+    loadingDate?: string;
+    eta?: string;
+    totalShippingDays?: number | null;
+    recipientAddress?: { name: string; company?: string; phone: string; region?: string; address: string };
+    overseasAddress?: { name: string; company?: string; phone: string; region?: string; address: string } | null;
+  }) =>
     api.patch<QuickOrder>(`/orders/quick/${orderId}`, data),
 
   cancel: (orderId: string) =>
@@ -253,6 +311,9 @@ export const quickOrderApi = {
 
   batchUpdateStatus: (orderIds: string[], status: QuickOrderStatus) =>
     api.patch<{ updatedCount: number; updatedIds: string[] }>('/orders/quick/batch-status', { orderIds, status }),
+
+  deleteOrder: (orderId: string) =>
+    api.delete<{ orderId: string; orderNumber: string; message: string }>(`/orders/quick/${orderId}`),
 };
 
 export const contactApi = {
@@ -331,9 +392,12 @@ export interface PaymentCollection {
   payableCurrency: string;
   carPickupReceivable: number | null;
   carPickupActual: number | null;
+  oceanFreight: number | null;
   portGateFee: number | null;
   truckingFee: number | null;
   customsCertFee: number | null;
+  bookingFee: number | null;
+  thcOverstayFee: number | null;
   createdAt: string;
   updatedAt: string;
   order?: {
@@ -343,8 +407,9 @@ export interface PaymentCollection {
     status: string;
     destination: string;
     warehouse?: string;
-    userMark?: string;
-    mark?: string;
+  userMark?: string;
+  markUserId?: string;
+  mark?: string;
     createdAt: string;
     user?: { id: string; name: string; phone: string };
   };
@@ -370,6 +435,11 @@ export interface UpsertPaymentCollectionData {
   payableCurrency?: string;
   carPickupReceivable?: number;
   carPickupActual?: number;
+  portGateFee?: number;
+  truckingFee?: number;
+  customsCertFee?: number;
+  bookingFee?: number;
+  thcOverstayFee?: number;
 }
 
 export const paymentCollectionApi = {

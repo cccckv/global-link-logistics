@@ -17,6 +17,7 @@ export interface UpsertPaymentCollectionInput {
   portGateFee?: number;
   truckingFee?: number;
   customsCertFee?: number;
+  bookingFee?: number;
 }
 
 export interface PaymentCollectionFilters {
@@ -109,11 +110,12 @@ export class PaymentCollectionService {
       payableAmount: new Prisma.Decimal(data.payableAmount),
       receivableCurrency: data.receivableCurrency ?? 'CNY',
       payableCurrency: data.payableCurrency ?? 'PHP',
-      carPickupReceivable: data.carPickupReceivable != null ? new Prisma.Decimal(data.carPickupReceivable) : null,
-      carPickupActual: data.carPickupActual != null ? new Prisma.Decimal(data.carPickupActual) : null,
-      portGateFee: data.portGateFee != null ? new Prisma.Decimal(data.portGateFee) : null,
-      truckingFee: data.truckingFee != null ? new Prisma.Decimal(data.truckingFee) : null,
-      customsCertFee: data.customsCertFee != null ? new Prisma.Decimal(data.customsCertFee) : null,
+          carPickupReceivable: data.carPickupReceivable != null ? new Prisma.Decimal(data.carPickupReceivable) : null,
+          carPickupActual: data.carPickupActual != null ? new Prisma.Decimal(data.carPickupActual) : null,
+          portGateFee: data.portGateFee != null ? new Prisma.Decimal(data.portGateFee) : null,
+          truckingFee: data.truckingFee != null ? new Prisma.Decimal(data.truckingFee) : null,
+          customsCertFee: data.customsCertFee != null ? new Prisma.Decimal(data.customsCertFee) : null,
+          bookingFee: data.bookingFee != null ? new Prisma.Decimal(data.bookingFee) : null,
     };
 
     return prisma.orderPaymentCollection.upsert({

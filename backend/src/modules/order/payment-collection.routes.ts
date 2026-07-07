@@ -23,6 +23,10 @@ interface UpsertBody {
   payableCurrency?: string;
   carPickupReceivable?: number;
   carPickupActual?: number;
+  portGateFee?: number;
+  truckingFee?: number;
+  customsCertFee?: number;
+  bookingFee?: number;
 }
 
 interface AddVoucherBody {
@@ -47,6 +51,7 @@ function serializeCollection(c: any) {
     portGateFee: c.portGateFee?.toNumber() ?? null,
     truckingFee: c.truckingFee?.toNumber() ?? null,
     customsCertFee: c.customsCertFee?.toNumber() ?? null,
+    bookingFee: c.bookingFee?.toNumber() ?? null,
     createdAt: c.createdAt.toISOString(),
     updatedAt: c.updatedAt.toISOString(),
     order: c.order ? {

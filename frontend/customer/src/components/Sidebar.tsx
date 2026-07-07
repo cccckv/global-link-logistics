@@ -1,5 +1,5 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Package, LogOut, User, MapPin, Menu, X, Search, Zap, Users, List, DollarSign, Ship } from 'lucide-react';
+import { Package, LogOut, User, Menu, X, Search, Zap, Users, List, DollarSign, Ship } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 export default function Sidebar() {

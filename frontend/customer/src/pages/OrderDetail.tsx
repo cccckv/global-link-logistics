@@ -20,6 +20,14 @@ import {
   FileBadge,
 } from 'lucide-react';
 
+type EditableDeclaration = QuickOrderDeclaration & {
+  id: string;
+  _key: number;
+  _receivableCur: 'CNY' | 'PHP';
+  _payableCur: 'CNY' | 'PHP';
+  containerType?: string;
+};
+
 const OrderDetail: React.FC = () => {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
@@ -27,7 +35,7 @@ const OrderDetail: React.FC = () => {
   const [order, setOrder] = useState<QuickOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [paymentCollection, setPaymentCollection] = useState<PaymentCollection | null>(null);
-  const [editingDecls, setEditingDecls] = useState<Array<QuickOrderDeclaration & { id: string; _key: number; _receivableCur: 'CNY' | 'PHP'; _payableCur: 'CNY' | 'PHP' }>>([]);
+  const [editingDecls, setEditingDecls] = useState<EditableDeclaration[]>([]);
   const [declsChanged, setDeclsChanged] = useState(false);
   const [savingDecls, setSavingDecls] = useState(false);
   const [previewVoucher, setPreviewVoucher] = useState<PaymentVoucher | null>(null);
@@ -165,7 +173,7 @@ const OrderDetail: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [previewVoucher?.id]);
 
-  const handleDownload = async (voucher: QuickOrder['paymentVouchers'][0]) => {
+  const handleDownload = async (voucher: PaymentVoucher) => {
     const res = await fetchWithAuth(`/api/vouchers/${voucher.id}`);
     if (!res.ok) return;
     const blob = await res.blob();
@@ -1785,11 +1793,7 @@ const OrderDetail: React.FC = () => {
             </div>
 
             <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 text-xs text-gray-500 shrink-0 bg-white">
-              <span>
-                {previewVoucher.fileSize
-                  ? `${(previewVoucher.fileSize / 1024 / 1024).toFixed(2)} MB`
-                  : ''}
-              </span>
+              <span />
               <span>{new Date(previewVoucher.uploadedAt).toLocaleString('zh-CN')}</span>
               <button
                 onClick={() => handleDownload(previewVoucher)}

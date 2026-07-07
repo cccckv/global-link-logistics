@@ -537,22 +537,6 @@ export default function AdminOrderManagement() {
     }
   };
 
-  const handleEdit = async (orderId: string) => {
-    try {
-      const response = await paymentCollectionApi.getByOrderId(orderId);
-      const collection = response.data;
-      setEditingCollection(collection);
-      setEditForm({
-        carPickupReceivable: collection.carPickupReceivable ?? 0,
-        carPickupActual: collection.carPickupActual ?? 0,
-        bookingFee: collection.bookingFee ?? 0,
-      });
-      setShowEditModal(true);
-    } catch {
-      toast.error('未找到收款记录');
-    }
-  };
-
   const handleDeleteClick = (orderId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setDeletingOrderId(orderId);
@@ -818,8 +802,8 @@ export default function AdminOrderManagement() {
                             {order.declarations?.[0]?.productName || '-'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {order.declarations?.filter(d => d.trackingNumber).length > 0
-                              ? `${order.declarations.filter(d => d.trackingNumber).length}个`
+                            {(order.declarations?.filter(d => d.trackingNumber) ?? []).length > 0
+                              ? `${(order.declarations?.filter(d => d.trackingNumber) ?? []).length}个`
                               : '-'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">

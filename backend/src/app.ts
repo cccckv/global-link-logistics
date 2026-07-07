@@ -30,6 +30,7 @@ async function start() {
 
     await fastify.register(jwt, {
       secret: process.env.JWT_SECRET || 'your-secret-key-change-in-production',
+      sign: { expiresIn: '1d' },
     });
 
     fastify.decorate('authenticate', authenticate);

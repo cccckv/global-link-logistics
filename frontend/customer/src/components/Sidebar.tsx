@@ -136,7 +136,7 @@ export default function Sidebar() {
           {user?.userRole === 'ADMIN' && (
             <>
               <NavItem to="/order/quick" icon={Zap} label="快速下单" />
-              <NavItem to="/admin/order-management" icon={DollarSign} label="订单收款" />
+              <NavItem to="/admin/order-management" icon={DollarSign} label="订单列表" />
               <NavItem to="/user-management" icon={Users} label="用户管理" />
             </>
           )}

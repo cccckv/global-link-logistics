@@ -66,6 +66,7 @@ interface FormData {
   userMarkId: string;
   mark: string;
   voyageNumber: string;
+  airWaybillNumber: string;
   recipientContact: string;
   recipientName: string;
   recipientCompany: string;
@@ -73,10 +74,7 @@ interface FormData {
   recipientRegion: string;
   recipientAddress: string;
   recipientReceivedAt: string;
-  receiptUrl: string;
-  receiptFileName: string;
-  receiptPreviewUrl: string;
-  receiptFile?: File;
+  receiptFiles: { file?: File; previewUrl: string; fileName: string; url: string }[];
   carPickupReceivable: string;
   carPickupActual: string;
   overseasContact: string;
@@ -85,16 +83,24 @@ interface FormData {
   overseasPhone: string;
   overseasRegion: string;
   overseasAddress: string;
+  overseasReceivedAt: string;
+  overseasReceiptFiles: { file?: File; previewUrl: string; fileName: string; url: string }[];
   packages: PackageItem[];
   originPort: string;
   destinationPort: string;
   billOfLading: string;
   containerNumber: string;
+  bookingChannel: string;
+  customsDeclarationChannel: string;
+  customsClearanceChannel: string;
   loadingDate: string;
   eta: string;
   portGateFee: string;
   truckingFee: string;
   customsCertFee: string;
+  bookingFee: string;
+  thcOverstayFee: string;
+  totalShippingDays: string;
   containers: ContainerItem[];
 }
 
@@ -113,6 +119,7 @@ const initialFormData: FormData = {
   userMarkId: '',
   mark: '',
   voyageNumber: '',
+  airWaybillNumber: '',
   recipientContact: '',
   recipientName: '',
   recipientCompany: '',
@@ -120,9 +127,7 @@ const initialFormData: FormData = {
   recipientRegion: '',
   recipientAddress: '',
   recipientReceivedAt: '',
-  receiptUrl: '',
-  receiptFileName: '',
-  receiptPreviewUrl: '',
+  receiptFiles: [],
   carPickupReceivable: '',
   carPickupActual: '',
   overseasContact: '',
@@ -131,6 +136,8 @@ const initialFormData: FormData = {
   overseasPhone: '',
   overseasRegion: '',
   overseasAddress: '',
+  overseasReceivedAt: '',
+  overseasReceiptFiles: [],
   packages: [
     {
       id: 1,
@@ -153,11 +160,17 @@ const initialFormData: FormData = {
   destinationPort: '',
   billOfLading: '',
   containerNumber: '',
+  bookingChannel: '',
+  customsDeclarationChannel: '',
+  customsClearanceChannel: '',
   loadingDate: '',
   eta: '',
   portGateFee: '',
   truckingFee: '',
   customsCertFee: '',
+  bookingFee: '',
+  thcOverstayFee: '',
+  totalShippingDays: '',
   containers: [
     {
       id: 1,
@@ -364,7 +377,7 @@ export default function QuickOrder() {
     }
   };
 
-  const updateContainer = (id: number, field: keyof ContainerItem, value: string) => {
+  const updateContainer = (id: number, field: keyof ContainerItem, value: any) => {
     const updatedContainers = currentData.containers.map(c =>
       c.id === id ? { ...c, [field]: value } : c
     );
@@ -394,18 +407,6 @@ export default function QuickOrder() {
 
     if (!currentData.destination) {
       toast.error('请选择目的地');
-      return;
-    }
-    if (!currentData.recipientName) {
-      toast.error('请输入收件人');
-      return;
-    }
-    if (!currentData.recipientAddress) {
-      toast.error('请输入详细地址');
-      return;
-    }
-    if (!currentData.recipientPhone) {
-      toast.error('请输入收件人电话');
       return;
     }
 
@@ -467,7 +468,13 @@ export default function QuickOrder() {
     }
 
     if (currentTabType === 'standard') {
-      const filledPackages = currentData.packages.filter(p => p.productName && p.weight);
+      const filledPackages = currentData.packages.filter(p => p.productName || p.weight);
+
+      const missingProductName = filledPackages.some(p => !p.productName);
+      if (missingProductName) {
+        toast.error('请填写每条申报信息的品名');
+        return;
+      }
 
       const missingReceivable = filledPackages.some(p => !p.cnyUnitPrice && !p.phpUnitPrice);
       if (missingReceivable) {
@@ -485,15 +492,46 @@ export default function QuickOrder() {
     setIsSubmitting(true);
 
     try {
-      let receiptUrl: string | undefined;
-      let receiptFileName: string | undefined;
+      let receipts: { receiptUrl: string; receiptFileName: string }[] = [];
 
-      if (currentData.receiptFile) {
-        toast.loading('上传收件凭证...', { id: 'upload-receipt' });
-        const { data } = await uploadApi.uploadReceipt(currentData.receiptFile);
-        toast.dismiss('upload-receipt');
-        receiptUrl = data.fileUrl;
-        receiptFileName = data.fileName;
+      if (currentData.receiptFiles.length > 0) {
+        const pendingUploads = currentData.receiptFiles.filter(r => r.file);
+        const alreadyUploaded = currentData.receiptFiles.filter(r => !r.file);
+
+        if (pendingUploads.length > 0) {
+          toast.loading('上传收件凭证...', { id: 'upload-receipt' });
+          const uploadResults = await Promise.all(
+            pendingUploads.map(r => uploadApi.uploadReceipt(r.file!))
+          );
+          toast.dismiss('upload-receipt');
+          receipts = [
+            ...alreadyUploaded.map(r => ({ receiptUrl: r.url, receiptFileName: r.fileName })),
+            ...uploadResults.map(res => ({ receiptUrl: res.data.fileUrl, receiptFileName: res.data.fileName })),
+          ];
+        } else {
+          receipts = alreadyUploaded.map(r => ({ receiptUrl: r.url, receiptFileName: r.fileName }));
+        }
+      }
+
+      let overseasReceipts: { receiptUrl: string; receiptFileName: string }[] = [];
+
+      if (currentData.overseasReceiptFiles.length > 0) {
+        const pendingUploads = currentData.overseasReceiptFiles.filter(r => r.file);
+        const alreadyUploaded = currentData.overseasReceiptFiles.filter(r => !r.file);
+
+        if (pendingUploads.length > 0) {
+          toast.loading('上传海外收件凭证...', { id: 'upload-overseas-receipt' });
+          const uploadResults = await Promise.all(
+            pendingUploads.map(r => uploadApi.uploadReceipt(r.file!))
+          );
+          toast.dismiss('upload-overseas-receipt');
+          overseasReceipts = [
+            ...alreadyUploaded.map(r => ({ receiptUrl: r.url, receiptFileName: r.fileName })),
+            ...uploadResults.map(res => ({ receiptUrl: res.data.fileUrl, receiptFileName: res.data.fileName })),
+          ];
+        } else {
+          overseasReceipts = alreadyUploaded.map(r => ({ receiptUrl: r.url, receiptFileName: r.fileName }));
+        }
       }
 
       const orderData: any = {
@@ -503,18 +541,20 @@ export default function QuickOrder() {
         userMark: currentData.userMark || undefined,
         markUserId: currentData.userMarkId || undefined,
         receivedAt: currentData.recipientReceivedAt || undefined,
-        receiptUrl: receiptUrl || undefined,
-        receiptFileName: receiptFileName || undefined,
+        overseasReceivedAt: currentData.overseasReceivedAt || undefined,
+        receipts: receipts.length > 0 ? receipts : undefined,
+        overseasReceipts: overseasReceipts.length > 0 ? overseasReceipts : undefined,
         mark: currentData.mark || undefined,
         voyageNumber: activeTab !== 'AIR' ? (currentData.voyageNumber || undefined) : undefined,
+        airWaybillNumber: activeTab === 'AIR' ? (currentData.airWaybillNumber || undefined) : undefined,
         carPickupReceivable: currentData.carPickupReceivable ? parseFloat(currentData.carPickupReceivable) : undefined,
         carPickupActual: currentData.carPickupActual ? parseFloat(currentData.carPickupActual) : undefined,
         recipientAddress: {
-          name: currentData.recipientName,
+          name: currentData.recipientName || '-',
           company: currentData.recipientCompany || undefined,
-          phone: currentData.recipientPhone,
+          phone: currentData.recipientPhone || '-',
           region: currentData.recipientRegion || undefined,
-          address: currentData.recipientAddress,
+          address: currentData.recipientAddress || '-',
         },
       };
 
@@ -533,11 +573,17 @@ export default function QuickOrder() {
         orderData.destinationPort = currentData.destinationPort || undefined;
         orderData.billOfLading = currentData.billOfLading || undefined;
         orderData.containerNumber = currentData.containerNumber || undefined;
+        orderData.bookingChannel = currentData.bookingChannel || undefined;
+        orderData.customsDeclarationChannel = currentData.customsDeclarationChannel || undefined;
+        orderData.customsClearanceChannel = currentData.customsClearanceChannel || undefined;
         orderData.loadingDate = currentData.loadingDate || undefined;
         orderData.eta = currentData.eta || undefined;
         orderData.portGateFee = currentData.portGateFee ? parseFloat(currentData.portGateFee) : undefined;
         orderData.truckingFee = currentData.truckingFee ? parseFloat(currentData.truckingFee) : undefined;
         orderData.customsCertFee = currentData.customsCertFee ? parseFloat(currentData.customsCertFee) : undefined;
+        orderData.bookingFee = currentData.bookingFee ? parseFloat(currentData.bookingFee) : undefined;
+        orderData.thcOverstayFee = currentData.thcOverstayFee ? parseFloat(currentData.thcOverstayFee) : undefined;
+        orderData.totalShippingDays = currentData.totalShippingDays ? parseInt(currentData.totalShippingDays) : undefined;
         orderData.containers = currentData.containers.map(c => ({
           containerType: c.containerType,
           quantity: parseInt(c.quantity) || 0,
@@ -568,14 +614,14 @@ export default function QuickOrder() {
           phpUnitPrice: p.phpUnitPrice ? parseFloat(p.phpUnitPrice) : undefined,
           channelUnitPricePhp: p.channelUnitPricePhp ? parseFloat(p.channelUnitPricePhp) : undefined,
           channelUnitPriceCny: p.channelUnitPriceCny ? parseFloat(p.channelUnitPriceCny) : undefined,
-        })).filter(d => d.productName && d.weight);
+        })).filter(d => d.productName);
       }
 
       const response = await quickOrderApi.create(orderData);
       
-      if (currentData.receiptPreviewUrl) {
-        URL.revokeObjectURL(currentData.receiptPreviewUrl);
-      }
+      currentData.receiptFiles.forEach(r => {
+        if (r.file && r.previewUrl) URL.revokeObjectURL(r.previewUrl);
+      });
 
       toast.success(`订单创建成功！订单号: ${response.data.orderNumber}`);
       
@@ -586,7 +632,7 @@ export default function QuickOrder() {
         [activeTab]: JSON.parse(JSON.stringify(initialFormData)),
       }));
       
-      navigate(`/order/list`);
+      navigate(`/order/detail/${response.data.orderId}`);
     } catch (error: any) {
       console.error('创建订单失败:', error);
       const errorMessage = error.response?.data?.message || error.response?.data?.error || '创建订单失败，请重试';
@@ -743,19 +789,52 @@ export default function QuickOrder() {
                      />
                    </div>
 
-                   <div className="space-y-2">
-                     <label className="block text-sm font-medium text-gray-700">柜号</label>
-                     <input
-                       type="text"
-                       placeholder="请输入柜号"
-                       value={currentData.containerNumber}
-                       onChange={(e) => updateFormData('containerNumber', e.target.value)}
-                       className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                     />
-                   </div>
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700">柜号</label>
+                      <input
+                        type="text"
+                        placeholder="请输入柜号"
+                        value={currentData.containerNumber}
+                        onChange={(e) => updateFormData('containerNumber', e.target.value)}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
 
-                   <div className="space-y-2">
-                     <label className="block text-sm font-medium text-gray-700">装柜时间</label>
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700">订舱渠道</label>
+                      <input
+                        type="text"
+                        placeholder="请输入订舱渠道"
+                        value={currentData.bookingChannel}
+                        onChange={(e) => updateFormData('bookingChannel', e.target.value)}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700">报关渠道</label>
+                      <input
+                        type="text"
+                        placeholder="请输入报关渠道"
+                        value={currentData.customsDeclarationChannel}
+                        onChange={(e) => updateFormData('customsDeclarationChannel', e.target.value)}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700">清关渠道</label>
+                      <input
+                        type="text"
+                        placeholder="请输入清关渠道"
+                        value={currentData.customsClearanceChannel}
+                        onChange={(e) => updateFormData('customsClearanceChannel', e.target.value)}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700">装柜时间</label>
                      <input
                        type="date"
                        value={currentData.loadingDate}
@@ -765,19 +844,32 @@ export default function QuickOrder() {
                      />
                    </div>
 
-                   <div className="space-y-2">
-                     <label className="block text-sm font-medium text-gray-700">预计到港时间</label>
-                     <input
-                       type="date"
-                       value={currentData.eta}
-                       onChange={(e) => updateFormData('eta', e.target.value)}
-                       onClick={(e) => { const el = e.currentTarget; if ('showPicker' in el) (el as HTMLInputElement).showPicker(); }}
-                       className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer"
-                     />
-                   </div>
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700">预计到港时间</label>
+                      <input
+                        type="date"
+                        value={currentData.eta}
+                        onChange={(e) => updateFormData('eta', e.target.value)}
+                        onClick={(e) => { const el = e.currentTarget; if ('showPicker' in el) (el as HTMLInputElement).showPicker(); }}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer"
+                      />
+                    </div>
 
-                   <div className="space-y-2">
-                     <label className="block text-sm font-medium text-gray-700">备注</label>
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700">总计航运时间 (天)</label>
+                      <input
+                        type="number"
+                        placeholder="请输入航运天数"
+                        value={currentData.totalShippingDays}
+                        onChange={(e) => updateFormData('totalShippingDays', e.target.value)}
+                        min="0"
+                        step="1"
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700">备注</label>
                      <input
                        type="text"
                        placeholder="请输入订单备注"
@@ -806,161 +898,127 @@ export default function QuickOrder() {
                  </div>
 
                 <div className="border-b pb-8 mb-8">
-                  <div className="flex items-center justify-between mb-6">
+                  <div className="mb-6">
                     <h2 className="text-lg font-medium text-gray-900">填写收货信息</h2>
-                    <button
-                      type="button"
-                      onClick={handleResetRecipientInfo}
-                      className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
-                    >
-                      重置收件信息
-                    </button>
                   </div>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">收件人管理</label>
-                      <select
-                        value={currentData.recipientContact}
-                        onChange={(e) => handleRecipientAddressSelect(e.target.value)}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        disabled={isLoadingAddresses}
-                      >
-                        <option value="">请选择收件人</option>
-                        {recipientAddresses.map(addr => (
-                          <option key={addr.id} value={addr.id}>
-                            {addr.name} - {addr.phone}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">
-                        <span className="text-red-500">*</span>收件人
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="请输入收件人"
-                        value={currentData.recipientName}
-                        onChange={(e) => updateFormData('recipientName', e.target.value)}
-                        required
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">公司</label>
-                      <input
-                        type="text"
-                        placeholder="请输入公司名称"
-                        value={currentData.recipientCompany}
-                        onChange={(e) => updateFormData('recipientCompany', e.target.value)}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">
-                        <span className="text-red-500">*</span>手机号码
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="请输入手机号码"
-                        value={currentData.recipientPhone}
-                        onChange={(e) => updateFormData('recipientPhone', e.target.value)}
-                        required
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">所在地区</label>
-                      <select
-                        value={currentData.recipientRegion}
-                        onChange={(e) => updateFormData('recipientRegion', e.target.value)}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      >
-                        <option value="">请选择国家</option>
-                        <option value="china">中国</option>
-                        <option value="hongkong">香港</option>
-                        <option value="malaysia">马来西亚</option>
-                      </select>
-                    </div>
-
                     <div className="space-y-2 md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700">
-                        <span className="text-red-500">*</span>详细地址
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="请输入详细地址"
-                        value={currentData.recipientAddress}
-                        onChange={(e) => updateFormData('recipientAddress', e.target.value)}
-                        required
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">签收时间</label>
-                      <input
-                        type="date"
-                        value={currentData.recipientReceivedAt}
-                        onChange={(e) => updateFormData('recipientReceivedAt', e.target.value)}
-                        onClick={(e) => { const el = e.currentTarget; if ('showPicker' in el) (el as HTMLInputElement).showPicker(); }}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer"
-                      />
+                      <label className="block text-sm font-medium text-gray-700">收件凭证</label>
+                      <div className="space-y-2">
+                        {currentData.receiptFiles.length > 0 && (
+                          <div className="space-y-2">
+                            {currentData.receiptFiles.map((receipt, idx) => (
+                              <div key={idx} className="flex items-center gap-3 p-3 border border-gray-300 rounded-lg bg-gray-50">
+                                <img
+                                  src={receipt.previewUrl || receipt.url}
+                                  alt="收件凭证"
+                                  className="w-16 h-16 object-cover rounded flex-shrink-0"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm text-gray-700 truncate">{receipt.fileName}</p>
+                                  <p className="text-xs text-gray-500 mt-1">{receipt.file ? '待上传' : '已上传'}</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (receipt.file && receipt.previewUrl) URL.revokeObjectURL(receipt.previewUrl);
+                                    updateFormData('receiptFiles', currentData.receiptFiles.filter((_, i) => i !== idx));
+                                  }}
+                                  className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded transition-colors flex-shrink-0"
+                                >
+                                  删除
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                          <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                            <svg className="w-8 h-8 mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                            <p className="mb-2 text-sm text-gray-500">
+                              <span className="font-semibold">点击上传</span> 或拖拽图片到此处（可多选）
+                            </p>
+                            <p className="text-xs text-gray-500">支持 JPG、PNG、GIF、WEBP，每张最大10MB</p>
+                          </div>
+                          <input
+                            type="file"
+                            className="hidden"
+                            accept="image/jpeg,image/png,image/gif,image/webp"
+                            multiple
+                            onChange={async (e) => {
+                              const files = Array.from(e.target.files || []);
+                              if (files.length === 0) return;
+                              const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+                              const newItems: { file: File; previewUrl: string; fileName: string; url: string }[] = [];
+                              for (const file of files) {
+                                if (file.size > 10 * 1024 * 1024) { toast.error(`${file.name} 超过10MB，已跳过`); continue; }
+                                if (!allowedTypes.includes(file.type)) { toast.error(`${file.name} 格式不支持，已跳过`); continue; }
+                                try {
+                                  const previewUrl = URL.createObjectURL(file);
+                                  newItems.push({ file, previewUrl, fileName: file.name, url: previewUrl });
+                                } catch { toast.error(`读取 ${file.name} 失败`); }
+                              }
+                              if (newItems.length > 0) {
+                                updateFormData('receiptFiles', [...currentData.receiptFiles, ...newItems]);
+                              }
+                              e.target.value = '';
+                            }}
+                          />
+                        </label>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="border-b pb-8 mb-8">
-                  <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-lg font-medium text-gray-900">填写海外收件人信息</h2>
-                    <button
-                      type="button"
-                      onClick={handleResetOverseasInfo}
-                      className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
-                    >
-                      重置海外收件信息
-                    </button>
-                  </div>
+                 <div className="border-b pb-8 mb-8">
+                   <div className="flex items-center justify-between mb-6">
+                     <h2 className="text-lg font-medium text-gray-900">填写海外收件人信息</h2>
+                     <button
+                       type="button"
+                       onClick={handleResetOverseasInfo}
+                       className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
+                     >
+                       重置海外收件信息
+                     </button>
+                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">海外收件人管理</label>
-                      <select
-                        value={currentData.overseasContact}
-                        onChange={(e) => handleOverseasAddressSelect(e.target.value)}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        disabled={isLoadingAddresses}
-                      >
-                        <option value="">请选择海外收件人</option>
-                        {overseasAddresses.map(addr => (
-                          <option key={addr.id} value={addr.id}>
-                            {addr.name} - {addr.phone}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                     <div className="space-y-2">
+                       <label className="block text-sm font-medium text-gray-700">海外收件人管理</label>
+                       <select
+                         value={currentData.overseasContact}
+                         onChange={(e) => handleOverseasAddressSelect(e.target.value)}
+                         className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                         disabled={isLoadingAddresses}
+                       >
+                         <option value="">请选择海外收件人</option>
+                         {overseasAddresses.map(addr => (
+                           <option key={addr.id} value={addr.id}>
+                             {addr.name} - {addr.phone}
+                           </option>
+                         ))}
+                       </select>
+                     </div>
 
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">海外收件人</label>
-                      <input
-                        type="text"
-                        placeholder="请输入海外收件人"
-                        value={currentData.overseasName}
-                        onChange={(e) => updateFormData('overseasName', e.target.value)}
-                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
+                     <div className="space-y-2">
+                       <label className="block text-sm font-medium text-gray-700">海外收件人</label>
+                       <input
+                         type="text"
+                         placeholder="请输入海外收件人"
+                         value={currentData.overseasName}
+                         onChange={(e) => updateFormData('overseasName', e.target.value)}
+                         className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                       />
+                     </div>
 
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">公司</label>
-                      <input
-                        type="text"
-                        placeholder="请输入公司名称"
+                     <div className="space-y-2">
+                       <label className="block text-sm font-medium text-gray-700">公司</label>
+                       <input
+                         type="text"
+                         placeholder="请输入公司名称"
                         value={currentData.overseasCompany}
                         onChange={(e) => updateFormData('overseasCompany', e.target.value)}
                         className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -1014,6 +1072,85 @@ export default function QuickOrder() {
                         onChange={(e) => updateFormData('overseasAddress', e.target.value)}
                         className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700">海外签收时间</label>
+                      <input
+                        type="date"
+                        value={currentData.overseasReceivedAt}
+                        onChange={(e) => updateFormData('overseasReceivedAt', e.target.value)}
+                        onClick={(e) => { const el = e.currentTarget; if ('showPicker' in el) (el as HTMLInputElement).showPicker(); }}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer"
+                      />
+                    </div>
+
+                    <div className="space-y-2 md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700">海外收件凭证</label>
+                      <div className="space-y-2">
+                        {currentData.overseasReceiptFiles.length > 0 && (
+                          <div className="space-y-2">
+                            {currentData.overseasReceiptFiles.map((receipt, idx) => (
+                              <div key={idx} className="flex items-center gap-3 p-3 border border-gray-300 rounded-lg bg-gray-50">
+                                <img
+                                  src={receipt.previewUrl || receipt.url}
+                                  alt="海外收件凭证"
+                                  className="w-16 h-16 object-cover rounded flex-shrink-0"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm text-gray-700 truncate">{receipt.fileName}</p>
+                                  <p className="text-xs text-gray-500 mt-1">{receipt.file ? '待上传' : '已上传'}</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (receipt.file && receipt.previewUrl) URL.revokeObjectURL(receipt.previewUrl);
+                                    updateFormData('overseasReceiptFiles', currentData.overseasReceiptFiles.filter((_, i) => i !== idx));
+                                  }}
+                                  className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded transition-colors flex-shrink-0"
+                                >
+                                  删除
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                          <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                            <svg className="w-8 h-8 mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                            <p className="mb-2 text-sm text-gray-500">
+                              <span className="font-semibold">点击上传</span> 或拖拽图片到此处（可多选）
+                            </p>
+                            <p className="text-xs text-gray-500">支持 JPG、PNG、GIF、WEBP，每张最大10MB</p>
+                          </div>
+                          <input
+                            type="file"
+                            className="hidden"
+                            accept="image/jpeg,image/png,image/gif,image/webp"
+                            multiple
+                            onChange={async (e) => {
+                              const files = Array.from(e.target.files || []);
+                              if (files.length === 0) return;
+                              const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+                              const newItems: { file: File; previewUrl: string; fileName: string; url: string }[] = [];
+                              for (const file of files) {
+                                if (file.size > 10 * 1024 * 1024) { toast.error(`${file.name} 超过10MB，已跳过`); continue; }
+                                if (!allowedTypes.includes(file.type)) { toast.error(`${file.name} 格式不支持，已跳过`); continue; }
+                                try {
+                                  const previewUrl = URL.createObjectURL(file);
+                                  newItems.push({ file, previewUrl, fileName: file.name, url: previewUrl });
+                                } catch { toast.error(`读取 ${file.name} 失败`); }
+                              }
+                              if (newItems.length > 0) {
+                                updateFormData('overseasReceiptFiles', [...currentData.overseasReceiptFiles, ...newItems]);
+                              }
+                              e.target.value = '';
+                            }}
+                          />
+                        </label>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1104,9 +1241,9 @@ export default function QuickOrder() {
                                    value={container.receivableCurrency}
                                    onChange={(e) => {
                                      const cur = e.target.value as 'CNY' | 'PHP';
-                                     updateContainer(container.id, 'receivableCurrency', cur);
-                                     updateContainer(container.id, 'cnyUnitPrice', '');
-                                     updateContainer(container.id, 'phpUnitPrice', '');
+                                     updateFormData('containers', currentData.containers.map(c =>
+                                       c.id === container.id ? { ...c, receivableCurrency: cur, cnyUnitPrice: '', phpUnitPrice: '' } : c
+                                     ));
                                    }}
                                    className="px-2 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 w-16"
                                  >
@@ -1118,13 +1255,14 @@ export default function QuickOrder() {
                                    placeholder="总价"
                                    value={container.receivableCurrency === 'CNY' ? container.cnyUnitPrice : container.phpUnitPrice}
                                    onChange={(e) => {
-                                     if (container.receivableCurrency === 'CNY') {
-                                       updateContainer(container.id, 'cnyUnitPrice', e.target.value);
-                                       updateContainer(container.id, 'phpUnitPrice', '');
-                                     } else {
-                                       updateContainer(container.id, 'phpUnitPrice', e.target.value);
-                                       updateContainer(container.id, 'cnyUnitPrice', '');
-                                     }
+                                     updateFormData('containers', currentData.containers.map(c =>
+                                       c.id === container.id
+                                         ? { ...c,
+                                             cnyUnitPrice: c.receivableCurrency === 'CNY' ? e.target.value : '',
+                                             phpUnitPrice: c.receivableCurrency === 'PHP' ? e.target.value : '',
+                                           }
+                                         : c
+                                     ));
                                    }}
                                    min="0"
                                    step="0.01"
@@ -1139,9 +1277,9 @@ export default function QuickOrder() {
                                    value={container.payableCurrency}
                                    onChange={(e) => {
                                      const cur = e.target.value as 'CNY' | 'PHP';
-                                     updateContainer(container.id, 'payableCurrency', cur);
-                                     updateContainer(container.id, 'channelUnitPricePhp', '');
-                                     updateContainer(container.id, 'channelUnitPriceCny', '');
+                                     updateFormData('containers', currentData.containers.map(c =>
+                                       c.id === container.id ? { ...c, payableCurrency: cur, channelUnitPricePhp: '', channelUnitPriceCny: '' } : c
+                                     ));
                                    }}
                                    className="px-2 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 w-16"
                                  >
@@ -1153,13 +1291,14 @@ export default function QuickOrder() {
                                    placeholder="总价"
                                    value={container.payableCurrency === 'CNY' ? container.channelUnitPriceCny : container.channelUnitPricePhp}
                                    onChange={(e) => {
-                                     if (container.payableCurrency === 'CNY') {
-                                       updateContainer(container.id, 'channelUnitPriceCny', e.target.value);
-                                       updateContainer(container.id, 'channelUnitPricePhp', '');
-                                     } else {
-                                       updateContainer(container.id, 'channelUnitPricePhp', e.target.value);
-                                       updateContainer(container.id, 'channelUnitPriceCny', '');
-                                     }
+                                     updateFormData('containers', currentData.containers.map(c =>
+                                       c.id === container.id
+                                         ? { ...c,
+                                             channelUnitPriceCny: c.payableCurrency === 'CNY' ? e.target.value : '',
+                                             channelUnitPricePhp: c.payableCurrency === 'PHP' ? e.target.value : '',
+                                           }
+                                         : c
+                                     ));
                                    }}
                                    min="0"
                                    step="0.01"
@@ -1236,7 +1375,7 @@ export default function QuickOrder() {
                           className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
-                      <div className="space-y-2">
+                       <div className="space-y-2">
                         <label className="block text-sm font-medium text-gray-700">报关产地证费 (¥)</label>
                         <input
                           type="number"
@@ -1248,8 +1387,32 @@ export default function QuickOrder() {
                           className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
-                    </div>
-                  </div>
+                       <div className="space-y-2">
+                         <label className="block text-sm font-medium text-gray-700">订舱费用 ($)</label>
+                         <input
+                           type="number"
+                           placeholder="0.00"
+                           value={currentData.bookingFee}
+                           onChange={(e) => updateFormData('bookingFee', e.target.value)}
+                           min="0"
+                           step="0.01"
+                           className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                         />
+                       </div>
+                       <div className="space-y-2">
+                         <label className="block text-sm font-medium text-gray-700">THC超支/堆箱费 (₱)</label>
+                         <input
+                           type="number"
+                           placeholder="0.00"
+                           value={currentData.thcOverstayFee}
+                           onChange={(e) => updateFormData('thcOverstayFee', e.target.value)}
+                           min="0"
+                           step="0.01"
+                           className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                         />
+                       </div>
+                     </div>
+                   </div>
 
                   {(() => {
                     const containers = currentData.containers;
@@ -1262,46 +1425,65 @@ export default function QuickOrder() {
                       return sum + (c.payableCurrency === 'PHP' ? (parseFloat(c.channelUnitPricePhp) || 0) : (parseFloat(c.channelUnitPriceCny) || 0));
                     }, 0);
                      const portGateFee = parseFloat(currentData.portGateFee) || 0;
-                    const truckingFee = parseFloat(currentData.truckingFee) || 0;
-                    const customsCertFee = parseFloat(currentData.customsCertFee) || 0;
-                    const totalOther = portGateFee + truckingFee + customsCertFee;
-                    const receivableSymbol = receivableUsePhp ? '₱' : '¥';
-                    const payableSymbol = payableUsePhp ? '₱' : '¥';
-                    const finalReceivable = baseReceivable + (receivableUsePhp ? 0 : totalOther);
-                    const finalPayable = basePayable + (payableUsePhp ? 0 : totalOther);
-                    return (
-                      <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                        <div className="grid grid-cols-3 gap-6 text-sm">
-                          <div>
-                            <span className="text-gray-500">应收总价（含其他费用）</span>
-                            <p className="text-lg font-semibold text-blue-600 mt-1">
-                              {finalReceivable > 0 || (receivableUsePhp && totalOther > 0)
-                                ? `${receivableSymbol}${(receivableUsePhp ? baseReceivable : finalReceivable).toFixed(2)}${receivableUsePhp && totalOther > 0 ? ` + ¥${totalOther.toFixed(2)}` : ''}`
-                                : '-'}
-                            </p>
-                          </div>
-                          <div>
-                            <span className="text-gray-500">应付总价（含其他费用）</span>
-                            <p className="text-lg font-semibold text-orange-600 mt-1">
-                              {finalPayable > 0 || (payableUsePhp && totalOther > 0)
-                                ? `${payableSymbol}${(payableUsePhp ? basePayable : finalPayable).toFixed(2)}${payableUsePhp && totalOther > 0 ? ` + ¥${totalOther.toFixed(2)}` : ''}`
-                                : '-'}
-                            </p>
-                          </div>
-                          <div>
-                            <span className="text-gray-500">其他费用合计</span>
-                            <p className="text-lg font-semibold text-gray-700 mt-1">
-                              {totalOther > 0 ? `¥${totalOther.toFixed(2)}` : '-'}
-                            </p>
-                          </div>
-                        </div>
-                        {totalOther > 0 && (
-                          <div className="mt-3 pt-3 border-t border-blue-200 text-sm text-gray-500 flex flex-wrap gap-4">
-                            {portGateFee > 0 && <span>港杂费：¥{portGateFee.toFixed(2)}</span>}
-                            {truckingFee > 0 && <span>拖车费：¥{truckingFee.toFixed(2)}</span>}
-                            {customsCertFee > 0 && <span>报关产地证费：¥{customsCertFee.toFixed(2)}</span>}
-                          </div>
-                        )}
+                     const truckingFee = parseFloat(currentData.truckingFee) || 0;
+                     const customsCertFee = parseFloat(currentData.customsCertFee) || 0;
+                     const bookingFee = parseFloat(currentData.bookingFee) || 0;
+                     const thcOverstayFee = parseFloat(currentData.thcOverstayFee) || 0;
+                     const totalOtherCny = portGateFee + truckingFee + customsCertFee;
+                     const totalOther = totalOtherCny + bookingFee + thcOverstayFee;
+                     const receivableSymbol = receivableUsePhp ? '₱' : '¥';
+                     const payableSymbol = payableUsePhp ? '₱' : '¥';
+                     const finalReceivable = baseReceivable + (receivableUsePhp ? thcOverstayFee : totalOtherCny);
+                     const finalPayable = basePayable + (payableUsePhp ? thcOverstayFee : totalOtherCny);
+                     return (
+                       <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                         <div className="grid grid-cols-3 gap-6 text-sm">
+                           <div>
+                             <span className="text-gray-500">应收总价（含其他费用）</span>
+                             <p className="text-lg font-semibold text-blue-600 mt-1">
+                               {finalReceivable > 0 || (!receivableUsePhp && totalOtherCny > 0)
+                                 ? [
+                                     `${receivableSymbol}${finalReceivable.toFixed(2)}`,
+                                     !receivableUsePhp && thcOverstayFee > 0 ? `₱${thcOverstayFee.toFixed(2)}` : '',
+                                     totalOtherCny > 0 && receivableUsePhp ? `¥${totalOtherCny.toFixed(2)}` : '',
+                                     bookingFee > 0 ? `$${bookingFee.toFixed(2)}` : '',
+                                   ].filter(Boolean).join(' + ')
+                                 : (bookingFee > 0 ? `$${bookingFee.toFixed(2)}` : '-')}
+                             </p>
+                           </div>
+                           <div>
+                             <span className="text-gray-500">应付总价（含其他费用）</span>
+                             <p className="text-lg font-semibold text-orange-600 mt-1">
+                               {finalPayable > 0 || (!payableUsePhp && totalOtherCny > 0)
+                                 ? [
+                                     `${payableSymbol}${finalPayable.toFixed(2)}`,
+                                     !payableUsePhp && thcOverstayFee > 0 ? `₱${thcOverstayFee.toFixed(2)}` : '',
+                                     totalOtherCny > 0 && payableUsePhp ? `¥${totalOtherCny.toFixed(2)}` : '',
+                                     bookingFee > 0 ? `$${bookingFee.toFixed(2)}` : '',
+                                   ].filter(Boolean).join(' + ')
+                                 : (bookingFee > 0 ? `$${bookingFee.toFixed(2)}` : '-')}
+                             </p>
+                           </div>
+                           <div>
+                             <span className="text-gray-500">其他费用合计</span>
+                             <p className="text-lg font-semibold text-gray-700 mt-1">
+                               {[
+                                 totalOtherCny > 0 ? `¥${totalOtherCny.toFixed(2)}` : '',
+                                 bookingFee > 0 ? `$${bookingFee.toFixed(2)}` : '',
+                                 thcOverstayFee > 0 ? `₱${thcOverstayFee.toFixed(2)}` : '',
+                               ].filter(Boolean).join(' + ') || '-'}
+                             </p>
+                           </div>
+                         </div>
+                         {totalOther > 0 && (
+                           <div className="mt-3 pt-3 border-t border-blue-200 text-sm text-gray-500 flex flex-wrap gap-4">
+                             {portGateFee > 0 && <span>港杂费：¥{portGateFee.toFixed(2)}</span>}
+                             {truckingFee > 0 && <span>拖车费：¥{truckingFee.toFixed(2)}</span>}
+                             {customsCertFee > 0 && <span>报关产地证费：¥{customsCertFee.toFixed(2)}</span>}
+                             {bookingFee > 0 && <span>订舱费用：${bookingFee.toFixed(2)}</span>}
+                             {thcOverstayFee > 0 && <span>THC超支/堆箱费：₱{thcOverstayFee.toFixed(2)}</span>}
+                           </div>
+                         )}
                       </div>
                     );
                   })()}
@@ -1500,6 +1682,19 @@ export default function QuickOrder() {
                   </div>
                   )}
 
+                  {activeTab === 'AIR' && (
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">运单号</label>
+                    <input
+                      type="text"
+                      placeholder="请输入运单号"
+                      value={currentData.airWaybillNumber}
+                      onChange={(e) => updateFormData('airWaybillNumber', e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  )}
+
                   <div className="space-y-2">
                     <label className="block text-sm font-medium text-gray-700">用户唛头</label>
                       <select
@@ -1530,8 +1725,8 @@ export default function QuickOrder() {
                       重置收件信息
                     </button>
                   </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
                     <div className="space-y-2">
                       <label className="block text-sm font-medium text-gray-700">收件人管理</label>
                       <select
@@ -1550,9 +1745,7 @@ export default function QuickOrder() {
                     </div>
 
                     <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">
-                        <span className="text-red-500">*</span>收件人
-                      </label>
+                      <label className="block text-sm font-medium text-gray-700">收件人</label>
                       <input
                         type="text"
                         placeholder="请输入收件人"
@@ -1574,15 +1767,12 @@ export default function QuickOrder() {
                     </div>
 
                     <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">
-                        <span className="text-red-500">*</span>手机号码
-                      </label>
+                      <label className="block text-sm font-medium text-gray-700">手机号码</label>
                       <input
                         type="text"
                         placeholder="请输入手机号码"
                         value={currentData.recipientPhone}
                         onChange={(e) => updateFormData('recipientPhone', e.target.value)}
-                        required
                         className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
@@ -1602,21 +1792,18 @@ export default function QuickOrder() {
                     </div>
 
                     <div className="space-y-2 md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700">
-                        <span className="text-red-500">*</span>详细地址
-                      </label>
+                      <label className="block text-sm font-medium text-gray-700">详细地址</label>
                       <input
                         type="text"
                         placeholder="请输入详细地址"
                         value={currentData.recipientAddress}
                         onChange={(e) => updateFormData('recipientAddress', e.target.value)}
-                        required
                         className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">签收时间</label>
+                      <label className="block text-sm font-medium text-gray-700">入库时间</label>
                       <input
                         type="date"
                         value={currentData.recipientReceivedAt}
@@ -1625,82 +1812,76 @@ export default function QuickOrder() {
                         className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer"
                       />
                     </div>
+                  </div>
 
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <div className="space-y-2 md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700">收件凭证</label>
-                      <div className="relative">
-                        {currentData.receiptUrl ? (
-                          <div className="flex items-center gap-3 p-3 border border-gray-300 rounded-lg bg-gray-50">
-                            <img 
-                              src={currentData.receiptPreviewUrl || currentData.receiptUrl} 
-                              alt="收件凭证"
-                              className="w-16 h-16 object-cover rounded"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm text-gray-700 truncate">{currentData.receiptFileName}</p>
-                              <p className="text-xs text-gray-500 mt-1">已上传</p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (currentData.receiptPreviewUrl) {
-                                  URL.revokeObjectURL(currentData.receiptPreviewUrl);
-                                }
-                                updateFormData('receiptUrl', '');
-                                updateFormData('receiptFileName', '');
-                                updateFormData('receiptPreviewUrl', '');
-                                updateFormData('receiptFile', undefined);
-                              }}
-                              className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded transition-colors"
-                            >
-                              删除
-                            </button>
-                          </div>
-                        ) : (
-                          <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
-                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                              <svg className="w-8 h-8 mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                              </svg>
-                              <p className="mb-2 text-sm text-gray-500">
-                                <span className="font-semibold">点击上传</span> 或拖拽图片到此处
-                              </p>
-                              <p className="text-xs text-gray-500">支持 JPG、PNG、GIF、WEBP，最大10MB</p>
-                            </div>
-                            <input
-                              type="file"
-                              className="hidden"
-                              accept="image/jpeg,image/png,image/gif,image/webp"
-                              onChange={async (e) => {
-                                const file = e.target.files?.[0];
-                                if (!file) return;
-
-                                if (file.size > 10 * 1024 * 1024) {
-                                  toast.error('文件大小不能超过10MB');
-                                  return;
-                                }
-
-                                const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-                                if (!allowedTypes.includes(file.type)) {
-                                  toast.error('不支持的文件类型');
-                                  return;
-                                }
-
-                                try {
-                                  const previewUrl = URL.createObjectURL(file);
-                                  updateFormData('receiptFile', file);
-                                  updateFormData('receiptFileName', file.name);
-                                  updateFormData('receiptPreviewUrl', previewUrl);
-                                  updateFormData('receiptUrl', previewUrl);
-                                } catch (error: any) {
-                                  toast.error('读取文件失败，请重试');
-                                }
-                              }}
-                            />
-                          </label>
-                        )}
-                      </div>
-                    </div>
+                       <label className="block text-sm font-medium text-gray-700">收件凭证</label>
+                       <div className="space-y-2">
+                         {currentData.receiptFiles.length > 0 && (
+                           <div className="space-y-2">
+                             {currentData.receiptFiles.map((receipt, idx) => (
+                               <div key={idx} className="flex items-center gap-3 p-3 border border-gray-300 rounded-lg bg-gray-50">
+                                 <img
+                                   src={receipt.previewUrl || receipt.url}
+                                   alt="收件凭证"
+                                   className="w-16 h-16 object-cover rounded flex-shrink-0"
+                                 />
+                                 <div className="flex-1 min-w-0">
+                                   <p className="text-sm text-gray-700 truncate">{receipt.fileName}</p>
+                                   <p className="text-xs text-gray-500 mt-1">{receipt.file ? '待上传' : '已上传'}</p>
+                                 </div>
+                                 <button
+                                   type="button"
+                                   onClick={() => {
+                                     if (receipt.file && receipt.previewUrl) URL.revokeObjectURL(receipt.previewUrl);
+                                     updateFormData('receiptFiles', currentData.receiptFiles.filter((_, i) => i !== idx));
+                                   }}
+                                   className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded transition-colors flex-shrink-0"
+                                 >
+                                   删除
+                                 </button>
+                               </div>
+                             ))}
+                           </div>
+                         )}
+                         <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                           <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                             <svg className="w-8 h-8 mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                             </svg>
+                             <p className="mb-2 text-sm text-gray-500">
+                               <span className="font-semibold">点击上传</span> 或拖拽图片到此处（可多选）
+                             </p>
+                             <p className="text-xs text-gray-500">支持 JPG、PNG、GIF、WEBP，每张最大10MB</p>
+                           </div>
+                           <input
+                             type="file"
+                             className="hidden"
+                             accept="image/jpeg,image/png,image/gif,image/webp"
+                             multiple
+                             onChange={async (e) => {
+                               const files = Array.from(e.target.files || []);
+                               if (files.length === 0) return;
+                               const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+                               const newItems: { file: File; previewUrl: string; fileName: string; url: string }[] = [];
+                               for (const file of files) {
+                                 if (file.size > 10 * 1024 * 1024) { toast.error(`${file.name} 超过10MB，已跳过`); continue; }
+                                 if (!allowedTypes.includes(file.type)) { toast.error(`${file.name} 格式不支持，已跳过`); continue; }
+                                 try {
+                                   const previewUrl = URL.createObjectURL(file);
+                                   newItems.push({ file, previewUrl, fileName: file.name, url: previewUrl });
+                                 } catch { toast.error(`读取 ${file.name} 失败`); }
+                               }
+                               if (newItems.length > 0) {
+                                 updateFormData('receiptFiles', [...currentData.receiptFiles, ...newItems]);
+                               }
+                               e.target.value = '';
+                             }}
+                           />
+                         </label>
+                       </div>
+                     </div>
                   </div>
                 </div>
 
@@ -1803,6 +1984,85 @@ export default function QuickOrder() {
                         onChange={(e) => updateFormData('overseasAddress', e.target.value)}
                         className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700">海外签收时间</label>
+                      <input
+                        type="date"
+                        value={currentData.overseasReceivedAt}
+                        onChange={(e) => updateFormData('overseasReceivedAt', e.target.value)}
+                        onClick={(e) => { const el = e.currentTarget; if ('showPicker' in el) (el as HTMLInputElement).showPicker(); }}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer"
+                      />
+                    </div>
+
+                    <div className="space-y-2 md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700">海外收件凭证</label>
+                      <div className="space-y-2">
+                        {currentData.overseasReceiptFiles.length > 0 && (
+                          <div className="space-y-2">
+                            {currentData.overseasReceiptFiles.map((receipt, idx) => (
+                              <div key={idx} className="flex items-center gap-3 p-3 border border-gray-300 rounded-lg bg-gray-50">
+                                <img
+                                  src={receipt.previewUrl || receipt.url}
+                                  alt="海外收件凭证"
+                                  className="w-16 h-16 object-cover rounded flex-shrink-0"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm text-gray-700 truncate">{receipt.fileName}</p>
+                                  <p className="text-xs text-gray-500 mt-1">{receipt.file ? '待上传' : '已上传'}</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (receipt.file && receipt.previewUrl) URL.revokeObjectURL(receipt.previewUrl);
+                                    updateFormData('overseasReceiptFiles', currentData.overseasReceiptFiles.filter((_, i) => i !== idx));
+                                  }}
+                                  className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded transition-colors flex-shrink-0"
+                                >
+                                  删除
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                          <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                            <svg className="w-8 h-8 mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                            <p className="mb-2 text-sm text-gray-500">
+                              <span className="font-semibold">点击上传</span> 或拖拽图片到此处（可多选）
+                            </p>
+                            <p className="text-xs text-gray-500">支持 JPG、PNG、GIF、WEBP，每张最大10MB</p>
+                          </div>
+                          <input
+                            type="file"
+                            className="hidden"
+                            accept="image/jpeg,image/png,image/gif,image/webp"
+                            multiple
+                            onChange={async (e) => {
+                              const files = Array.from(e.target.files || []);
+                              if (files.length === 0) return;
+                              const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+                              const newItems: { file: File; previewUrl: string; fileName: string; url: string }[] = [];
+                              for (const file of files) {
+                                if (file.size > 10 * 1024 * 1024) { toast.error(`${file.name} 超过10MB，已跳过`); continue; }
+                                if (!allowedTypes.includes(file.type)) { toast.error(`${file.name} 格式不支持，已跳过`); continue; }
+                                try {
+                                  const previewUrl = URL.createObjectURL(file);
+                                  newItems.push({ file, previewUrl, fileName: file.name, url: previewUrl });
+                                } catch { toast.error(`读取 ${file.name} 失败`); }
+                              }
+                              if (newItems.length > 0) {
+                                updateFormData('overseasReceiptFiles', [...currentData.overseasReceiptFiles, ...newItems]);
+                              }
+                              e.target.value = '';
+                            }}
+                          />
+                        </label>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2072,8 +2332,11 @@ export default function QuickOrder() {
                     const totalReceivable = pkgs.reduce((sum, p) => sum + calcLine(p, p.phpUnitPrice ? 'phpUnitPrice' : 'cnyUnitPrice'), 0);
                     const totalPayable = pkgs.reduce((sum, p) => sum + calcLine(p, p.channelUnitPricePhp ? 'channelUnitPricePhp' : 'channelUnitPriceCny'), 0);
 
-                    const receivableSymbol = '¥/₱';
-                    const payableSymbol = '¥/₱';
+                    const receivableUsePhp = pkgs.some(p => !!p.phpUnitPrice);
+                    const payableUsePhp = pkgs.some(p => !!p.channelUnitPricePhp);
+
+                    const receivableSymbol = receivableUsePhp ? '₱' : '¥';
+                    const payableSymbol = payableUsePhp ? '₱' : '¥';
 
                     const totalVolM3 = pkgs.reduce((sum, p) => {
                       const l = parseFloat(p.length), w = parseFloat(p.width), h = parseFloat(p.height);

@@ -15,6 +15,19 @@ import { userRoutes } from './modules/user/user.routes';
 import { vesselRoutes } from './modules/vessel/routes';
 import { authenticate } from './lib/jwt';
 
+type SocketLike = {
+  id: string;
+  join(room: string): void;
+  on(event: 'subscribe', handler: (trackingNumber: string) => void): void;
+  on(event: 'disconnect', handler: () => void): void;
+};
+
+type FastifyWithIo = typeof fastify & {
+  io: {
+    on(event: 'connection', handler: (socket: SocketLike) => void): void;
+  };
+};
+
 const fastify = Fastify({
   logger: {
     level: process.env.LOG_LEVEL || 'info',
@@ -42,7 +55,7 @@ async function start() {
       },
     });
 
-    fastify.io.on('connection', (socket) => {
+    (fastify as FastifyWithIo).io.on('connection', (socket) => {
       fastify.log.info(`Socket connected: ${socket.id}`);
 
       socket.on('subscribe', (trackingNumber: string) => {

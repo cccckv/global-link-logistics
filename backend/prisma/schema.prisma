@@ -72,10 +72,15 @@ model QuickOrder {
   originPort         String?
   destinationPort    String?
   voyageNumber       String?
-  billOfLading       String?
-  containerNumber    String?
+  airWaybillNumber   String?
+  billOfLading                String?
+  containerNumber             String?
+  bookingChannel              String?
+  customsDeclarationChannel   String?
+  customsClearanceChannel     String?
   loadingDate        DateTime?
   eta                DateTime?
+  totalShippingDays  Int?
   batchTaskId        String?
   status             QuickOrderStatus         @default(LOADING)
   createdAt          DateTime                 @default(now())
@@ -85,6 +90,7 @@ model QuickOrder {
   markUserId         String?
   shippedAt          DateTime?
   receivedAt         DateTime?
+  overseasReceivedAt DateTime?
   containers         OrderContainer[]
   declarations       OrderDeclaration[]
   paymentCollections OrderPaymentCollection[]
@@ -264,9 +270,11 @@ model OrderPaymentCollection {
   carPickupReceivable Decimal?   @db.Decimal(10, 2)
   carPickupActual     Decimal?   @db.Decimal(10, 2)
   oceanFreight        Decimal?   @db.Decimal(10, 2)
+  bookingFee          Decimal?   @db.Decimal(10, 2)
   portGateFee         Decimal?   @db.Decimal(10, 2)
   truckingFee         Decimal?   @db.Decimal(10, 2)
   customsCertFee      Decimal?   @db.Decimal(10, 2)
+  thcOverstayFee      Decimal?   @db.Decimal(10, 2)
   createdAt           DateTime   @default(now())
   updatedAt           DateTime   @updatedAt
   order               QuickOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -341,4 +349,5 @@ enum UserRoleEnum {
 enum OrderVoucherType {
   PAYMENT
   RECEIPT
+  OVERSEAS_RECEIPT
 }

@@ -18,20 +18,30 @@ interface CreateQuickOrderInput {
   originPort?: string;
   destinationPort?: string;
   voyageNumber?: string;
+  airWaybillNumber?: string;
   billOfLading?: string;
   containerNumber?: string;
+  bookingChannel?: string;
+  customsDeclarationChannel?: string;
+  customsClearanceChannel?: string;
   loadingDate?: string;
   eta?: string;
   markUserId?: string;
   batchTaskId?: string;
   receivedAt?: string;
+  overseasReceivedAt?: string;
+  receipts?: { receiptUrl: string; receiptFileName: string }[];
   receiptUrl?: string;
   receiptFileName?: string;
+  overseasReceipts?: { receiptUrl: string; receiptFileName: string }[];
   carPickupReceivable?: number;
   carPickupActual?: number;
   portGateFee?: number;
   truckingFee?: number;
   customsCertFee?: number;
+  bookingFee?: number;
+  thcOverstayFee?: number;
+  totalShippingDays?: number;
   
   recipientAddress: {    name: string;
     company?: string;
@@ -81,6 +91,7 @@ interface QuickOrderFilters {
   keyword?: string;
   mark?: string;
   warehouse?: string;
+  exportAll?: boolean;
 }
 
 // ============================================
@@ -136,7 +147,7 @@ export class QuickOrderService {
       length: d.length ? new Prisma.Decimal(d.length) : null,
       width: d.width ? new Prisma.Decimal(d.width) : null,
       height: d.height ? new Prisma.Decimal(d.height) : null,
-      weight: new Prisma.Decimal(d.weight),
+      weight: d.weight != null ? new Prisma.Decimal(d.weight) : new Prisma.Decimal(0),
       cnyUnitPrice: d.cnyUnitPrice ? new Prisma.Decimal(d.cnyUnitPrice) : null,
       phpUnitPrice: d.phpUnitPrice ? new Prisma.Decimal(d.phpUnitPrice) : null,
       channelUnitPricePhp: d.channelUnitPricePhp ? new Prisma.Decimal(d.channelUnitPricePhp) : null,
@@ -175,13 +186,19 @@ export class QuickOrderService {
         originPort: input.originPort,
         destinationPort: input.destinationPort,
         voyageNumber: input.voyageNumber,
+        airWaybillNumber: input.airWaybillNumber,
         billOfLading: input.billOfLading,
         containerNumber: input.containerNumber,
+        bookingChannel: input.bookingChannel,
+        customsDeclarationChannel: input.customsDeclarationChannel,
+        customsClearanceChannel: input.customsClearanceChannel,
         loadingDate: input.loadingDate ? new Date(input.loadingDate) : undefined,
         eta: input.eta ? new Date(input.eta) : undefined,
+        totalShippingDays: input.totalShippingDays ?? undefined,
         markUserId: input.markUserId,
         batchTaskId: input.batchTaskId,
         receivedAt: input.receivedAt ? new Date(input.receivedAt) : undefined,
+        overseasReceivedAt: input.overseasReceivedAt ? new Date(input.overseasReceivedAt) : undefined,
         status: 'LOADING',
         
         recipientAddressId,
@@ -203,14 +220,29 @@ export class QuickOrderService {
       },
     });
 
-    if (input.receiptUrl && input.receiptFileName) {
-      await prisma.orderPaymentVoucher.create({
-        data: {
+    const receiptsToCreate = input.receipts && input.receipts.length > 0
+      ? input.receipts
+      : (input.receiptUrl && input.receiptFileName ? [{ receiptUrl: input.receiptUrl, receiptFileName: input.receiptFileName }] : []);
+
+    if (receiptsToCreate.length > 0) {
+      await prisma.orderPaymentVoucher.createMany({
+        data: receiptsToCreate.map(r => ({
           orderId: order.id,
-          fileUrl: input.receiptUrl,
-          fileName: input.receiptFileName,
+          fileUrl: r.receiptUrl,
+          fileName: r.receiptFileName,
           voucherType: 'RECEIPT',
-        },
+        })),
+      });
+    }
+
+    if (input.overseasReceipts && input.overseasReceipts.length > 0) {
+      await prisma.orderPaymentVoucher.createMany({
+        data: input.overseasReceipts.map(r => ({
+          orderId: order.id,
+          fileUrl: r.receiptUrl,
+          fileName: r.receiptFileName,
+          voucherType: 'OVERSEAS_RECEIPT',
+        })),
       });
     }
 
@@ -262,6 +294,8 @@ export class QuickOrderService {
           portGateFee: input.portGateFee ? new Prisma.Decimal(input.portGateFee) : null,
           truckingFee: input.truckingFee ? new Prisma.Decimal(input.truckingFee) : null,
           customsCertFee: input.customsCertFee ? new Prisma.Decimal(input.customsCertFee) : null,
+          bookingFee: input.bookingFee ? new Prisma.Decimal(input.bookingFee) : null,
+          thcOverstayFee: input.thcOverstayFee ? new Prisma.Decimal(input.thcOverstayFee) : null,
         },
       });
     }
@@ -300,21 +334,20 @@ export class QuickOrderService {
       ...(filters.searchType && filters.keyword && this.buildSearchCondition(filters.searchType, filters.keyword)),
     };
 
+    const include = {
+      recipientAddress: true,
+      overseasAddress: true,
+      declarations: true,
+      containers: true,
+      shipment: true,
+      payment: true,
+      paymentCollections: true,
+    } as const;
+
     const [orders, total] = await Promise.all([
-      prisma.quickOrder.findMany({
-        where,
-        include: {
-          recipientAddress: true,
-          overseasAddress: true,
-          declarations: true,
-          containers: true,
-          shipment: true,
-          payment: true,
-        },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-      }),
+      filters.exportAll
+        ? prisma.quickOrder.findMany({ where, include, orderBy: { createdAt: 'desc' } })
+        : prisma.quickOrder.findMany({ where, include, orderBy: { createdAt: 'desc' }, skip, take: limit }),
       prisma.quickOrder.count({ where }),
     ]);
 
@@ -366,33 +399,85 @@ export class QuickOrderService {
   /**
    * 更新订单
    */
-  async update(id: string, userId: string, data: {
+  async update(id: string, userId: string | null, data: {
     status?: QuickOrderStatus;
     note?: string;
     voyageNumber?: string;
+    airWaybillNumber?: string;
     billOfLading?: string;
     containerNumber?: string;
+    bookingChannel?: string;
+    customsDeclarationChannel?: string;
+    customsClearanceChannel?: string;
     loadingDate?: string;
     eta?: string;
+    totalShippingDays?: number | null;
+    destination?: string;
+    warehouse?: string;
+    mark?: string;
+    userMark?: string;
+    markUserId?: string;
+    receivedAt?: string;
+    overseasReceivedAt?: string;
+    recipientAddress?: {
+      name: string;
+      company?: string;
+      phone: string;
+      region?: string;
+      address: string;
+    };
+    overseasAddress?: {
+      name: string;
+      company?: string;
+      phone: string;
+      region?: string;
+      address: string;
+    } | null;
   }) {
-    // 验证权限
+    // 验证权限：userId 为 null 时跳过（管理员操作）
     const order = await prisma.quickOrder.findFirst({
-      where: { id, userId },
+      where: userId ? { id, userId } : { id },
     });
 
     if (!order) {
       throw new Error('Order not found');
     }
 
-    const updatePayload: any = { ...data };
+    // 同步更新地址本（用订单原始 owner 的 userId）
+    const ownerUserId = order.userId;
+    let recipientAddressId: string | undefined;
+    let overseasAddressId: string | undefined | null;
+
+    if (data.recipientAddress) {
+      const addr = await contactService.upsertRecipientAddress(ownerUserId, data.recipientAddress);
+      recipientAddressId = addr.id;
+    }
+
+    if (data.overseasAddress !== undefined) {
+      if (data.overseasAddress === null) {
+        overseasAddressId = null;
+      } else {
+        const addr = await contactService.upsertOverseasAddress(ownerUserId, data.overseasAddress);
+        overseasAddressId = addr.id;
+      }
+    }
+
+    const { recipientAddress: _ra, overseasAddress: _oa, ...scalarData } = data;
+
+    const updatePayload: any = { ...scalarData };
     if (data.loadingDate !== undefined) updatePayload.loadingDate = data.loadingDate ? new Date(data.loadingDate) : null;
     if (data.eta !== undefined) updatePayload.eta = data.eta ? new Date(data.eta) : null;
+    if (data.receivedAt !== undefined) updatePayload.receivedAt = data.receivedAt ? new Date(data.receivedAt) : null;
+    if (data.overseasReceivedAt !== undefined) updatePayload.overseasReceivedAt = data.overseasReceivedAt ? new Date(data.overseasReceivedAt) : null;
+    if (recipientAddressId !== undefined) updatePayload.recipientAddressId = recipientAddressId;
+    if (overseasAddressId !== undefined) updatePayload.overseasAddressId = overseasAddressId;
 
     const updated = await prisma.quickOrder.update({
       where: { id },
       data: updatePayload,
       include: {
         recipientAddress: true,
+        overseasAddress: true,
         declarations: true,
         containers: true,
       },
@@ -404,8 +489,22 @@ export class QuickOrderService {
   /**
    * 取消订单
    */
-  async cancel(id: string, userId: string) {
-    // 验证权限和状态
+  async hardDelete(id: string): Promise<{ orderId: string; orderNumber: string }> {
+    const order = await prisma.quickOrder.findUnique({ where: { id }, select: { id: true, orderNumber: true } });
+    if (!order) throw new Error('Order not found');
+
+    const shipment = await prisma.shipment.findFirst({ where: { quickOrderId: id }, select: { id: true } });
+    if (shipment) {
+      await prisma.trackingEvent.deleteMany({ where: { shipmentId: shipment.id } });
+      await prisma.shipment.delete({ where: { id: shipment.id } });
+    }
+
+    await prisma.quickOrder.delete({ where: { id } });
+
+    return { orderId: id, orderNumber: order.orderNumber };
+  }
+
+  async cancel(id: string, userId: string) {    // 验证权限和状态
     const order = await prisma.quickOrder.findFirst({
       where: { id, userId },
     });

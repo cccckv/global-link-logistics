@@ -18,20 +18,27 @@ interface CreateQuickOrderBody {
   originPort?: string;
   destinationPort?: string;
   voyageNumber?: string;
+  airWaybillNumber?: string;
   billOfLading?: string;
   containerNumber?: string;
+  bookingChannel?: string;
+  customsDeclarationChannel?: string;
+  customsClearanceChannel?: string;
   loadingDate?: string;
   eta?: string;
   markUserId?: string;
   receivedAt?: string;
+  overseasReceivedAt?: string;
   receiptUrl?: string;
   receiptFileName?: string;
+  receipts?: { receiptUrl: string; receiptFileName: string }[];
+  overseasReceipts?: { receiptUrl: string; receiptFileName: string }[];
   carPickupReceivable?: number;
   carPickupActual?: number;
   portGateFee?: number;
   truckingFee?: number;
   customsCertFee?: number;
-
+  bookingFee?: number;
   recipientAddress: {
     name: string;
     company?: string;
@@ -73,6 +80,7 @@ interface QueryParams {
   keyword?: string;
   mark?: string;
   warehouse?: string;
+  exportAll?: string;
 }
 
 interface BatchStatusBody {
@@ -168,6 +176,7 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
         keyword: query.keyword,
         mark: query.mark,
         warehouse: query.warehouse,
+        exportAll: query.exportAll === 'true',
       };
       
       const result = await service.findAll(user.userId, filters);
@@ -182,13 +191,24 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
           warehouse: order.warehouse,
           note: order.note,
           userMark: order.userMark,
+          markUserId: order.markUserId,
           mark: order.mark,
           originPort: order.originPort,
           destinationPort: order.destinationPort,
           voyageNumber: order.voyageNumber,
+          airWaybillNumber: order.airWaybillNumber,
+          billOfLading: order.billOfLading,
+          containerNumber: order.containerNumber,
+          bookingChannel: order.bookingChannel,
+          customsDeclarationChannel: order.customsDeclarationChannel,
+          customsClearanceChannel: order.customsClearanceChannel,
+          loadingDate: order.loadingDate?.toISOString(),
+          eta: order.eta?.toISOString(),
+          totalShippingDays: order.totalShippingDays ?? null,
           createdAt: order.createdAt.toISOString(),
           updatedAt: order.updatedAt?.toISOString(),
           receivedAt: order.receivedAt?.toISOString(),
+          overseasReceivedAt: order.overseasReceivedAt?.toISOString(),
           recipientAddress: order.recipientAddress ? {
             ...order.recipientAddress,
             createdAt: order.recipientAddress.createdAt.toISOString(),
@@ -226,6 +246,26 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
             status: order.payment.status,
             amount: order.payment.amount.toNumber(),
           } : null,
+          paymentCollection: order.paymentCollections?.[0] ? (() => {
+            const pc = order.paymentCollections[0];
+            return {
+              totalPieces: pc.totalPieces,
+              totalVolume: pc.totalVolume?.toNumber() ?? null,
+              totalWeight: pc.totalWeight?.toNumber() ?? null,
+              receivableAmount: pc.receivableAmount.toNumber(),
+              payableAmount: pc.payableAmount.toNumber(),
+              receivableCurrency: pc.receivableCurrency,
+              payableCurrency: pc.payableCurrency,
+              carPickupReceivable: pc.carPickupReceivable?.toNumber() ?? null,
+              carPickupActual: pc.carPickupActual?.toNumber() ?? null,
+              oceanFreight: pc.oceanFreight?.toNumber() ?? null,
+              portGateFee: pc.portGateFee?.toNumber() ?? null,
+              truckingFee: pc.truckingFee?.toNumber() ?? null,
+              customsCertFee: pc.customsCertFee?.toNumber() ?? null,
+              bookingFee: pc.bookingFee?.toNumber() ?? null,
+              thcOverstayFee: pc.thcOverstayFee?.toNumber() ?? null,
+            };
+          })() : null,
         })),
         pagination: result.pagination,
       };
@@ -256,17 +296,24 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
         destination: order.destination,
         note: order.note,
         userMark: order.userMark,
+        markUserId: order.markUserId,
         mark: order.mark,
         originPort: order.originPort,
         destinationPort: order.destinationPort,
         voyageNumber: order.voyageNumber,
+        airWaybillNumber: order.airWaybillNumber,
         billOfLading: order.billOfLading,
         containerNumber: order.containerNumber,
+        bookingChannel: order.bookingChannel,
+        customsDeclarationChannel: order.customsDeclarationChannel,
+        customsClearanceChannel: order.customsClearanceChannel,
         loadingDate: order.loadingDate?.toISOString(),
         eta: order.eta?.toISOString(),
+        totalShippingDays: order.totalShippingDays ?? null,
         createdAt: order.createdAt.toISOString(),
         updatedAt: order.updatedAt.toISOString(),
         receivedAt: order.receivedAt?.toISOString(),
+        overseasReceivedAt: order.overseasReceivedAt?.toISOString(),
         recipientAddress: order.recipientAddress ? {
           ...order.recipientAddress,
           createdAt: order.recipientAddress.createdAt.toISOString(),
@@ -363,6 +410,7 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
             portGateFee: pc.portGateFee?.toNumber() ?? null,
             truckingFee: pc.truckingFee?.toNumber() ?? null,
             customsCertFee: pc.customsCertFee?.toNumber() ?? null,
+            bookingFee: pc.bookingFee?.toNumber() ?? null,
           };
         })() : null,
       };
@@ -480,10 +528,35 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
       status?: QuickOrderStatus;
       note?: string;
       voyageNumber?: string;
+      airWaybillNumber?: string;
       billOfLading?: string;
       containerNumber?: string;
+      bookingChannel?: string;
+      customsDeclarationChannel?: string;
+      customsClearanceChannel?: string;
       loadingDate?: string;
       eta?: string;
+      destination?: string;
+      warehouse?: string;
+      mark?: string;
+      userMark?: string;
+      markUserId?: string;
+      receivedAt?: string;
+      overseasReceivedAt?: string;
+      recipientAddress?: {
+        name: string;
+        company?: string;
+        phone: string;
+        region?: string;
+        address: string;
+      };
+      overseasAddress?: {
+        name: string;
+        company?: string;
+        phone: string;
+        region?: string;
+        address: string;
+      } | null;
     };
   }>(
     '/:id',
@@ -492,18 +565,34 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
     },
     async (request, reply) => {
       try {
-        const user = getUserFromRequest(request);
         const { id } = request.params;
         const data = request.body;
         
-        const order = await service.update(id, user.userId, data);
+        const order = await service.update(id, null, data);
         
         return {
           orderId: order.id,
           orderNumber: order.orderNumber,
           status: order.status,
+          warehouse: order.warehouse,
+          destination: order.destination,
           note: order.note,
+          mark: order.mark,
+          userMark: order.userMark,
+          markUserId: order.markUserId,
+          voyageNumber: order.voyageNumber,
+          airWaybillNumber: order.airWaybillNumber,
+          billOfLading: order.billOfLading,
+          containerNumber: order.containerNumber,
+          bookingChannel: order.bookingChannel,
+          customsDeclarationChannel: order.customsDeclarationChannel,
+          customsClearanceChannel: order.customsClearanceChannel,
+          loadingDate: order.loadingDate?.toISOString(),
+          eta: order.eta?.toISOString(),
+          totalShippingDays: order.totalShippingDays ?? null,
           updatedAt: order.updatedAt.toISOString(),
+          recipientAddress: order.recipientAddress,
+          overseasAddress: order.overseasAddress,
         };
       } catch (error: any) {
         fastify.log.error(error);
@@ -521,20 +610,16 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
     },
     async (request, reply) => {
       try {
-        const user = getUserFromRequest(request);
         const { id } = request.params;
-        
-        const order = await service.cancel(id, user.userId);
-        
+        const result = await service.hardDelete(id);
         return {
-          orderId: order.id,
-          orderNumber: order.orderNumber,
-          status: order.status,
-          message: 'Order cancelled successfully',
+          orderId: result.orderId,
+          orderNumber: result.orderNumber,
+          message: 'Order deleted successfully',
         };
       } catch (error: any) {
         fastify.log.error(error);
-        return reply.code(error.message === 'Order not found' ? 404 : 400).send({
+        return reply.code(error.message === 'Order not found' ? 404 : 500).send({
           error: error.message,
         });
       }

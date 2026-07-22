@@ -22,7 +22,7 @@ services:
     environment:
       - POSTGRES_DB=globallink
       - POSTGRES_USER=logistics
-      - POSTGRES_PASSWORD=password
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
@@ -49,7 +49,7 @@ services:
     container_name: globallink-backend
     environment:
       - NODE_ENV=development
-      - DATABASE_URL=postgresql://logistics:password@db:5432/globallink
+      - DATABASE_URL=postgresql://logistics:${POSTGRES_PASSWORD:-password}@db:5432/globallink
       - REDIS_URL=redis://cache:6379
       - JWT_SECRET=${JWT_SECRET}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}

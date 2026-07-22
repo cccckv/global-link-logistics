@@ -1,0 +1,108 @@
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: globallink-nginx-prod
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+      - customer-portal
+    networks:
+      - globallink-network
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    container_name: globallink-db-prod
+    environment:
+      - POSTGRES_DB=globallink
+      - POSTGRES_USER=logistics
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U logistics -d globallink"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - globallink-network
+    restart: unless-stopped
+
+  cache:
+    image: redis:7-alpine
+    container_name: globallink-cache-prod
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - globallink-network
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    container_name: globallink-backend-prod
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://logistics:${POSTGRES_PASSWORD:-password}@db:5432/globallink
+      - REDIS_URL=redis://cache:6379
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - AFTERSHIP_API_KEY=${AFTERSHIP_API_KEY}
+      - TRACK17_API_KEY=${TRACK17_API_KEY}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY}
+      - SHIPXY_API_KEY=${SHIPXY_API_KEY}
+      - SHIPXY_BASE_URL=${SHIPXY_BASE_URL:-https://api.shipxy.com/apicall/v3}
+      - BACKEND_PORT=3000
+      - BACKEND_HOST=0.0.0.0
+      - CORS_ORIGIN=${CORS_ORIGIN}
+    volumes:
+      - uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks:
+      - globallink-network
+    restart: unless-stopped
+
+  customer-portal:
+    build:
+      context: ./frontend/customer
+      dockerfile: Dockerfile.prod
+      args:
+        - VITE_API_BASE_URL=/api
+        - VITE_WS_URL=
+        - VITE_SOCKET_URL=
+        - VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN}
+        - VITE_CESIUM_ION_TOKEN=${VITE_CESIUM_ION_TOKEN}
+    container_name: globallink-customer-prod
+    depends_on:
+      - backend
+    networks:
+      - globallink-network
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  uploads:
+
+networks:
+  globallink-network:
+    driver: bridge

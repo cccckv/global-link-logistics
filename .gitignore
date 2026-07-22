@@ -36,12 +36,15 @@ docker-compose.override.yml
 *.db
 *.sqlite
 
+# Uploaded user files (payment vouchers, receipts)
+backend/uploads/
+
 # Testing
 coverage/
 .nyc_output/
 
 # Prisma
-backend/prisma/migrations/
+# migrations/ are intentionally tracked — required for `prisma migrate deploy` on deploy
 
 # Certificates
 ssl/

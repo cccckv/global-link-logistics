@@ -1,0 +1,36 @@
+# ---- Build stage ----
+FROM node:20-alpine AS build
+WORKDIR /app
+
+# Install ALL deps (incl. dev) for tsc build + prisma generate
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+RUN npx prisma generate
+RUN npm run build            # tsc -> dist/
+
+# Prune dev dependencies for a lean runtime
+RUN npm prune --omit=dev
+
+# ---- Runtime stage ----
+FROM node:20-alpine
+WORKDIR /app
+
+# Prisma engines need this on alpine
+RUN apk add --no-cache openssl
+
+ENV NODE_ENV=production
+
+# Copy pruned node_modules, built output, prisma schema/migrations, and entrypoint
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/package*.json ./
+COPY --from=build /app/prisma ./prisma
+COPY docker-entrypoint.sh ./docker-entrypoint.sh
+RUN chmod +x ./docker-entrypoint.sh
+
+EXPOSE 3000
+
+ENTRYPOINT ["./docker-entrypoint.sh"]
+CMD ["node", "dist/app.js"]

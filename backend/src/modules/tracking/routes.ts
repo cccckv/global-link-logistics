@@ -22,32 +22,37 @@ export async function trackingRoutes(fastify: FastifyInstance) {
     }
 
     const whereConditions: any[] = [];
-    
+
     if (orderId) {
       whereConditions.push({ id: orderId });
       whereConditions.push({ orderNumber: orderId });
     }
     if (receiverPhone) {
-      whereConditions.push({ receiverPhone });
+      whereConditions.push({
+        recipientAddress: {
+          is: { phone: receiverPhone },
+        },
+      });
     }
     if (trackingNumber) {
       whereConditions.push({
         shipment: {
-          trackingNumber,
+          is: { trackingNumber },
         },
       });
     }
 
     const whereClause = {
-      senderPhone: user.phone,
+      userId: user.userId,
       ...(whereConditions.length > 0 && { OR: whereConditions }),
     };
-    
+
     fastify.log.info({ whereClause, orderId, receiverPhone, trackingNumber }, 'Tracking search query');
 
-    const orders = await prisma.order.findMany({
+    const orders = await prisma.quickOrder.findMany({
       where: whereClause,
       include: {
+        recipientAddress: true,
         shipment: {
           include: {
             events: {
@@ -76,14 +81,15 @@ export async function trackingRoutes(fastify: FastifyInstance) {
         order: {
           orderNumber: order.orderNumber,
           orderId: order.id,
-          senderCity: order.senderCity,
-          senderCountry: order.senderCountry,
-          receiverCity: order.receiverCity,
-          receiverCountry: order.receiverCountry,
-          receiverName: order.receiverName,
-          receiverPhone: order.receiverPhone,
+          destination: order.destination,
+          originPort: order.originPort,
+          destinationPort: order.destinationPort,
+          receiverName: order.recipientAddress?.name,
+          receiverPhone: order.recipientAddress?.phone,
+          receiverRegion: order.recipientAddress?.region,
+          receiverAddress: order.recipientAddress?.address,
           status: order.status,
-          shipmentType: order.shipmentType,
+          orderType: order.orderType,
           createdAt: order.createdAt.toISOString(),
         },
         events: order.shipment!.events.map(e => ({
@@ -108,15 +114,14 @@ export async function trackingRoutes(fastify: FastifyInstance) {
     const shipment = await prisma.shipment.findUnique({
       where: { trackingNumber },
       include: {
-        order: {
+        quickOrder: {
           select: {
             orderNumber: true,
-            senderCity: true,
-            senderCountry: true,
-            receiverCity: true,
-            receiverCountry: true,
+            destination: true,
+            originPort: true,
+            destinationPort: true,
             status: true,
-            shipmentType: true,
+            orderType: true,
             createdAt: true,
           },
         },

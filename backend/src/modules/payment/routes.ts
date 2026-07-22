@@ -15,10 +15,14 @@ export async function paymentRoutes(fastify: FastifyInstance) {
     const user = getUserFromRequest(request);
     const { orderId } = request.body;
 
-    const order = await prisma.order.findFirst({
+    const order = await prisma.quickOrder.findFirst({
       where: {
         id: orderId,
         userId: user.userId,
+      },
+      include: {
+        payment: true,
+        paymentCollections: true,
       },
     });
 
@@ -27,20 +31,26 @@ export async function paymentRoutes(fastify: FastifyInstance) {
     }
 
     const existingPayment = await prisma.payment.findUnique({
-      where: { orderId },
+      where: { quickOrderId: order.id },
     });
 
     if (existingPayment && existingPayment.status === 'COMPLETED') {
       return reply.code(400).send({ error: 'Order already paid' });
     }
 
+    const collection = order.paymentCollections[0];
+
+    if (!collection) {
+      return reply.code(400).send({ error: 'No payable amount found for this order' });
+    }
+
     const payment = await prisma.payment.upsert({
-      where: { orderId },
+      where: { quickOrderId: order.id },
       create: {
-        orderId,
+        quickOrderId: order.id,
         userId: user.userId,
-        amount: order.totalAmount,
-        currency: order.currency,
+        amount: collection.payableAmount,
+        currency: collection.payableCurrency,
         status: 'PENDING',
       },
       update: {

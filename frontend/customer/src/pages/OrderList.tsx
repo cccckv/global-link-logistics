@@ -421,8 +421,8 @@ export default function OrderList() {
                           {order.declarations?.[0]?.productName || '-'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {order.declarations?.filter(d => d.trackingNumber).length > 0
-                            ? `${order.declarations.filter(d => d.trackingNumber).length}个`
+                          {(order.declarations?.filter(d => d.trackingNumber).length ?? 0) > 0
+                            ? `${order.declarations?.filter(d => d.trackingNumber).length ?? 0}个`
                             : '-'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">

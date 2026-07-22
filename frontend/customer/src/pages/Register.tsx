@@ -39,7 +39,7 @@ export default function Register() {
     setLoading(true);
 
     try {
-      const response = await authApi.sendCode(formData.phone);
+      await authApi.sendCode(formData.phone);
       setCodeSent(true);
       setCountdown(300);
       setError('');

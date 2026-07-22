@@ -8,7 +8,6 @@ import {
   Package,
   MapPin,
   Clock,
-  User,
   ArrowLeft,
   CheckCircle,
   FileText,
@@ -23,7 +22,7 @@ const WaybillDetail: React.FC = () => {
   const { orderId } = useParams<{ orderId: string }>();
   const [order, setOrder] = useState<QuickOrder | null>(null);
   const [loading, setLoading] = useState(true);
-  const [previewVoucher, setPreviewVoucher] = useState<QuickOrder['paymentVouchers'][0] | null>(null);
+  const [previewVoucher, setPreviewVoucher] = useState<NonNullable<QuickOrder['paymentVouchers']>[0] | null>(null);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [blobLoading, setBlobLoading] = useState(false);
   const [blobType, setBlobType] = useState<string | null>(null);
@@ -99,7 +98,7 @@ const WaybillDetail: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [previewVoucher?.id]);
 
-  const handleDownload = async (voucher: QuickOrder['paymentVouchers'][0]) => {
+  const handleDownload = async (voucher: NonNullable<QuickOrder['paymentVouchers']>[0]) => {
     const res = await fetchWithAuth(`/api/vouchers/${voucher.id}`);
     if (!res.ok) return;
     const blob = await res.blob();
@@ -579,11 +578,7 @@ const WaybillDetail: React.FC = () => {
             </div>
 
             <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 text-xs text-gray-500 shrink-0 bg-white">
-              <span>
-                {previewVoucher.fileSize
-                  ? `${(previewVoucher.fileSize / 1024 / 1024).toFixed(2)} MB`
-                  : ''}
-              </span>
+              <span></span>
               <span>{new Date(previewVoucher.uploadedAt).toLocaleString('zh-CN')}</span>
               <button
                 onClick={() => handleDownload(previewVoucher)}

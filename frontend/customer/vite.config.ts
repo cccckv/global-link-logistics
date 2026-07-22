@@ -27,9 +27,17 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'map-vendor': ['mapbox-gl'],
+        manualChunks: (id) => {
+          if (
+            id.includes('node_modules/react') ||
+            id.includes('node_modules/react-dom') ||
+            id.includes('node_modules/react-router-dom')
+          ) {
+            return 'react-vendor';
+          }
+          if (id.includes('node_modules/mapbox-gl')) {
+            return 'map-vendor';
+          }
         },
       },
     },

@@ -26,7 +26,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     networks:
       - globallink-network
     restart: unless-stopped
@@ -36,7 +36,7 @@ services:
     image: redis:7-alpine
     container_name: globallink-cache
     ports:
-      - "6380:6379"
+      - "127.0.0.1:6380:6379"
     networks:
       - globallink-network
     restart: unless-stopped
@@ -57,7 +57,7 @@ services:
       - BACKEND_PORT=3000
       - CORS_ORIGIN=http://localhost:5173,http://localhost:5174
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     volumes:
       - ./backend:/app
       - /app/node_modules
@@ -81,7 +81,7 @@ services:
       - VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN}
       - VITE_CESIUM_ION_TOKEN=${VITE_CESIUM_ION_TOKEN}
     ports:
-      - "5173:5173"
+      - "127.0.0.1:5173:5173"
     volumes:
       - ./frontend/customer:/app
       - /app/node_modules

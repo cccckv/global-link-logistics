@@ -195,8 +195,8 @@ export default function WaybillDetailView() {
           wb.loadingDate
             ? new Date(wb.loadingDate).toISOString().slice(0, 10)
             : wb.containerMaster?.loadingDate
-            ? new Date(wb.containerMaster.loadingDate).toISOString().slice(0, 10)
-            : ''
+              ? new Date(wb.containerMaster.loadingDate).toISOString().slice(0, 10)
+              : ''
         );
         setSailingDate(
           wb.containerMaster?.sailingDate
@@ -228,10 +228,10 @@ export default function WaybillDetailView() {
     const allowed = valid.length > 0
       ? valid
       : newType === '退税报关'
-      ? ['中外运', '万海自营专线']
-      : newType === '敏感特货'
-      ? ['菲通货运', '万海特货通道']
-      : ['万海自营专线', '中外运', '天帆东南亚', '同行外发分拨'];
+        ? ['中外运', '万海自营专线']
+        : newType === '敏感特货'
+          ? ['菲通货运', '万海特货通道']
+          : ['万海自营专线', '中外运', '天帆东南亚', '同行外发分拨'];
 
     if (!allowed.includes(forwarderChannel)) {
       setForwarderChannel(allowed[0] || '万海自营专线');
@@ -673,26 +673,24 @@ export default function WaybillDetailView() {
               <div
                 key={st.key}
                 onClick={() => handleStageCardClick(st.stageNum, idx)}
-                className={`p-4 rounded-xl border transition-all cursor-pointer relative group ${
-                  isCurrent
+                className={`p-4 rounded-xl border transition-all cursor-pointer relative group ${isCurrent
                     ? 'bg-blue-50/90 border-blue-500 shadow-md ring-2 ring-blue-500/20'
                     : isNext
-                    ? 'bg-cyan-50/70 border-cyan-400 text-slate-800 hover:border-cyan-600 hover:shadow-sm'
-                    : isCompleted
-                    ? 'bg-emerald-50/60 border-emerald-300 text-slate-800 hover:border-emerald-500'
-                    : 'bg-slate-50 border-slate-200 text-slate-400 opacity-50 cursor-not-allowed'
-                }`}
+                      ? 'bg-cyan-50/70 border-cyan-400 text-slate-800 hover:border-cyan-600 hover:shadow-sm'
+                      : isCompleted
+                        ? 'bg-emerald-50/60 border-emerald-300 text-slate-800 hover:border-emerald-500'
+                        : 'bg-slate-50 border-slate-200 text-slate-400 opacity-50 cursor-not-allowed'
+                  }`}
               >
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className={`text-xs font-bold ${
-                    isCurrent
+                  <span className={`text-xs font-bold ${isCurrent
                       ? 'text-blue-900'
                       : isNext
-                      ? 'text-cyan-900 font-semibold'
-                      : isCompleted
-                      ? 'text-emerald-900'
-                      : 'text-slate-400'
-                  }`}>
+                        ? 'text-cyan-900 font-semibold'
+                        : isCompleted
+                          ? 'text-emerald-900'
+                          : 'text-slate-400'
+                    }`}>
                     {st.label}
                   </span>
                   {isCompleted ? (
@@ -779,7 +777,7 @@ export default function WaybillDetailView() {
                 className="text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1"
               >
                 <Edit3 className="w-3.5 h-3.5" />
-                修改阶段2实测尺寸与单价
+                {waybill.orderType === 'SEA_FCL' ? '修改阶段2实测尺寸与件数' : '修改阶段2实测尺寸与单价'}
               </button>
             </div>
 
@@ -793,8 +791,12 @@ export default function WaybillDetailView() {
                     <th className="py-2.5 px-2 text-center">实测件数</th>
                     <th className="py-2.5 px-2 text-center">实测尺寸 (L×W×H)</th>
                     <th className="py-2.5 px-3 text-right">核算体积</th>
-                    <th className="py-2.5 px-3 text-right">应收单价</th>
-                    <th className="py-2.5 px-3 text-right">成本单价</th>
+                    {waybill.orderType !== 'SEA_FCL' && (
+                      <>
+                        <th className="py-2.5 px-3 text-right">应收单价</th>
+                        <th className="py-2.5 px-3 text-right">成本单价</th>
+                      </>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -812,12 +814,16 @@ export default function WaybillDetailView() {
                       <td className="py-2.5 px-3 text-right font-mono font-bold text-indigo-700">
                         {item.payableVolume ? `${Number(item.payableVolume).toFixed(4)} m³` : '-'}
                       </td>
-                      <td className="py-2.5 px-3 text-right font-mono">
-                        ¥ {Number(item.receivableUnitPrice || 0).toFixed(2)}
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-mono text-slate-500">
-                        ¥ {Number(item.payableUnitPrice || 0).toFixed(2)}
-                      </td>
+                      {waybill.orderType !== 'SEA_FCL' && (
+                        <>
+                          <td className="py-2.5 px-3 text-right font-mono">
+                            ¥ {Number(item.receivableUnitPrice || 0).toFixed(2)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono text-slate-500">
+                            ¥ {Number(item.payableUnitPrice || 0).toFixed(2)}
+                          </td>
+                        </>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -856,7 +862,11 @@ export default function WaybillDetailView() {
                     </div>
                   </div>
                   <button
-                    onClick={() => navigate('/v2/containers')}
+                    onClick={() =>
+                      navigate(
+                        `/v2/containers?search=${encodeURIComponent(waybill.containerMaster.containerNo)}`
+                      )
+                    }
                     className="text-xs text-indigo-800 font-semibold hover:underline"
                   >
                     在集装箱看板中查看整柜 ➔
@@ -989,6 +999,11 @@ export default function WaybillDetailView() {
                   ¥ {Number(waybill.payableAmount || 0).toFixed(2)}
                 </span>
               </div>
+              {waybill.orderType === 'SEA_FCL' && currentStageIdx < 3 && Number(waybill.payableAmount || 0) === 0 && (
+                <p className="text-[10px] text-slate-400 font-sans italic bg-slate-800/60 p-1.5 rounded">
+                  💡 整柜干线硬成本（订舱海运费、国内拖车、THC堆存）将在阶段4开船与阶段5清关时录入
+                </p>
+              )}
               <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-sm">
                 <span className="text-slate-300 font-bold">单票纯利润:</span>
                 <span className="text-xl font-bold text-amber-400">
@@ -1178,10 +1193,10 @@ export default function WaybillDetailView() {
                       const list = valid.length > 0
                         ? valid
                         : customsType === '退税报关'
-                        ? ['中外运', '万海自营专线']
-                        : customsType === '敏感特货'
-                        ? ['菲通货运', '万海特货通道']
-                        : ['万海自营专线', '中外运', '天帆东南亚', '同行外发分拨'];
+                          ? ['中外运', '万海自营专线']
+                          : customsType === '敏感特货'
+                            ? ['菲通货运', '万海特货通道']
+                            : ['万海自营专线', '中外运', '天帆东南亚', '同行外发分拨'];
 
                       return list.map((ch) => (
                         <option key={ch} value={ch}>
@@ -1293,7 +1308,9 @@ export default function WaybillDetailView() {
 
               <div className="space-y-2">
                 <label className="block text-xs font-semibold text-slate-700">
-                  各包裹实测尺寸与单价录入 (长/宽/高 单位: cm)
+                  {waybill.orderType === 'SEA_FCL'
+                    ? '各包裹实测尺寸与件数录入 (长/宽/高 单位: cm)'
+                    : '各包裹实测尺寸与单价录入 (长/宽/高 单位: cm)'}
                 </label>
                 <div className="overflow-x-auto border border-slate-200 rounded-xl">
                   <table className="w-full text-left text-xs">
@@ -1305,8 +1322,12 @@ export default function WaybillDetailView() {
                         <th className="py-2 px-2 w-20 text-center">宽(cm)</th>
                         <th className="py-2 px-2 w-20 text-center">高(cm)</th>
                         <th className="py-2 px-3 w-28 text-center bg-indigo-50/50">核算体积</th>
-                        <th className="py-2 px-3 w-28">应收单价(¥)</th>
-                        <th className="py-2 px-3 w-28">成本单价(¥)</th>
+                        {waybill.orderType !== 'SEA_FCL' && (
+                          <>
+                            <th className="py-2 px-3 w-28">应收单价(¥)</th>
+                            <th className="py-2 px-3 w-28">成本单价(¥)</th>
+                          </>
+                        )}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -1379,34 +1400,38 @@ export default function WaybillDetailView() {
                             <td className="py-2 px-3 text-center font-mono font-bold text-indigo-700 bg-indigo-50/40">
                               {vol > 0 ? `${vol.toFixed(4)} m³` : '-'}
                             </td>
-                            <td className="py-2 px-3">
-                              <input
-                                type="number"
-                                step="0.01"
-                                value={item.receivableUnitPrice || ''}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setEditableItems((prev) =>
-                                    prev.map((it, i) => (i === idx ? { ...it, receivableUnitPrice: val } : it))
-                                  );
-                                }}
-                                className="w-full px-2 py-1 bg-slate-50 border rounded text-xs"
-                              />
-                            </td>
-                            <td className="py-2 px-3">
-                              <input
-                                type="number"
-                                step="0.01"
-                                value={item.payableUnitPrice || ''}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setEditableItems((prev) =>
-                                    prev.map((it, i) => (i === idx ? { ...it, payableUnitPrice: val } : it))
-                                  );
-                                }}
-                                className="w-full px-2 py-1 bg-slate-50 border rounded text-xs"
-                              />
-                            </td>
+                            {waybill.orderType !== 'SEA_FCL' && (
+                              <>
+                                <td className="py-2 px-3">
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    value={item.receivableUnitPrice || ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setEditableItems((prev) =>
+                                        prev.map((it, i) => (i === idx ? { ...it, receivableUnitPrice: val } : it))
+                                      );
+                                    }}
+                                    className="w-full px-2 py-1 bg-slate-50 border rounded text-xs"
+                                  />
+                                </td>
+                                <td className="py-2 px-3">
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    value={item.payableUnitPrice || ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setEditableItems((prev) =>
+                                        prev.map((it, i) => (i === idx ? { ...it, payableUnitPrice: val } : it))
+                                      );
+                                    }}
+                                    className="w-full px-2 py-1 bg-slate-50 border rounded text-xs"
+                                  />
+                                </td>
+                              </>
+                            )}
                           </tr>
                         );
                       })}

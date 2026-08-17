@@ -109,6 +109,8 @@ export default function InboundWorkbench() {
   // Fees & Pricing
   const [isFixedPrice, setIsFixedPrice] = useState(false);
   const [fixedPriceAmount, setFixedPriceAmount] = useState<number | undefined>(undefined);
+  const [fclQuotation, setFclQuotation] = useState<number | undefined>(undefined);
+  const [fclQuotationCurrency, setFclQuotationCurrency] = useState<'CNY' | 'USD' | 'PHP'>('CNY');
   const [fees, setFees] = useState<FeeItemRow[]>([]);
 
   // Submitting & Success Result Modal
@@ -157,6 +159,7 @@ export default function InboundWorkbench() {
         payableCurrency: 'CNY',
       },
     ]);
+    setFclQuotation(undefined);
     setIsFixedPrice(false);
     setFixedPriceAmount(undefined);
     setFees([]);
@@ -317,7 +320,9 @@ export default function InboundWorkbench() {
     .filter((f) => f.feeDirection === 'PAYABLE')
     .reduce((sum, f) => sum + (Number(f.amount) || 0), 0);
 
-  const finalReceivable = isFixedPrice && fixedPriceAmount ? fixedPriceAmount + extraReceivable : baseReceivable + extraReceivable;
+  const finalReceivable = orderType === 'SEA_FCL' 
+    ? (Number(fclQuotation) || 0) + extraReceivable 
+    : isFixedPrice && fixedPriceAmount ? fixedPriceAmount + extraReceivable : baseReceivable + extraReceivable;
   const finalPayable = basePayable + extraPayable;
   const estimatedProfit = finalReceivable - finalPayable;
 
@@ -335,6 +340,7 @@ export default function InboundWorkbench() {
 
     setIsSubmitting(true);
     try {
+      const isFcl = orderType === 'SEA_FCL';
       const payload = {
         orderType,
         userMark: userMark.trim(),
@@ -345,8 +351,8 @@ export default function InboundWorkbench() {
         forwarderChannel: forwarderChannel.trim() || undefined,
         expressNo: expressNo.trim() || undefined,
         note: note.trim() || undefined,
-        isFixedPrice,
-        fixedPriceAmount: isFixedPrice ? fixedPriceAmount : undefined,
+        isFixedPrice: isFcl ? true : isFixedPrice,
+        fixedPriceAmount: isFcl ? (Number(fclQuotation) || undefined) : isFixedPrice ? fixedPriceAmount : undefined,
 
         recipientName: recipientName.trim() || undefined,
         recipientPhone: recipientPhone.trim() || undefined,
@@ -728,6 +734,50 @@ export default function InboundWorkbench() {
             </button>
           </div>
 
+          {/* FCL 整柜专属包干协议报价卡片 */}
+          {orderType === 'SEA_FCL' && (
+            <div className="p-4 bg-gradient-to-r from-blue-50/90 via-indigo-50/80 to-slate-50 border-2 border-blue-200 rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center font-bold text-xs shadow-md shrink-0">
+                  FCL
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2">
+                    海运整柜包干协议总报价
+                    <span className="text-[10px] px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-semibold">
+                      整柜包干报价模式
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    整柜按柜收费（无需拆解单件方数单价）；实际干线成本（订舱、拖车、THC堆存等）将在后续集装箱开航与清关阶段逐笔录入。
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                <span className="text-xs font-bold text-slate-700">整柜协议总报价:</span>
+                <div className="flex items-center">
+                  <select
+                    value={fclQuotationCurrency}
+                    onChange={(e) => setFclQuotationCurrency(e.target.value as any)}
+                    className="px-2.5 py-2 bg-slate-100 border border-r-0 border-slate-300 rounded-l-xl text-xs font-bold text-slate-700"
+                  >
+                    <option value="CNY">¥ 人民币</option>
+                    <option value="USD">$ 美元</option>
+                    <option value="PHP">₱ 比索</option>
+                  </select>
+                  <input
+                    type="number"
+                    step="1"
+                    placeholder="如 28000.00"
+                    value={fclQuotation ?? ''}
+                    onChange={(e) => setFclQuotation(e.target.value ? Number(e.target.value) : undefined)}
+                    className="w-36 sm:w-44 px-3 py-2 bg-white border border-slate-300 rounded-r-xl text-sm font-black text-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="overflow-x-auto border border-slate-200 rounded-xl">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
@@ -743,12 +793,16 @@ export default function InboundWorkbench() {
                     预估体积 (m³)
                   </th>
                   <th className="py-3 px-2 w-24 text-center">预估重(kg)</th>
-                  <th className="py-3 px-3 min-w-[140px]">
-                    约定应收单价 ({orderType === 'AIR' ? '元/kg' : '元/方'})
-                  </th>
-                  <th className="py-3 px-3 min-w-[140px]">
-                    约定成本单价 ({orderType === 'AIR' ? '元/kg' : '元/方'})
-                  </th>
+                  {orderType !== 'SEA_FCL' && (
+                    <>
+                      <th className="py-3 px-3 min-w-[140px]">
+                        约定应收单价 ({orderType === 'AIR' ? '元/kg' : '元/方'})
+                      </th>
+                      <th className="py-3 px-3 min-w-[140px]">
+                        约定成本单价 ({orderType === 'AIR' ? '元/kg' : '元/方'})
+                      </th>
+                    </>
+                  )}
                   <th className="py-3 px-2 text-center w-12">操作</th>
                 </tr>
               </thead>
@@ -837,46 +891,50 @@ export default function InboundWorkbench() {
                           className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-center focus:bg-white"
                         />
                       </td>
-                      <td className="py-2 px-3">
-                        <div className="flex gap-1">
-                          <select
-                            value={item.receivableCurrency}
-                            onChange={(e) => updateItem(item.id, 'receivableCurrency', e.target.value)}
-                            className="px-1.5 py-1 bg-slate-100 border border-slate-200 rounded text-xs"
-                          >
-                            <option value="CNY">¥</option>
-                            <option value="PHP">₱</option>
-                          </select>
-                          <input
-                            type="number"
-                            step="0.01"
-                            placeholder="单价"
-                            value={item.receivableUnitPrice || ''}
-                            onChange={(e) => updateItem(item.id, 'receivableUnitPrice', e.target.value)}
-                            className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs focus:bg-white"
-                          />
-                        </div>
-                      </td>
-                      <td className="py-2 px-3">
-                        <div className="flex gap-1">
-                          <select
-                            value={item.payableCurrency}
-                            onChange={(e) => updateItem(item.id, 'payableCurrency', e.target.value)}
-                            className="px-1.5 py-1 bg-slate-100 border border-slate-200 rounded text-xs"
-                          >
-                            <option value="CNY">¥</option>
-                            <option value="PHP">₱</option>
-                          </select>
-                          <input
-                            type="number"
-                            step="0.01"
-                            placeholder="成本"
-                            value={item.payableUnitPrice || ''}
-                            onChange={(e) => updateItem(item.id, 'payableUnitPrice', e.target.value)}
-                            className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs focus:bg-white"
-                          />
-                        </div>
-                      </td>
+                      {orderType !== 'SEA_FCL' && (
+                        <>
+                          <td className="py-2 px-3">
+                            <div className="flex gap-1">
+                              <select
+                                value={item.receivableCurrency}
+                                onChange={(e) => updateItem(item.id, 'receivableCurrency', e.target.value)}
+                                className="px-1.5 py-1 bg-slate-100 border border-slate-200 rounded text-xs"
+                              >
+                                <option value="CNY">¥</option>
+                                <option value="PHP">₱</option>
+                              </select>
+                              <input
+                                type="number"
+                                step="0.01"
+                                placeholder="单价"
+                                value={item.receivableUnitPrice || ''}
+                                onChange={(e) => updateItem(item.id, 'receivableUnitPrice', e.target.value)}
+                                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs focus:bg-white"
+                              />
+                            </div>
+                          </td>
+                          <td className="py-2 px-3">
+                            <div className="flex gap-1">
+                              <select
+                                value={item.payableCurrency}
+                                onChange={(e) => updateItem(item.id, 'payableCurrency', e.target.value)}
+                                className="px-1.5 py-1 bg-slate-100 border border-slate-200 rounded text-xs"
+                              >
+                                <option value="CNY">¥</option>
+                                <option value="PHP">₱</option>
+                              </select>
+                              <input
+                                type="number"
+                                step="0.01"
+                                placeholder="成本"
+                                value={item.payableUnitPrice || ''}
+                                onChange={(e) => updateItem(item.id, 'payableUnitPrice', e.target.value)}
+                                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs focus:bg-white"
+                              />
+                            </div>
+                          </td>
+                        </>
+                      )}
                       <td className="py-2 px-2 text-center">
                         <button
                           type="button"
@@ -900,18 +958,20 @@ export default function InboundWorkbench() {
           <div className="flex items-center justify-between">
             <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-emerald-600" />
-              特殊杂费与包干协议 (可选)
+              {orderType === 'SEA_FCL' ? '特殊附加杂费 (可选)' : '特殊杂费与包干协议 (可选)'}
             </h2>
             <div className="flex items-center gap-4">
-              <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isFixedPrice}
-                  onChange={(e) => setIsFixedPrice(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 rounded"
-                />
-                包干一口价模式
-              </label>
+              {orderType !== 'SEA_FCL' && (
+                <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isFixedPrice}
+                    onChange={(e) => setIsFixedPrice(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 rounded"
+                  />
+                  包干一口价模式
+                </label>
+              )}
               <button
                 type="button"
                 onClick={addFee}
@@ -923,7 +983,7 @@ export default function InboundWorkbench() {
             </div>
           </div>
 
-          {isFixedPrice && (
+          {orderType !== 'SEA_FCL' && isFixedPrice && (
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-4">
               <span className="text-xs font-bold text-amber-900">一口价应收总额 (¥):</span>
               <input

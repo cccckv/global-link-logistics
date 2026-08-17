@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   Container,
@@ -19,6 +19,9 @@ import {
   MapPin,
   FileSpreadsheet,
   Edit3,
+  X,
+  Filter,
+  RotateCcw,
 } from 'lucide-react';
 import {
   containerV2Api,
@@ -42,10 +45,15 @@ const STATUS_MAP: Record<ContainerStatus, { label: string; color: string }> = {
 
 export default function ContainerTracking() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlSearch = searchParams.get('search') || searchParams.get('containerNo') || '';
 
   const [containers, setContainers] = useState<ContainerMaster[]>([]);
   const [loading, setLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(urlSearch);
+  const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
+  const [selectedOriginPort, setSelectedOriginPort] = useState<string>('ALL');
+  const [selectedDestPort, setSelectedDestPort] = useState<string>('ALL');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // New container modal
@@ -79,12 +87,30 @@ export default function ContainerTracking() {
   const [feeRate, setFeeRate] = useState(7.2);
   const [feeNote, setFeeNote] = useState('');
 
-  const loadContainers = async () => {
+  const loadContainers = async (overrideSearch?: string, overrideStatus?: string, overrideOrigin?: string, overrideDest?: string) => {
     setLoading(true);
     try {
-      const res = await containerV2Api.list({ search: searchQuery.trim() || undefined });
+      const q = overrideSearch !== undefined ? overrideSearch : searchQuery;
+      const st = overrideStatus !== undefined ? overrideStatus : selectedStatus;
+      const org = overrideOrigin !== undefined ? overrideOrigin : selectedOriginPort;
+      const dst = overrideDest !== undefined ? overrideDest : selectedDestPort;
+
+      const res = await containerV2Api.list({
+        search: q.trim() || undefined,
+        status: st !== 'ALL' ? (st as ContainerStatus) : undefined,
+        originPort: org !== 'ALL' ? org : undefined,
+        destinationPort: dst !== 'ALL' ? dst : undefined,
+      });
+
       if (res.data.success) {
-        setContainers(res.data.data);
+        const list: ContainerMaster[] = res.data.data;
+        setContainers(list);
+
+        // Auto expand matching container
+        if (q.trim() && list.length > 0) {
+          const exact = list.find((c) => c.containerNo.toLowerCase() === q.trim().toLowerCase()) || list[0];
+          setExpandedId(exact.id);
+        }
       }
     } catch (err: any) {
       toast.error('加载集装箱失败');
@@ -94,8 +120,33 @@ export default function ContainerTracking() {
   };
 
   useEffect(() => {
-    loadContainers();
-  }, []);
+    const urlQ = searchParams.get('search') || searchParams.get('containerNo') || '';
+    if (urlQ) {
+      setSearchQuery(urlQ);
+      loadContainers(urlQ);
+    } else {
+      loadContainers();
+    }
+  }, [searchParams]);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      setSearchParams({ search: searchQuery.trim() });
+    } else {
+      setSearchParams({});
+    }
+    loadContainers(searchQuery);
+  };
+
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    setSelectedStatus('ALL');
+    setSelectedOriginPort('ALL');
+    setSelectedDestPort('ALL');
+    setSearchParams({});
+    loadContainers('', 'ALL', 'ALL', 'ALL');
+  };
 
   const handleCreateContainer = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -214,6 +265,155 @@ export default function ContainerTracking() {
           <Plus className="w-4 h-4" />
           新建集装箱 (货柜)
         </button>
+      </div>
+
+      {/* Search & Filter Toolbar */}
+      <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4">
+        <form onSubmit={handleSearchSubmit} className="flex flex-col md:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="搜索集装箱柜号 (如 TGBU5218902)、海运提单号 (B/L)、船名航次、船司 (如 万海/WAN HAI)..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-medium text-slate-900"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setSearchParams({});
+                  loadContainers('', selectedStatus, selectedOriginPort, selectedDestPort);
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 text-xs"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={selectedStatus}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedStatus(val);
+                loadContainers(searchQuery, val, selectedOriginPort, selectedDestPort);
+              }}
+              className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:bg-white"
+            >
+              <option value="ALL">全部状态</option>
+              <option value="LOADING">装柜配载中 (LOADING)</option>
+              <option value="SAILING">航运在途中 (SAILING)</option>
+              <option value="ARRIVED">已到目的港 (ARRIVED)</option>
+              <option value="CUSTOMS">海关清关中 (CUSTOMS)</option>
+              <option value="DISPATCHING">海外拆派中 (DISPATCHING)</option>
+              <option value="COMPLETED">全部完结 (COMPLETED)</option>
+            </select>
+
+            <select
+              value={selectedOriginPort}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedOriginPort(val);
+                loadContainers(searchQuery, selectedStatus, val, selectedDestPort);
+              }}
+              className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:bg-white"
+            >
+              <option value="ALL">全部起运港</option>
+              {ORIGIN_PORTS.map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+
+            <select
+              value={selectedDestPort}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSelectedDestPort(val);
+                loadContainers(searchQuery, selectedStatus, selectedOriginPort, val);
+              }}
+              className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:bg-white"
+            >
+              <option value="ALL">全部目的港</option>
+              {DESTINATION_COUNTRIES.flatMap((c) => c.ports).map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+
+            <button
+              type="submit"
+              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5"
+            >
+              <Search className="w-3.5 h-3.5" />
+              搜索
+            </button>
+
+            {(searchQuery || selectedStatus !== 'ALL' || selectedOriginPort !== 'ALL' || selectedDestPort !== 'ALL') && (
+              <button
+                type="button"
+                onClick={handleClearSearch}
+                className="px-3 py-2.5 text-xs text-slate-500 hover:text-slate-800 font-semibold flex items-center gap-1"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                重置
+              </button>
+            )}
+          </div>
+        </form>
+
+        {/* Active Filter Badges */}
+        {(searchQuery || selectedStatus !== 'ALL' || selectedOriginPort !== 'ALL' || selectedDestPort !== 'ALL') && (
+          <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-100 text-xs text-slate-600">
+            <span className="text-slate-400 font-medium">当前筛选:</span>
+            {searchQuery && (
+              <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg font-mono font-bold flex items-center gap-1.5">
+                柜号/关键词: {searchQuery}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSearchParams({});
+                    loadContainers('', selectedStatus, selectedOriginPort, selectedDestPort);
+                  }}
+                  className="text-indigo-400 hover:text-red-500 font-normal"
+                >
+                  ×
+                </button>
+              </span>
+            )}
+            {selectedStatus !== 'ALL' && (
+              <span className="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg font-semibold flex items-center gap-1.5">
+                状态: {STATUS_MAP[selectedStatus as ContainerStatus]?.label || selectedStatus}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedStatus('ALL');
+                    loadContainers(searchQuery, 'ALL', selectedOriginPort, selectedDestPort);
+                  }}
+                  className="text-blue-400 hover:text-red-500 font-normal"
+                >
+                  ×
+                </button>
+              </span>
+            )}
+            {selectedOriginPort !== 'ALL' && (
+              <span className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg font-semibold">
+                起运港: {selectedOriginPort}
+              </span>
+            )}
+            {selectedDestPort !== 'ALL' && (
+              <span className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg font-semibold">
+                目的港: {selectedDestPort}
+              </span>
+            )}
+            <span className="ml-auto text-slate-500 font-medium">
+              共筛选出 <strong className="text-indigo-700 font-bold">{containers.length}</strong> 个集装箱货柜
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Container List */}

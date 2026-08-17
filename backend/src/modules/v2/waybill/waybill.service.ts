@@ -353,22 +353,14 @@ export class WaybillV2Service {
     sailingDate?: Date | string;
     eta?: Date | string;
     clearanceDate?: Date | string;
-        fees: {
-          create: feesToCreate,
-        },
-      },
-      include: {
-        items: true,
-        fees: true,
-        attachments: true,
-      },
-    });
-  }
-
-  async updateWaybill(id: string, data: UpdateWaybillInput) {
+    signedDate?: Date | string;
+    inboundDate?: Date | string;
+    inspectStatus?: string;
+  }) {
     const { items, ...rest } = data;
     const updateData: any = { ...rest };
 
+    if (data.inboundDate) updateData.inboundDate = new Date(data.inboundDate);
     if (data.loadingDate) updateData.loadingDate = new Date(data.loadingDate);
     if (data.sailingDate) updateData.sailingDate = new Date(data.sailingDate);
     if (data.eta) updateData.eta = new Date(data.eta);
@@ -384,29 +376,41 @@ export class WaybillV2Service {
       let totalReceivableCbm = 0;
       let totalWeightKg = 0;
 
-      const newItems = items.map((item, idx) => {
-        const qty = item.quantity && item.quantity > 0 ? item.quantity : 1;
+      const newItems = items.map((item: any, idx: number) => {
+        const qty = item.quantity && item.quantity > 0 ? Number(item.quantity) : 1;
         totalPieces += qty;
 
         let payableVol = 0;
         let receivableVol = 0;
         if (item.length && item.width && item.height) {
-          payableVol = (item.length * item.width * item.height * qty) / 1_000_000;
+          payableVol = (Number(item.length) * Number(item.width) * Number(item.height) * qty) / 1_000_000;
           receivableVol = payableVol;
         }
         totalPayableCbm += payableVol;
         totalReceivableCbm += receivableVol;
 
         if (item.unitWeight) {
-          totalWeightKg += item.unitWeight * qty;
+          totalWeightKg += Number(item.unitWeight) * qty;
         }
 
-        const estQty = item.estimatedQuantity !== undefined && item.estimatedQuantity !== null ? item.estimatedQuantity : undefined;
-        const estL = item.estimatedLength !== undefined && item.estimatedLength !== null ? item.estimatedLength : undefined;
-        const estW = item.estimatedWidth !== undefined && item.estimatedWidth !== null ? item.estimatedWidth : undefined;
-        const estH = item.estimatedHeight !== undefined && item.estimatedHeight !== null ? item.estimatedHeight : undefined;
-        const estWt = item.estimatedWeight !== undefined && item.estimatedWeight !== null ? item.estimatedWeight : undefined;
-        const estVol = estL && estW && estH ? (estL * estW * estH * (estQty || 1)) / 1_000_000 : (item.estimatedVolume || undefined);
+        const estQty = item.estimatedQuantity !== undefined && item.estimatedQuantity !== null
+          ? Number(item.estimatedQuantity)
+          : qty;
+        const estL = item.estimatedLength !== undefined && item.estimatedLength !== null
+          ? Number(item.estimatedLength)
+          : (item.length !== undefined && item.length !== null ? Number(item.length) : undefined);
+        const estW = item.estimatedWidth !== undefined && item.estimatedWidth !== null
+          ? Number(item.estimatedWidth)
+          : (item.width !== undefined && item.width !== null ? Number(item.width) : undefined);
+        const estH = item.estimatedHeight !== undefined && item.estimatedHeight !== null
+          ? Number(item.estimatedHeight)
+          : (item.height !== undefined && item.height !== null ? Number(item.height) : undefined);
+        const estWt = item.estimatedWeight !== undefined && item.estimatedWeight !== null
+          ? Number(item.estimatedWeight)
+          : (item.unitWeight !== undefined && item.unitWeight !== null ? Number(item.unitWeight) : undefined);
+        const estVol = estL && estW && estH
+          ? (estL * estW * estH * estQty) / 1_000_000
+          : (item.estimatedVolume ? Number(item.estimatedVolume) : (payableVol > 0 ? payableVol : undefined));
 
         return {
           waybillId: id,
@@ -420,17 +424,17 @@ export class WaybillV2Service {
           estimatedHeight: estH,
           estimatedWeight: estWt,
           estimatedVolume: estVol,
-          length: item.length,
-          width: item.width,
-          height: item.height,
+          length: item.length !== undefined && item.length !== null ? Number(item.length) : undefined,
+          width: item.width !== undefined && item.width !== null ? Number(item.width) : undefined,
+          height: item.height !== undefined && item.height !== null ? Number(item.height) : undefined,
           payableVolume: payableVol > 0 ? payableVol : undefined,
           receivableVolume: receivableVol > 0 ? receivableVol : undefined,
-          unitWeight: item.unitWeight,
-          totalWeight: item.unitWeight ? item.unitWeight * qty : undefined,
+          unitWeight: item.unitWeight !== undefined && item.unitWeight !== null ? Number(item.unitWeight) : undefined,
+          totalWeight: item.unitWeight ? Number(item.unitWeight) * qty : undefined,
           receivableCurrency: item.receivableCurrency || 'CNY',
-          receivableUnitPrice: item.receivableUnitPrice,
+          receivableUnitPrice: item.receivableUnitPrice !== undefined && item.receivableUnitPrice !== null ? Number(item.receivableUnitPrice) : undefined,
           payableCurrency: item.payableCurrency || 'CNY',
-          payableUnitPrice: item.payableUnitPrice,
+          payableUnitPrice: item.payableUnitPrice !== undefined && item.payableUnitPrice !== null ? Number(item.payableUnitPrice) : undefined,
         };
       });
 

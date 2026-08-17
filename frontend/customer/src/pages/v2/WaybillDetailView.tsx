@@ -188,8 +188,18 @@ export default function WaybillDetailView() {
         setForwarderChannel(wb.forwarderChannel || '');
         setNote(wb.note || '');
         setExpressNo(wb.expressNo || '');
-        setEditableItems(JSON.parse(JSON.stringify(wb.items || [])));
-        setStage1Items(JSON.parse(JSON.stringify(wb.items || [])));
+        const rawItems = wb.items || [];
+        const normalizedItems = rawItems.map((it: any) => ({
+          ...it,
+          estimatedQuantity: it.estimatedQuantity !== null && it.estimatedQuantity !== undefined ? it.estimatedQuantity : it.quantity,
+          estimatedLength: it.estimatedLength !== null && it.estimatedLength !== undefined ? it.estimatedLength : it.length,
+          estimatedWidth: it.estimatedWidth !== null && it.estimatedWidth !== undefined ? it.estimatedWidth : it.width,
+          estimatedHeight: it.estimatedHeight !== null && it.estimatedHeight !== undefined ? it.estimatedHeight : it.height,
+          estimatedWeight: it.estimatedWeight !== null && it.estimatedWeight !== undefined ? it.estimatedWeight : it.unitWeight,
+          estimatedVolume: it.estimatedVolume !== null && it.estimatedVolume !== undefined ? it.estimatedVolume : it.payableVolume,
+        }));
+        setEditableItems(JSON.parse(JSON.stringify(normalizedItems)));
+        setStage1Items(JSON.parse(JSON.stringify(normalizedItems)));
         setSelectedContainerId(wb.containerId || '');
         setVesselVoyage(wb.containerMaster?.vesselVoyage || wb.voyageNumber || '');
         setInboundDate(wb.inboundDate ? new Date(wb.inboundDate).toISOString().slice(0, 10) : '');
@@ -367,12 +377,29 @@ export default function WaybillDetailView() {
         note: note.trim() || undefined,
         items: stage1Items.map((it, idx) => {
           const orig = waybill.items?.find((i) => i.id === it.id) || (waybill.items ? waybill.items[idx] : undefined);
-          const estQty = Number(it.estimatedQuantity) || Number(it.quantity) || 1;
-          const estL = it.estimatedLength !== undefined && it.estimatedLength !== null && String(it.estimatedLength).trim() !== '' ? Number(it.estimatedLength) : undefined;
-          const estW = it.estimatedWidth !== undefined && it.estimatedWidth !== null && String(it.estimatedWidth).trim() !== '' ? Number(it.estimatedWidth) : undefined;
-          const estH = it.estimatedHeight !== undefined && it.estimatedHeight !== null && String(it.estimatedHeight).trim() !== '' ? Number(it.estimatedHeight) : undefined;
-          const estWt = it.estimatedWeight !== undefined && it.estimatedWeight !== null && String(it.estimatedWeight).trim() !== '' ? Number(it.estimatedWeight) : undefined;
-          const estVol = estL && estW && estH ? (estL * estW * estH * estQty) / 1_000_000 : (it.estimatedVolume ? Number(it.estimatedVolume) : undefined);
+          const estQty = it.estimatedQuantity !== undefined && it.estimatedQuantity !== null && String(it.estimatedQuantity).trim() !== ''
+            ? Number(it.estimatedQuantity)
+            : (orig?.estimatedQuantity !== undefined && orig?.estimatedQuantity !== null ? Number(orig.estimatedQuantity) : (orig?.quantity ? Number(orig.quantity) : 1));
+
+          const estL = it.estimatedLength !== undefined && it.estimatedLength !== null && String(it.estimatedLength).trim() !== ''
+            ? Number(it.estimatedLength)
+            : (orig?.estimatedLength !== undefined && orig?.estimatedLength !== null ? Number(orig.estimatedLength) : (orig?.length ? Number(orig.length) : undefined));
+
+          const estW = it.estimatedWidth !== undefined && it.estimatedWidth !== null && String(it.estimatedWidth).trim() !== ''
+            ? Number(it.estimatedWidth)
+            : (orig?.estimatedWidth !== undefined && orig?.estimatedWidth !== null ? Number(orig.estimatedWidth) : (orig?.width ? Number(orig.width) : undefined));
+
+          const estH = it.estimatedHeight !== undefined && it.estimatedHeight !== null && String(it.estimatedHeight).trim() !== ''
+            ? Number(it.estimatedHeight)
+            : (orig?.estimatedHeight !== undefined && orig?.estimatedHeight !== null ? Number(orig.estimatedHeight) : (orig?.height ? Number(orig.height) : undefined));
+
+          const estWt = it.estimatedWeight !== undefined && it.estimatedWeight !== null && String(it.estimatedWeight).trim() !== ''
+            ? Number(it.estimatedWeight)
+            : (orig?.estimatedWeight !== undefined && orig?.estimatedWeight !== null ? Number(orig.estimatedWeight) : (orig?.unitWeight ? Number(orig.unitWeight) : undefined));
+
+          const estVol = estL && estW && estH
+            ? (estL * estW * estH * estQty) / 1_000_000
+            : (it.estimatedVolume ? Number(it.estimatedVolume) : undefined);
 
           return {
             id: it.id?.startsWith('temp_') ? undefined : it.id,
@@ -385,15 +412,19 @@ export default function WaybillDetailView() {
             estimatedWeight: estWt,
             estimatedVolume: estVol,
             // Retain existing stage 2 actuals if already measured, otherwise initialize with estimates
-            quantity: orig?.quantity || estQty,
+            quantity: orig?.quantity ? Number(orig.quantity) : estQty,
             length: orig?.length ? Number(orig.length) : (estL || undefined),
             width: orig?.width ? Number(orig.width) : (estW || undefined),
             height: orig?.height ? Number(orig.height) : (estH || undefined),
             unitWeight: orig?.unitWeight ? Number(orig.unitWeight) : (estWt || undefined),
             receivableCurrency: it.receivableCurrency || 'CNY',
-            receivableUnitPrice: it.receivableUnitPrice !== undefined && it.receivableUnitPrice !== null ? Number(it.receivableUnitPrice) : undefined,
+            receivableUnitPrice: it.receivableUnitPrice !== undefined && it.receivableUnitPrice !== null && String(it.receivableUnitPrice).trim() !== ''
+              ? Number(it.receivableUnitPrice)
+              : (orig?.receivableUnitPrice ? Number(orig.receivableUnitPrice) : undefined),
             payableCurrency: it.payableCurrency || 'CNY',
-            payableUnitPrice: it.payableUnitPrice !== undefined && it.payableUnitPrice !== null ? Number(it.payableUnitPrice) : undefined,
+            payableUnitPrice: it.payableUnitPrice !== undefined && it.payableUnitPrice !== null && String(it.payableUnitPrice).trim() !== ''
+              ? Number(it.payableUnitPrice)
+              : (orig?.payableUnitPrice ? Number(orig.payableUnitPrice) : undefined),
           };
         }),
       });
@@ -941,13 +972,13 @@ export default function WaybillDetailView() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {(waybill.items || []).map((item, idx) => {
-                    const estQty = item.estimatedQuantity !== null && item.estimatedQuantity !== undefined ? item.estimatedQuantity : item.quantity;
-                    const actQty = item.quantity;
-                    const isQtyMismatch = item.estimatedQuantity !== null && item.estimatedQuantity !== undefined && item.estimatedQuantity !== item.quantity;
+                    const estQty = item.estimatedQuantity !== null && item.estimatedQuantity !== undefined ? Number(item.estimatedQuantity) : Number(item.quantity);
+                    const actQty = Number(item.quantity);
+                    const isQtyMismatch = item.estimatedQuantity !== null && item.estimatedQuantity !== undefined && Number(item.estimatedQuantity) !== Number(item.quantity);
 
-                    const estL = item.estimatedLength;
-                    const estW = item.estimatedWidth;
-                    const estH = item.estimatedHeight;
+                    const estL = item.estimatedLength !== null && item.estimatedLength !== undefined ? item.estimatedLength : item.length;
+                    const estW = item.estimatedWidth !== null && item.estimatedWidth !== undefined ? item.estimatedWidth : item.width;
+                    const estH = item.estimatedHeight !== null && item.estimatedHeight !== undefined ? item.estimatedHeight : item.height;
                     const hasEstDim = estL && estW && estH;
 
                     const actL = item.length;
@@ -955,7 +986,7 @@ export default function WaybillDetailView() {
                     const actH = item.height;
                     const hasActDim = actL && actW && actH;
 
-                    const estVol = item.estimatedVolume ? Number(item.estimatedVolume) : (hasEstDim ? (Number(estL) * Number(estW) * Number(estH) * Number(estQty)) / 1_000_000 : null);
+                    const estVol = item.estimatedVolume ? Number(item.estimatedVolume) : (hasEstDim ? (Number(estL) * Number(estW) * Number(estH) * Number(estQty)) / 1_000_000 : (item.payableVolume ? Number(item.payableVolume) : null));
                     const actVol = item.payableVolume ? Number(item.payableVolume) : (hasActDim ? (Number(actL) * Number(actW) * Number(actH) * Number(actQty)) / 1_000_000 : null);
 
                     const volDiff = estVol !== null && actVol !== null ? actVol - estVol : null;
@@ -1006,7 +1037,7 @@ export default function WaybillDetailView() {
                         {/* 重量对比 */}
                         <td className="py-3 px-3 text-right font-mono">
                           <div className="text-slate-400 text-[11px]">
-                            {item.estimatedWeight ? `${Number(item.estimatedWeight).toFixed(1)} kg` : '-'}
+                            {item.estimatedWeight !== null && item.estimatedWeight !== undefined ? `${Number(item.estimatedWeight).toFixed(1)} kg` : (item.unitWeight ? `${Number(item.unitWeight).toFixed(1)} kg` : '-')}
                           </div>
                           <div className="text-slate-800 font-semibold text-xs mt-0.5">
                             {item.unitWeight ? `${Number(item.unitWeight).toFixed(1)} kg` : <span className="text-slate-400 font-normal italic">-</span>}

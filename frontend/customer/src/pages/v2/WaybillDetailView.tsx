@@ -26,6 +26,7 @@ import {
   UserCheck,
   Package,
   Copy,
+  Lock,
 } from 'lucide-react';
 import {
   waybillV2Api,
@@ -33,6 +34,7 @@ import {
   financeV2Api,
   channelV2Api,
   type Waybill,
+  type WaybillItem,
   type ContainerMaster,
   type WaybillStatus,
   type AttachmentType,
@@ -572,7 +574,7 @@ export default function WaybillDetailView() {
       }
 
       if (customsSlipUrl.trim()) {
-        await financeV2Api.addWaybillAttachment(waybill.id, {
+        await financeV2Api.addAttachment(waybill.id, {
           attachmentType: 'CUSTOMS_SLIP',
           fileUrl: customsSlipUrl.trim(),
           fileName: '海关缴税放行水单',
@@ -609,7 +611,7 @@ export default function WaybillDetailView() {
       });
 
       if (signImageUrl.trim()) {
-        await financeV2Api.addWaybillAttachment(waybill.id, {
+        await financeV2Api.addAttachment(waybill.id, {
           attachmentType: 'SIGN_IMAGE',
           fileUrl: signImageUrl.trim(),
           fileName: '客户签字盖章签收回执',
@@ -632,7 +634,7 @@ export default function WaybillDetailView() {
       return;
     }
     try {
-      await financeV2Api.addWaybillFee(waybill.id, {
+      await financeV2Api.addFee(waybill.id, {
         feeName,
         feeDirection,
         amount: Number(feeAmount),
@@ -651,7 +653,7 @@ export default function WaybillDetailView() {
   const handleDeleteFee = async (feeId: string) => {
     if (!confirm('确认删除该项杂费？')) return;
     try {
-      await financeV2Api.deleteWaybillFee(feeId);
+      await financeV2Api.deleteFee(feeId);
       toast.success('杂费已删除');
       loadData();
     } catch (err: any) {
@@ -667,7 +669,7 @@ export default function WaybillDetailView() {
       return;
     }
     try {
-      await financeV2Api.addWaybillAttachment(waybill.id, {
+      await financeV2Api.addAttachment(waybill.id, {
         attachmentType,
         fileUrl: fileUrl.trim(),
         fileName: fileName.trim() || '单证图片',
@@ -686,7 +688,7 @@ export default function WaybillDetailView() {
   const handleDeleteAttachment = async (attId: string) => {
     if (!confirm('确认删除该单证附件？')) return;
     try {
-      await financeV2Api.deleteWaybillAttachment(attId);
+      await financeV2Api.deleteAttachment(attId);
       toast.success('附件已删除');
       loadData();
     } catch (err: any) {

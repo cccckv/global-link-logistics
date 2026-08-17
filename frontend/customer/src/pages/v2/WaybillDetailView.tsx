@@ -367,6 +367,7 @@ export default function WaybillDetailView() {
   // Stage 1 Save (修改预报信息与货物快照)
   const handleStage1Save = async () => {
     try {
+      const isInitialStage = waybill.status === 'PRE_DECLARED' || waybill.status === 'DRAFT';
       await waybillV2Api.update(waybill.id, {
         userMark: userMark.trim(),
         originWarehouse,
@@ -411,12 +412,12 @@ export default function WaybillDetailView() {
             estimatedHeight: estH,
             estimatedWeight: estWt,
             estimatedVolume: estVol,
-            // Retain existing stage 2 actuals if already measured, otherwise initialize with estimates
-            quantity: orig?.quantity ? Number(orig.quantity) : estQty,
-            length: orig?.length ? Number(orig.length) : (estL || undefined),
-            width: orig?.width ? Number(orig.width) : (estW || undefined),
-            height: orig?.height ? Number(orig.height) : (estH || undefined),
-            unitWeight: orig?.unitWeight ? Number(orig.unitWeight) : (estWt || undefined),
+            // If in initial stage (not yet warehouse measured), also sync the actual measurements to match new pre-declaration
+            quantity: isInitialStage ? estQty : (orig?.quantity ? Number(orig.quantity) : estQty),
+            length: isInitialStage ? estL : (orig?.length ? Number(orig.length) : (estL || undefined)),
+            width: isInitialStage ? estW : (orig?.width ? Number(orig.width) : (estW || undefined)),
+            height: isInitialStage ? estH : (orig?.height ? Number(orig.height) : (estH || undefined)),
+            unitWeight: isInitialStage ? estWt : (orig?.unitWeight ? Number(orig.unitWeight) : (estWt || undefined)),
             receivableCurrency: it.receivableCurrency || 'CNY',
             receivableUnitPrice: it.receivableUnitPrice !== undefined && it.receivableUnitPrice !== null && String(it.receivableUnitPrice).trim() !== ''
               ? Number(it.receivableUnitPrice)

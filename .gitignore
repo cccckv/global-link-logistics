@@ -1,53 +1,154 @@
-# Dependencies
+# ==========================================
+# Dependencies & Package Managers
+# ==========================================
 node_modules/
+*/node_modules/
 .pnp
 .pnp.js
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnpm-store/
 
-# Production
+# ==========================================
+# Build & Production Artifacts
+# ==========================================
 dist/
+dist-ssr/
 build/
+out/
+.next/
+*.tsbuildinfo
+.vite/
+.parcel-cache/
+.turbo/
 
-# Environment variables
+# ==========================================
+# Environment Variables & Secrets
+# ==========================================
 .env
 .env.local
+.env.development.local
+.env.test.local
+.env.production.local
 .env.*.local
+*.env
+!.env.example
+!backend/.env.example
+!frontend/customer/.env.example
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
+# Certificates & Keys
+ssl/
+*.pem
+*.key
+*.crt
+*.cert
+*.pfx
+*.p12
 
-# OS
-.DS_Store
-Thumbs.db
+# ==========================================
+# Business Data & Large Excel Sheets (Confidential)
+# ==========================================
+info/
+*.xlsx
+*.xls
+*.csv
 
-# Logs
+# ==========================================
+# Runtime Uploads & User Attachments
+# ==========================================
+backend/uploads/**
+!backend/uploads/
+!backend/uploads/**/
+!backend/uploads/README.md
+!backend/uploads/**/.gitkeep
+uploads/**
+!uploads/
+!uploads/**/
+!uploads/**/.gitkeep
+
+# ==========================================
+# Local Database & Storage
+# ==========================================
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+.embedded-pg-data/
+backend/.embedded-pg-data/
+*.sql.gz
+*.dump
+
+# ==========================================
+# Logs & Debugging
+# ==========================================
 logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# Docker
-docker-compose.override.yml
-
-# Database
-*.db
-*.sqlite
-
-# Uploaded user files (payment vouchers, receipts)
-backend/uploads/
-
-# Testing
+# ==========================================
+# Testing & Code Coverage
+# ==========================================
 coverage/
 .nyc_output/
+test-results/
+playwright-report/
 
-# Prisma
-# migrations/ are intentionally tracked — required for `prisma migrate deploy` on deploy
+# ==========================================
+# Python Auxiliary Scripts Cache
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+env/
+.pytest_cache/
 
-# Certificates
-ssl/
-*.pem
-*.key
-*.crt
+# ==========================================
+# Temporary & Backup Files
+# ==========================================
+*.bak
+*.backup
+*.old
+*.tmp
+*.temp
+*~
+
+# ==========================================
+# IDE & Code Editors
+# ==========================================
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*.swo
+
+# ==========================================
+# OS Generated Files
+# ==========================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ==========================================
+# Docker Local Overrides
+# ==========================================
+docker-compose.override.yml
+

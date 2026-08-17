@@ -13,6 +13,12 @@ import { trackingRoutes } from './modules/tracking/routes';
 import { paymentRoutes } from './modules/payment/routes';
 import { userRoutes } from './modules/user/user.routes';
 import { vesselRoutes } from './modules/vessel/routes';
+import { customerV2Routes } from './modules/v2/customer/customer.routes';
+import { waybillV2Routes } from './modules/v2/waybill/waybill.routes';
+import { containerV2Routes } from './modules/v2/container/container.routes';
+import { financeV2Routes } from './modules/v2/finance/finance.routes';
+import { channelV2Routes } from './modules/v2/channel/channel.routes';
+import { uploadV2Routes } from './modules/v2/upload/upload.routes';
 import { authenticate } from './lib/jwt';
 
 type SocketLike = {
@@ -80,6 +86,14 @@ async function start() {
     await fastify.register(paymentRoutes, { prefix: '/api/payments' });
     await fastify.register(userRoutes, { prefix: '/api/users' });
     await fastify.register(vesselRoutes, { prefix: '/api/vessel' });
+
+    // V2 Refactored Logistics Routes
+    await fastify.register(customerV2Routes, { prefix: '/api/v2/customers' });
+    await fastify.register(waybillV2Routes, { prefix: '/api/v2/waybills' });
+    await fastify.register(containerV2Routes, { prefix: '/api/v2/containers' });
+    await fastify.register(financeV2Routes, { prefix: '/api/v2/finance' });
+    await fastify.register(channelV2Routes, { prefix: '/api/v2/channels' });
+    await fastify.register(uploadV2Routes, { prefix: '/api/v2' });
 
     fastify.get('/health', async () => {
       return { status: 'ok', timestamp: new Date().toISOString() };

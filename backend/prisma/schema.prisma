@@ -26,6 +26,7 @@ model User {
   markedOrders       QuickOrder[]            @relation("MarkUser")
   quickOrders        QuickOrder[]
   roles              UserRole[]
+  v2Waybills         Waybill[]               @relation("UserWaybills")
 }
 
 model VerificationCode {
@@ -351,3 +352,333 @@ enum OrderVoucherType {
   RECEIPT
   OVERSEAS_RECEIPT
 }
+
+// ==========================================
+// V2 REFACTORED MODELS (全新独立演进架构)
+// ==========================================
+
+model Customer {
+  id                 String            @id @default(uuid())
+  clientCode         String            @unique // 客户编码/唛头 (如 WH-ZZY-FLB, WH-10115)
+  name               String            // 客户名称/企业名
+  phone              String?
+  email              String?
+  company            String?
+  destinationCountry String?           // 常用目的国
+  destinationPort    String?           // 常用目的港
+  defaultWarehouse   String?           // 常用起运仓 (广州/龙岩/义乌)
+  note               String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  addresses          CustomerAddress[]
+  waybills           Waybill[]
+}
+
+model CustomerAddress {
+  id           String        @id @default(uuid())
+  customerId   String
+  addressType  AddressType   @default(OVERSEAS_RECIPIENT) // DOMESTIC_SENDER | OVERSEAS_RECIPIENT
+  name         String        // 联系人姓名
+  phone        String        // 联系电话
+  company      String?       // 公司名称
+  country      String?       // 国家
+  region       String?       // 省/市/地区
+  address      String        // 详细地址
+  isDefault    Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  customer     Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId, addressType, isDefault])
+}
+
+enum AddressType {
+  DOMESTIC_SENDER
+  OVERSEAS_RECIPIENT
+}
+
+model Waybill {
+  id                 String            @id @default(uuid())
+  waybillNo          String            @unique // 系统运单号
+  orderType          ShipmentType                // SEA_LCL | AIR | SEA_FCL | LAND
+  status             WaybillStatus     @default(DRAFT)
+  
+  // 客户与基础信息
+  customerId         String?
+  userMark           String            // 客户编码/唛头镜像
+  operatorId         String?           // 录入/经办业务员
+  originWarehouse    String?           // 起运仓/渠道 (广州/龙岩/义乌等)
+  destinationCountry String            // 目的国 (菲律宾/印尼/泰国等)
+  destinationPort    String?           // 目的港口 (马尼拉南港/北港等)
+  expressNo          String?           // 运递单号/专线单号 (如 FLY100002162)
+  customsType        String?           // 报关/货品通道 (如 普货双清 / 退税报关 / 敏感特货)
+  forwarderChannel   String?           // 承运服务商/同行外发渠道 (如 自营专线 / 中外运 / 菲通 / 天帆)
+  voyageNumber       String?           // 船名/航次 (海运拼箱用)
+  airWaybillNo       String?           // 空运单号 AWB (空运专用)
+  note               String?           // 订单备注
+
+  // 地址快照 (创建时从客户地址簿复制，支持随时微调)
+  recipientName      String?
+  recipientPhone     String?
+  recipientCompany   String?
+  recipientAddress   String?
+  recipientRegion    String?
+
+  overseasName       String?
+  overseasPhone      String?
+  overseasCompany    String?
+  overseasAddress    String?
+  overseasRegion     String?
+
+  // 关键时间节点
+  inboundDate        DateTime?         // 国内入库时间
+  loadingDate        DateTime?         // 装柜/起飞时间
+  sailingDate        DateTime?         // 开船时间
+  eta                DateTime?         // 预计到港时间
+  clearanceDate      DateTime?         // 清关完成时间
+  signedDate         DateTime?         // 海外签收时间
+
+  // 关联物理集装箱 (海运拼箱为 N:1 挂载；整柜为 1:1 绑定)
+  containerId        String?
+  containerMaster    ContainerMaster?  @relation("ContainerWaybills", fields: [containerId], references: [id])
+
+  // 财务汇总缓存
+  totalPieces        Int               @default(0)
+  totalPayableCbm    Decimal?          @db.Decimal(12, 4)
+  totalReceivableCbm Decimal?          @db.Decimal(12, 4)
+  totalWeightKg      Decimal?          @db.Decimal(12, 3)
+  receivableAmount   Decimal?          @db.Decimal(12, 2)
+  payableAmount      Decimal?          @db.Decimal(12, 2)
+  profitAmount       Decimal?          @db.Decimal(12, 2)
+  settlementCurrency CurrencyType      @default(CNY)
+  isFixedPrice       Boolean           @default(false) // 是否一口价
+
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  customer           Customer?         @relation(fields: [customerId], references: [id])
+  operator           User?             @relation("UserWaybills", fields: [operatorId], references: [id])
+  items              WaybillItem[]
+  fees               WaybillFee[]
+  attachments        WaybillAttachment[]
+
+  @@index([orderType, status, createdAt(sort: Desc)])
+  @@index([userMark])
+  @@index([containerId])
+}
+
+enum ShipmentType {
+  SEA_LCL     // 海运拼柜
+  AIR         // 空运快递
+  SEA_FCL     // 海运整柜
+  LAND        // 陆运
+}
+
+enum WaybillStatus {
+  DRAFT       // 草稿/已预报
+  INBOUND     // 已入库/已核量
+  LOADED      // 已装柜/已配载
+  IN_TRANSIT  // 运输在途/开船/起飞
+  CUSTOMS     // 目的港清关中
+  DISPATCHING // 海外派送中/拆箱
+  DELIVERED   // 已签收完成
+  CANCELLED   // 已取消
+}
+
+enum CurrencyType {
+  CNY
+  PHP
+  USD
+}
+
+model WaybillItem {
+  id                  String       @id @default(uuid())
+  waybillId           String
+  itemIndex           Int          @default(1)
+  trackingNumber      String?      // 国内送仓快递单号
+  productName         String       // 中文品名
+  quantity            Int          @default(1)
+  
+  // 尺寸与体积计算 (海运核心)
+  length              Decimal?     @db.Decimal(8, 2) // cm
+  width               Decimal?     @db.Decimal(8, 2) // cm
+  height              Decimal?     @db.Decimal(8, 2) // cm
+  payableVolume       Decimal?     @db.Decimal(10, 4) // 自动算得体积 m³
+  receivableVolume    Decimal?     @db.Decimal(10, 4) // 计费体积 m³
+  
+  // 重量 (空运核心)
+  unitWeight          Decimal?     @db.Decimal(10, 3) // kg
+  totalWeight         Decimal?     @db.Decimal(10, 3) // kg
+
+  // 单价
+  receivableCurrency  CurrencyType @default(CNY)
+  receivableUnitPrice Decimal?     @db.Decimal(10, 2) // 应收单价
+  payableCurrency     CurrencyType @default(CNY)
+  payableUnitPrice    Decimal?     @db.Decimal(10, 2) // 应付单价
+
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  waybill             Waybill      @relation(fields: [waybillId], references: [id], onDelete: Cascade)
+
+  @@index([waybillId])
+  @@index([trackingNumber])
+}
+
+model WaybillFee {
+  id                 String       @id @default(uuid())
+  waybillId          String
+  feeName            String       // 费用科目 (如海运费/报关费/国内车费/一口价补差)
+  feeDirection       FeeDirection // RECEIVABLE | PAYABLE
+  amount             Decimal      @db.Decimal(10, 2)
+  currency           CurrencyType @default(CNY)
+  exchangeRate       Decimal      @default(1.0) @db.Decimal(8, 4) // 折算人民币汇率
+  amountInCny        Decimal      @db.Decimal(10, 2)              // 折合人民币
+  isPaid             Boolean      @default(false)
+  paidAt             DateTime?
+  note               String?
+  createdAt          DateTime     @default(now())
+
+  waybill            Waybill      @relation(fields: [waybillId], references: [id], onDelete: Cascade)
+
+  @@index([waybillId, feeDirection])
+}
+
+enum FeeDirection {
+  RECEIVABLE
+  PAYABLE
+}
+
+model WaybillAttachment {
+  id                 String          @id @default(uuid())
+  waybillId          String
+  attachmentType     AttachmentType  @default(OTHER)
+  fileUrl            String
+  fileName           String?
+  fileSize           Int?
+  fileType           String?
+  uploadedAt         DateTime        @default(now())
+
+  waybill            Waybill         @relation(fields: [waybillId], references: [id], onDelete: Cascade)
+
+  @@index([waybillId, attachmentType])
+}
+
+enum AttachmentType {
+  PICKUP_SCREENSHOT
+  CUSTOMS_SLIP
+  SIGN_IMAGE
+  BILL_OF_LADING
+  CERT_OF_ORIGIN
+  PAYMENT_PROOF
+  OTHER
+}
+
+model ContainerMaster {
+  id                 String          @id @default(uuid())
+  containerNo        String          @unique // 集装箱柜号 (如 MILU6019768 / 广62柜)
+  containerType      String?         // 20GP | 40GP | 40HQ | 45HQ
+  blNumber           String?         // 提单号 (B/L)
+  carrier            String?         // 船司 (如中远海运/万海/马士基)
+  vesselVoyage       String?         // 船名/航次
+  mmsi               String?         // 船舶 MMSI
+  imo                String?         // 船舶 IMO
+  
+  // 航线与港口
+  originPort         String?         // 起运港口
+  destinationPort    String?         // 清关目的港
+  
+  // 渠道链条
+  bookingChannel     String?         // 订舱渠道
+  customsChannel     String?         // 报关渠道
+  clearanceChannel   String?         // 清关渠道
+  truckingChannel    String?         // 拖车渠道
+
+  // 时间节点
+  loadingDate        DateTime?       // 装柜时间
+  sailingDate        DateTime?       // 开船时间 (ETD)
+  eta                DateTime?       // 预计到港时间 (ETA)
+  clearanceDate      DateTime?       // 清关送达时间
+  totalShippingDays  Int?            // 总航运天数
+  inspectStatus      String?         // 查验状态
+
+  // 状态
+  status             ContainerStatus @default(LOADING)
+  note               String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  waybills           Waybill[]       @relation("ContainerWaybills")
+  fees               ContainerFee[]
+  attachments        ContainerAttachment[]
+
+  @@index([containerNo])
+  @@index([status])
+}
+
+enum ContainerStatus {
+  LOADING
+  SAILING
+  ARRIVED
+  CUSTOMS
+  DISPATCHING
+  COMPLETED
+}
+
+model ContainerFee {
+  id                 String              @id @default(uuid())
+  containerId        String
+  feeSubject         ContainerFeeSubject
+  feeDirection       FeeDirection        @default(PAYABLE)
+  amount             Decimal             @db.Decimal(10, 2)
+  currency           CurrencyType        @default(CNY)
+  exchangeRate       Decimal             @default(1.0) @db.Decimal(8, 4)
+  amountInCny        Decimal             @db.Decimal(10, 2)
+  note               String?
+  createdAt          DateTime            @default(now())
+
+  container          ContainerMaster     @relation(fields: [containerId], references: [id], onDelete: Cascade)
+
+  @@index([containerId, feeSubject])
+}
+
+enum ContainerFeeSubject {
+  BOOKING_FEE
+  PORT_SURCHARGE
+  TRUCKING_FEE
+  CUSTOMS_FEE
+  CLEARANCE_FEE
+  THC_OVERSTAY_FEE
+  DEST_TRUCKING_FEE
+  HOLIDAY_TIP
+  CLIENT_QUOTATION
+  OTHER_FEE
+}
+
+model ContainerAttachment {
+  id                 String          @id @default(uuid())
+  containerId        String
+  fileUrl            String
+  fileName           String?
+  fileType           String?
+  uploadedAt         DateTime        @default(now())
+
+  container          ContainerMaster @relation(fields: [containerId], references: [id], onDelete: Cascade)
+
+  @@index([containerId])
+}
+
+model ChannelMapping {
+  id               String          @id @default(uuid())
+  customsType      String          // 报关通道 (如 "普货双清", "退税报关", "敏感特货", "一般贸易买单")
+  forwarderChannel String          // 承运服务商 (如 "万海自营专线", "中外运", "菲通货运", "天帆东南亚")
+  note             String?         // 简短说明
+  createdAt        DateTime        @default(now())
+
+  @@unique([customsType, forwarderChannel])
+  @@index([customsType])
+}
+
+

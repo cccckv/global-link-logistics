@@ -129,15 +129,24 @@ export default function Sidebar() {
           </div>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          <NavItem to="/order/list" icon={List} label="运单管理" />
-          <NavItem to="/external-tracking" icon={Search} label="外部查询" />
-          <NavItem to="/vessel-position" icon={Ship} label="船舶查询" />
+        <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
+          <div className="px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-cyan-400">
+            全新物流中台 (V2)
+          </div>
+          <NavItem to="/v2/inbound" icon={Zap} label="入库拼箱工作台" />
+          <NavItem to="/v2/waybills" icon={List} label="运单全景调度" />
+          <NavItem to="/v2/containers" icon={Ship} label="集装箱整柜跟踪" />
+          <NavItem to="/v2/customers" icon={Users} label="客户档案与唛头" />
+
+          <div className="pt-3 pb-1 px-3 text-[11px] font-bold uppercase tracking-wider text-gray-400 border-t border-white/10 mt-3">
+            辅助工具 & 历史模块
+          </div>
+          <NavItem to="/external-tracking" icon={Search} label="外部轨迹查询" />
+          <NavItem to="/vessel-position" icon={Ship} label="船舶船讯查询" />
           {user?.userRole === 'ADMIN' && (
             <>
-              <NavItem to="/order/quick" icon={Zap} label="快速下单" />
-              <NavItem to="/admin/order-management" icon={DollarSign} label="订单列表" />
-              <NavItem to="/user-management" icon={Users} label="用户管理" />
+              <NavItem to="/user-management" icon={Users} label="用户系统管理" />
+              <NavItem to="/order/quick" icon={Package} label="旧版快速下单(过渡)" />
             </>
           )}
         </nav>

@@ -1,0 +1,1172 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
+import {
+  Ship,
+  Plane,
+  Container,
+  Plus,
+  Trash2,
+  CheckCircle2,
+  PackageCheck,
+  ArrowRight,
+  UserCheck,
+  MapPin,
+  FileText,
+  DollarSign,
+  Info,
+  Copy,
+  Check,
+} from 'lucide-react';
+import {
+  customerV2Api,
+  waybillV2Api,
+  channelV2Api,
+  type Customer,
+  type ShipmentType,
+  type CurrencyType,
+  type ChannelMapping,
+} from '../../lib/v2-api';
+import {
+  DESTINATION_COUNTRIES,
+  getPortsByCountry,
+  getDefaultPortByCountry,
+  ORIGIN_WAREHOUSES,
+} from '../../lib/logistics-dictionary';
+
+interface CargoItemRow {
+  id: string;
+  trackingNumber: string;
+  productName: string;
+  quantity: number;
+  length?: number;
+  width?: number;
+  height?: number;
+  unitWeight?: number;
+  receivableCurrency: CurrencyType;
+  receivableUnitPrice?: number;
+  payableCurrency: CurrencyType;
+  payableUnitPrice?: number;
+}
+
+interface FeeItemRow {
+  id: string;
+  feeName: string;
+  feeDirection: 'RECEIVABLE' | 'PAYABLE';
+  amount: number;
+  currency: CurrencyType;
+  note?: string;
+}
+
+export default function InboundWorkbench() {
+  const navigate = useNavigate();
+
+  // Mode: SEA_LCL, AIR, SEA_FCL
+  const [orderType, setOrderType] = useState<ShipmentType>('SEA_LCL');
+
+  // Customer Autocomplete & Data
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [userMark, setUserMark] = useState('');
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+
+  // Transportation Info (Phase 1 known info only!)
+  const [originWarehouse, setOriginWarehouse] = useState('');
+  const [destinationCountry, setDestinationCountry] = useState('');
+  const [destinationPort, setDestinationPort] = useState('');
+  const [customsType, setCustomsType] = useState('');
+  const [forwarderChannel, setForwarderChannel] = useState('');
+  const [channelMappings, setChannelMappings] = useState<ChannelMapping[]>([]);
+  const [expressNo, setExpressNo] = useState('');
+  const [note, setNote] = useState('');
+
+  // Address
+  const [showAddressDetail, setShowAddressDetail] = useState(false);
+  const [overseasName, setOverseasName] = useState('');
+  const [overseasPhone, setOverseasPhone] = useState('');
+  const [overseasCompany, setOverseasCompany] = useState('');
+  const [overseasAddress, setOverseasAddress] = useState('');
+  const [recipientName, setRecipientName] = useState('');
+  const [recipientPhone, setRecipientPhone] = useState('');
+
+  // Cargo Items (Pre-declared items)
+  const [items, setItems] = useState<CargoItemRow[]>([
+    {
+      id: '1',
+      trackingNumber: '',
+      productName: '',
+      quantity: 1,
+      length: undefined,
+      width: undefined,
+      height: undefined,
+      unitWeight: undefined,
+      receivableCurrency: 'CNY',
+      receivableUnitPrice: undefined,
+      payableCurrency: 'CNY',
+      payableUnitPrice: undefined,
+    },
+  ]);
+
+  // Fees & Pricing
+  const [isFixedPrice, setIsFixedPrice] = useState(false);
+  const [fixedPriceAmount, setFixedPriceAmount] = useState<number | undefined>(undefined);
+  const [fees, setFees] = useState<FeeItemRow[]>([]);
+
+  // Submitting & Success Result Modal
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [createdResult, setCreatedResult] = useState<{
+    id: string;
+    waybillNo: string;
+    userMark: string;
+    orderType: ShipmentType;
+    originWarehouse?: string;
+    destinationCountry?: string;
+    itemCount: number;
+  } | null>(null);
+  const [hasCopied, setHasCopied] = useState(false);
+
+  const handleCopyWaybillNo = (no: string) => {
+    navigator.clipboard.writeText(no);
+    setHasCopied(true);
+    toast.success(`系统运单号【${no}】已复制到剪贴板！`);
+    setTimeout(() => setHasCopied(false), 2500);
+  };
+
+  const resetForm = () => {
+    setUserMark('');
+    setSelectedCustomer(null);
+    setOriginWarehouse('');
+    setDestinationCountry('');
+    setDestinationPort('');
+    setCustomsType('');
+    setForwarderChannel('');
+    setExpressNo('');
+    setNote('');
+    setOverseasName('');
+    setOverseasPhone('');
+    setOverseasCompany('');
+    setOverseasAddress('');
+    setRecipientName('');
+    setRecipientPhone('');
+    setItems([
+      {
+        id: '1',
+        trackingNumber: '',
+        productName: '',
+        quantity: 1,
+        receivableCurrency: 'CNY',
+        payableCurrency: 'CNY',
+      },
+    ]);
+    setIsFixedPrice(false);
+    setFixedPriceAmount(undefined);
+    setFees([]);
+    setCreatedResult(null);
+  };
+
+  // Load customers & channel mappings
+  useEffect(() => {
+    customerV2Api.list().then((res) => {
+      if (res.data.data) {
+        setCustomers(res.data.data);
+      }
+    });
+
+    channelV2Api.list().then((res) => {
+      if (res.data.data && res.data.data.length > 0) {
+        setChannelMappings(res.data.data);
+      }
+    });
+  }, []);
+
+  // Cascading Channel Switch
+  const handleCustomsTypeChange = (newType: string) => {
+    setCustomsType(newType);
+    const validChannels = channelMappings
+      .filter((m) => m.customsType === newType)
+      .map((m) => m.forwarderChannel);
+
+    const allowed = validChannels.length > 0
+      ? validChannels
+      : newType === '退税报关'
+      ? ['中外运', '万海自营专线']
+      : newType === '敏感特货'
+      ? ['菲通货运', '万海特货通道']
+      : ['万海自营专线', '中外运', '天帆东南亚', '同行外发分拨'];
+
+    if (!allowed.includes(forwarderChannel)) {
+      setForwarderChannel(allowed[0] || '万海自营专线');
+    }
+  };
+
+  // Handle Mark Select / Input
+  const handleMarkChange = (val: string) => {
+    setUserMark(val);
+    const matched = customers.find(
+      (c) => c.clientCode.toLowerCase() === val.trim().toLowerCase()
+    );
+    if (matched) {
+      setSelectedCustomer(matched);
+      if (matched.defaultWarehouse) setOriginWarehouse(matched.defaultWarehouse);
+      if (matched.destinationCountry) setDestinationCountry(matched.destinationCountry);
+      if (matched.destinationPort) setDestinationPort(matched.destinationPort);
+
+      // Auto-fill default overseas address
+      const defaultAddr =
+        matched.addresses?.find((a) => a.isDefault) || matched.addresses?.[0];
+      if (defaultAddr) {
+        setOverseasName(defaultAddr.name);
+        setOverseasPhone(defaultAddr.phone);
+        setOverseasCompany(defaultAddr.company || '');
+        setOverseasAddress(defaultAddr.address);
+      }
+    }
+  };
+
+  // Add / Remove items
+  const addItem = () => {
+    setItems((prev) => [
+      ...prev,
+      {
+        id: Math.random().toString(),
+        trackingNumber: '',
+        productName: '',
+        quantity: 1,
+        receivableCurrency: 'CNY',
+        payableCurrency: 'CNY',
+      },
+    ]);
+  };
+
+  const removeItem = (id: string) => {
+    if (items.length > 1) {
+      setItems((prev) => prev.filter((i) => i.id !== id));
+    }
+  };
+
+  const updateItem = (id: string, field: keyof CargoItemRow, value: any) => {
+    setItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
+    );
+  };
+
+  // Add / Remove fee items
+  const addFee = () => {
+    setFees((prev) => [
+      ...prev,
+      {
+        id: Math.random().toString(),
+        feeName: '报关费',
+        feeDirection: 'RECEIVABLE',
+        amount: 0,
+        currency: 'CNY',
+      },
+    ]);
+  };
+
+  const removeFee = (id: string) => {
+    setFees((prev) => prev.filter((f) => f.id !== id));
+  };
+
+  const updateFee = (id: string, field: keyof FeeItemRow, value: any) => {
+    setFees((prev) =>
+      prev.map((fee) => (fee.id === id ? { ...fee, [field]: value } : fee))
+    );
+  };
+
+  // Calculations
+  const totalPieces = items.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0);
+  const totalVolumeCbm = items.reduce((sum, i) => {
+    const qty = Number(i.quantity) || 0;
+    const l = Number(i.length) || 0;
+    const w = Number(i.width) || 0;
+    const h = Number(i.height) || 0;
+    return sum + (l * w * h * qty) / 1_000_000;
+  }, 0);
+
+  const totalWeightKg = items.reduce((sum, i) => {
+    const qty = Number(i.quantity) || 0;
+    const wt = Number(i.unitWeight) || 0;
+    return sum + wt * qty;
+  }, 0);
+
+  const baseReceivable = items.reduce((sum, i) => {
+    const qty = Number(i.quantity) || 0;
+    const price = Number(i.receivableUnitPrice) || 0;
+    if (orderType === 'AIR') {
+      return sum + price * (Number(i.unitWeight) || 0) * qty;
+    }
+    const vol = ((Number(i.length) || 0) * (Number(i.width) || 0) * (Number(i.height) || 0) * qty) / 1_000_000;
+    return sum + price * vol;
+  }, 0);
+
+  const basePayable = items.reduce((sum, i) => {
+    const qty = Number(i.quantity) || 0;
+    const price = Number(i.payableUnitPrice) || 0;
+    if (orderType === 'AIR') {
+      return sum + price * (Number(i.unitWeight) || 0) * qty;
+    }
+    const vol = ((Number(i.length) || 0) * (Number(i.width) || 0) * (Number(i.height) || 0) * qty) / 1_000_000;
+    return sum + price * vol;
+  }, 0);
+
+  const extraReceivable = fees
+    .filter((f) => f.feeDirection === 'RECEIVABLE')
+    .reduce((sum, f) => sum + (Number(f.amount) || 0), 0);
+
+  const extraPayable = fees
+    .filter((f) => f.feeDirection === 'PAYABLE')
+    .reduce((sum, f) => sum + (Number(f.amount) || 0), 0);
+
+  const finalReceivable = isFixedPrice && fixedPriceAmount ? fixedPriceAmount + extraReceivable : baseReceivable + extraReceivable;
+  const finalPayable = basePayable + extraPayable;
+  const estimatedProfit = finalReceivable - finalPayable;
+
+  // Submit Handler (Phase 1 creation)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userMark.trim()) {
+      toast.error('请填写或选择客户唛头/编码');
+      return;
+    }
+    if (items.some((i) => !i.productName.trim())) {
+      toast.error('请确保每行货物都填写了品名');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const payload = {
+        orderType,
+        userMark: userMark.trim(),
+        originWarehouse,
+        destinationCountry,
+        destinationPort,
+        customsType,
+        forwarderChannel: forwarderChannel.trim() || undefined,
+        expressNo: expressNo.trim() || undefined,
+        note: note.trim() || undefined,
+        isFixedPrice,
+        fixedPriceAmount: isFixedPrice ? fixedPriceAmount : undefined,
+
+        recipientName: recipientName.trim() || undefined,
+        recipientPhone: recipientPhone.trim() || undefined,
+
+        overseasName: overseasName.trim() || undefined,
+        overseasPhone: overseasPhone.trim() || undefined,
+        overseasCompany: overseasCompany.trim() || undefined,
+        overseasAddress: overseasAddress.trim() || undefined,
+
+        items: items.map((item) => ({
+          trackingNumber: item.trackingNumber.trim() || undefined,
+          productName: item.productName.trim(),
+          quantity: Number(item.quantity) || 1,
+          length: item.length ? Number(item.length) : undefined,
+          width: item.width ? Number(item.width) : undefined,
+          height: item.height ? Number(item.height) : undefined,
+          unitWeight: item.unitWeight ? Number(item.unitWeight) : undefined,
+          receivableCurrency: item.receivableCurrency,
+          receivableUnitPrice: item.receivableUnitPrice ? Number(item.receivableUnitPrice) : undefined,
+          payableCurrency: item.payableCurrency,
+          payableUnitPrice: item.payableUnitPrice ? Number(item.payableUnitPrice) : undefined,
+        })),
+
+        fees: fees
+          .filter((f) => f.amount > 0)
+          .map((f) => ({
+            feeName: f.feeName,
+            feeDirection: f.feeDirection,
+            amount: Number(f.amount),
+            currency: f.currency,
+            note: f.note,
+          })),
+      };
+
+      const res = await waybillV2Api.create(payload);
+      if (res.data.success) {
+        setCreatedResult({
+          id: res.data.data.id,
+          waybillNo: res.data.data.waybillNo,
+          userMark: payload.userMark,
+          orderType: payload.orderType,
+          originWarehouse: payload.originWarehouse,
+          destinationCountry: payload.destinationCountry,
+          itemCount: payload.items.length,
+        });
+        toast.success(`预报单创建成功！系统运单号: ${res.data.data.waybillNo}`);
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || '创建预报运单失败');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
+      {/* Top Banner */}
+      <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-cyan-600 rounded-2xl p-6 text-white shadow-xl flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-3">
+            <span className="px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-xs font-semibold uppercase tracking-wider">
+              阶段 1：客户委托预报
+            </span>
+            <h1 className="text-2xl font-bold">极速预报下单工作台</h1>
+          </div>
+          <p className="text-blue-100 text-xs mt-1.5 flex items-center gap-1.5">
+            <Info className="w-4 h-4 text-cyan-300" />
+            初始下单仅录入已知预报信息。货柜号、实测尺寸、开船与清关信息将在后续阶段逐步增量录入。
+          </p>
+        </div>
+
+        {/* Mode Selector Tabs */}
+        <div className="flex bg-black/20 p-1.5 rounded-xl backdrop-blur-md self-start md:self-auto">
+          <button
+            type="button"
+            onClick={() => setOrderType('SEA_LCL')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              orderType === 'SEA_LCL'
+                ? 'bg-white text-blue-800 shadow-md font-semibold'
+                : 'text-white/80 hover:text-white'
+            }`}
+          >
+            <Ship className="w-4 h-4" />
+            海运拼柜 (LCL)
+          </button>
+          <button
+            type="button"
+            onClick={() => setOrderType('AIR')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              orderType === 'AIR'
+                ? 'bg-white text-blue-800 shadow-md font-semibold'
+                : 'text-white/80 hover:text-white'
+            }`}
+          >
+            <Plane className="w-4 h-4" />
+            空运快递 (AIR)
+          </button>
+          <button
+            type="button"
+            onClick={() => setOrderType('SEA_FCL')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              orderType === 'SEA_FCL'
+                ? 'bg-white text-blue-800 shadow-md font-semibold'
+                : 'text-white/80 hover:text-white'
+            }`}
+          >
+            <Container className="w-4 h-4" />
+            海运整柜 (FCL)
+          </button>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Section 1: 核心运输与客户唛头 */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
+              <UserCheck className="w-5 h-5 text-blue-600" />
+              客户识别与路线设定
+            </h2>
+            <span className="text-xs text-slate-400">
+              输入唛头自动带出客户档案与海外默认收件地址
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+            {/* 客户唛头 */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-700">
+                客户编码 / 唛头 <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  list="customer-marks"
+                  placeholder="如 WH-ZZY-FLB, WH-10115"
+                  value={userMark}
+                  onChange={(e) => handleMarkChange(e.target.value)}
+                  required
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-semibold text-blue-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <datalist id="customer-marks">
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.clientCode}>
+                      {c.name} ({c.destinationCountry || ''})
+                    </option>
+                  ))}
+                </datalist>
+              </div>
+              {selectedCustomer && (
+                <p className="text-xs text-emerald-600 font-medium flex items-center gap-1 mt-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  已匹配: {selectedCustomer.name}
+                </p>
+              )}
+            </div>
+
+            {/* 起运仓 / 渠道 */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-700">
+                起运仓 / 集货点
+              </label>
+              <select
+                value={originWarehouse}
+                onChange={(e) => setOriginWarehouse(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">-- 请选择起运仓 --</option>
+                {ORIGIN_WAREHOUSES.map((w) => (
+                  <option key={w.value} value={w.value}>
+                    {w.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* 目的国 */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-700">
+                目的国 <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={destinationCountry}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setDestinationCountry(val);
+                  setDestinationPort(getDefaultPortByCountry(val));
+                }}
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">-- 请选择目的国 --</option>
+                {DESTINATION_COUNTRIES.map((c) => (
+                  <option key={c.name} value={c.name}>
+                    {c.name} ({c.enName})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* 目的港口 (与目的国关联) */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-700">
+                目的港口
+              </label>
+              <select
+                value={destinationPort}
+                onChange={(e) => setDestinationPort(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">-- 请选择目的港口 --</option>
+                {getPortsByCountry(destinationCountry).map((port) => (
+                  <option key={port} value={port}>
+                    {port}
+                  </option>
+                ))}
+                {destinationPort && !getPortsByCountry(destinationCountry).includes(destinationPort) && (
+                  <option value={destinationPort}>
+                    {destinationPort} (自定义/已指定)
+                  </option>
+                )}
+              </select>
+            </div>
+
+            {/* 报关通道 / 货品属性 (customsType) */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-700">
+                报关通道 / 货品属性
+              </label>
+              <select
+                value={customsType}
+                onChange={(e) => handleCustomsTypeChange(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">-- 请选择报关通道 --</option>
+                <option value="普货双清">普货双清 (常规拼箱/包税)</option>
+                <option value="退税报关">退税报关 (化妆退税/大宗退税)</option>
+                <option value="敏感特货">敏感特货 (带电/带磁/液体)</option>
+                <option value="一般贸易买单">一般贸易买单报关</option>
+              </select>
+            </div>
+
+            {/* 承运渠道 / 服务商 (forwarderChannel) - 动态级联防错 */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-semibold text-slate-700">
+                  承运服务商 / 专线渠道
+                </label>
+                {customsType && (
+                  <span className="text-[10px] text-blue-600 font-semibold">
+                    (已按【{customsType}】过滤)
+                  </span>
+                )}
+              </div>
+              <select
+                value={forwarderChannel}
+                onChange={(e) => setForwarderChannel(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-blue-50/40 border border-blue-300 rounded-lg text-sm font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">-- 请选择承运渠道 --</option>
+                {(() => {
+                  if (!customsType) return null;
+                  const valid = channelMappings
+                    .filter((m) => m.customsType === customsType)
+                    .map((m) => m.forwarderChannel);
+
+                  const list = valid.length > 0
+                    ? valid
+                    : customsType === '退税报关'
+                    ? ['中外运', '万海自营专线']
+                    : customsType === '敏感特货'
+                    ? ['菲通货运', '万海特货通道']
+                    : ['万海自营专线', '中外运', '天帆东南亚', '同行外发分拨'];
+
+                  return list.map((ch) => (
+                    <option key={ch} value={ch}>
+                      {ch}
+                    </option>
+                  ));
+                })()}
+              </select>
+            </div>
+
+            {/* 订单备注 */}
+            <div className="space-y-1.5 lg:col-span-2">
+              <label className="block text-xs font-semibold text-slate-700">
+                预报备注
+              </label>
+              <input
+                type="text"
+                placeholder="如 客户特约、不报关、需木架加固等"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          {/* 收发人地址快速抽屉 */}
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={() => setShowAddressDetail(!showAddressDetail)}
+              className="text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1.5"
+            >
+              <MapPin className="w-3.5 h-3.5" />
+              {showAddressDetail ? '收起收发人详细信息' : '展开/修改收发人详细地址 (已自动带出)'}
+            </button>
+
+            {showAddressDetail && (
+              <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-xl grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-3">
+                  <h3 className="text-xs font-bold text-slate-700 uppercase">海外收件人</h3>
+                  <input
+                    type="text"
+                    placeholder="海外联系人"
+                    value={overseasName}
+                    onChange={(e) => setOverseasName(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs"
+                  />
+                  <input
+                    type="text"
+                    placeholder="海外联系电话"
+                    value={overseasPhone}
+                    onChange={(e) => setOverseasPhone(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs"
+                  />
+                  <input
+                    type="text"
+                    placeholder="海外公司名称"
+                    value={overseasCompany}
+                    onChange={(e) => setOverseasCompany(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs"
+                  />
+                  <input
+                    type="text"
+                    placeholder="海外详细收件地址"
+                    value={overseasAddress}
+                    onChange={(e) => setOverseasAddress(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs"
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <h3 className="text-xs font-bold text-slate-700 uppercase">国内寄件/送仓人 (可选)</h3>
+                  <input
+                    type="text"
+                    placeholder="国内寄件人"
+                    value={recipientName}
+                    onChange={(e) => setRecipientName(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs"
+                  />
+                  <input
+                    type="text"
+                    placeholder="国内电话"
+                    value={recipientPhone}
+                    onChange={(e) => setRecipientPhone(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Section 2: 货物预报清单 */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
+              <PackageCheck className="w-5 h-5 text-indigo-600" />
+              预报货物明细与预估信息
+            </h2>
+            <button
+              type="button"
+              onClick={addItem}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-semibold transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              添加一行货物
+            </button>
+          </div>
+
+          <div className="overflow-x-auto border border-slate-200 rounded-xl">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50 text-slate-700 border-b border-slate-200 font-semibold">
+                  <th className="py-3 px-3 text-center w-12">#</th>
+                  <th className="py-3 px-3 min-w-[140px]">国内送仓单号</th>
+                  <th className="py-3 px-3 min-w-[140px]">中文品名 *</th>
+                  <th className="py-3 px-2 w-20 text-center">预报件数 *</th>
+                  <th className="py-3 px-2 w-24 text-center">预估长(cm)</th>
+                  <th className="py-3 px-2 w-24 text-center">预估宽(cm)</th>
+                  <th className="py-3 px-2 w-24 text-center">预估高(cm)</th>
+                  <th className="py-3 px-3 w-28 text-center bg-indigo-50/50 text-indigo-900">
+                    预估体积 (m³)
+                  </th>
+                  <th className="py-3 px-2 w-24 text-center">预估重(kg)</th>
+                  <th className="py-3 px-3 min-w-[140px]">
+                    约定应收单价 ({orderType === 'AIR' ? '元/kg' : '元/方'})
+                  </th>
+                  <th className="py-3 px-3 min-w-[140px]">
+                    约定成本单价 ({orderType === 'AIR' ? '元/kg' : '元/方'})
+                  </th>
+                  <th className="py-3 px-2 text-center w-12">操作</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {items.map((item, idx) => {
+                  const qty = Number(item.quantity) || 1;
+                  const l = Number(item.length) || 0;
+                  const w = Number(item.width) || 0;
+                  const h = Number(item.height) || 0;
+                  const vol = l && w && h ? (l * w * h * qty) / 1_000_000 : 0;
+
+                  return (
+                    <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-2.5 px-3 text-center text-slate-400 font-mono">
+                        {idx + 1}
+                      </td>
+                      <td className="py-2 px-3">
+                        <input
+                          type="text"
+                          placeholder="国内快递号"
+                          value={item.trackingNumber}
+                          onChange={(e) => updateItem(item.id, 'trackingNumber', e.target.value)}
+                          className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </td>
+                      <td className="py-2 px-3">
+                        <input
+                          type="text"
+                          placeholder="品名 (如 背心)"
+                          value={item.productName}
+                          onChange={(e) => updateItem(item.id, 'productName', e.target.value)}
+                          required
+                          className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </td>
+                      <td className="py-2 px-2">
+                        <input
+                          type="number"
+                          min="1"
+                          value={item.quantity}
+                          onChange={(e) => updateItem(item.id, 'quantity', e.target.value)}
+                          required
+                          className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-center font-semibold text-slate-800 focus:bg-white"
+                        />
+                      </td>
+                      <td className="py-2 px-2">
+                        <input
+                          type="number"
+                          step="0.1"
+                          placeholder="长"
+                          value={item.length || ''}
+                          onChange={(e) => updateItem(item.id, 'length', e.target.value)}
+                          className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-center focus:bg-white"
+                        />
+                      </td>
+                      <td className="py-2 px-2">
+                        <input
+                          type="number"
+                          step="0.1"
+                          placeholder="宽"
+                          value={item.width || ''}
+                          onChange={(e) => updateItem(item.id, 'width', e.target.value)}
+                          className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-center focus:bg-white"
+                        />
+                      </td>
+                      <td className="py-2 px-2">
+                        <input
+                          type="number"
+                          step="0.1"
+                          placeholder="高"
+                          value={item.height || ''}
+                          onChange={(e) => updateItem(item.id, 'height', e.target.value)}
+                          className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-center focus:bg-white"
+                        />
+                      </td>
+                      <td className="py-2 px-3 text-center font-mono font-bold text-indigo-700 bg-indigo-50/40">
+                        {vol > 0 ? vol.toFixed(4) : '-'}
+                      </td>
+                      <td className="py-2 px-2">
+                        <input
+                          type="number"
+                          step="0.1"
+                          placeholder="kg"
+                          value={item.unitWeight || ''}
+                          onChange={(e) => updateItem(item.id, 'unitWeight', e.target.value)}
+                          className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-center focus:bg-white"
+                        />
+                      </td>
+                      <td className="py-2 px-3">
+                        <div className="flex gap-1">
+                          <select
+                            value={item.receivableCurrency}
+                            onChange={(e) => updateItem(item.id, 'receivableCurrency', e.target.value)}
+                            className="px-1.5 py-1 bg-slate-100 border border-slate-200 rounded text-xs"
+                          >
+                            <option value="CNY">¥</option>
+                            <option value="PHP">₱</option>
+                          </select>
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="单价"
+                            value={item.receivableUnitPrice || ''}
+                            onChange={(e) => updateItem(item.id, 'receivableUnitPrice', e.target.value)}
+                            className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs focus:bg-white"
+                          />
+                        </div>
+                      </td>
+                      <td className="py-2 px-3">
+                        <div className="flex gap-1">
+                          <select
+                            value={item.payableCurrency}
+                            onChange={(e) => updateItem(item.id, 'payableCurrency', e.target.value)}
+                            className="px-1.5 py-1 bg-slate-100 border border-slate-200 rounded text-xs"
+                          >
+                            <option value="CNY">¥</option>
+                            <option value="PHP">₱</option>
+                          </select>
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="成本"
+                            value={item.payableUnitPrice || ''}
+                            onChange={(e) => updateItem(item.id, 'payableUnitPrice', e.target.value)}
+                            className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs focus:bg-white"
+                          />
+                        </div>
+                      </td>
+                      <td className="py-2 px-2 text-center">
+                        <button
+                          type="button"
+                          onClick={() => removeItem(item.id)}
+                          disabled={items.length <= 1}
+                          className="p-1 text-slate-400 hover:text-red-600 disabled:opacity-30 rounded transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Section 3: 附加杂费 */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
+              <DollarSign className="w-5 h-5 text-emerald-600" />
+              特殊杂费与包干协议 (可选)
+            </h2>
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isFixedPrice}
+                  onChange={(e) => setIsFixedPrice(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 rounded"
+                />
+                包干一口价模式
+              </label>
+              <button
+                type="button"
+                onClick={addFee}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-semibold transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                添加附加杂费
+              </button>
+            </div>
+          </div>
+
+          {isFixedPrice && (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-4">
+              <span className="text-xs font-bold text-amber-900">一口价应收总额 (¥):</span>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="直接填入如 200.00"
+                value={fixedPriceAmount || ''}
+                onChange={(e) => setFixedPriceAmount(Number(e.target.value))}
+                className="px-3 py-1.5 bg-white border border-amber-300 rounded-md text-sm font-bold text-amber-900"
+              />
+              <span className="text-xs text-amber-700">（将直接覆盖基于体积/重量计算的基础运费）</span>
+            </div>
+          )}
+
+          {fees.length > 0 && (
+            <div className="space-y-3 pt-2">
+              {fees.map((fee) => (
+                <div
+                  key={fee.id}
+                  className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                >
+                  <input
+                    type="text"
+                    placeholder="费用名称 (如 报关费, 拖车费)"
+                    value={fee.feeName}
+                    onChange={(e) => updateFee(fee.id, 'feeName', e.target.value)}
+                    className="px-2.5 py-1.5 bg-white border border-slate-300 rounded w-44 font-medium"
+                  />
+                  <select
+                    value={fee.feeDirection}
+                    onChange={(e) => updateFee(fee.id, 'feeDirection', e.target.value)}
+                    className="px-2.5 py-1.5 bg-white border border-slate-300 rounded font-semibold"
+                  >
+                    <option value="RECEIVABLE">+ 应收客户 (加价)</option>
+                    <option value="PAYABLE">- 应付成本 (支出)</option>
+                  </select>
+                  <div className="flex items-center gap-1">
+                    <select
+                      value={fee.currency}
+                      onChange={(e) => updateFee(fee.id, 'currency', e.target.value)}
+                      className="px-2 py-1.5 bg-white border border-slate-300 rounded"
+                    >
+                      <option value="CNY">¥ CNY</option>
+                      <option value="PHP">₱ PHP</option>
+                      <option value="USD">$ USD</option>
+                    </select>
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="金额"
+                      value={fee.amount || ''}
+                      onChange={(e) => updateFee(fee.id, 'amount', Number(e.target.value))}
+                      className="px-2.5 py-1.5 bg-white border border-slate-300 rounded w-32 font-bold"
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="费用备注"
+                    value={fee.note || ''}
+                    onChange={(e) => updateFee(fee.id, 'note', e.target.value)}
+                    className="flex-1 px-2.5 py-1.5 bg-white border border-slate-300 rounded"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeFee(fee.id)}
+                    className="p-1.5 text-slate-400 hover:text-red-600 rounded"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Bottom Floating Bar */}
+        <div className="sticky bottom-4 z-20 bg-slate-900 text-white rounded-2xl p-5 shadow-2xl flex flex-col md:flex-row md:items-center md:justify-between gap-4 border border-slate-800">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 text-xs">
+            <div>
+              <span className="text-slate-400">预报件数</span>
+              <p className="text-lg font-bold text-white font-mono mt-0.5">{totalPieces} 件</p>
+            </div>
+            <div>
+              <span className="text-slate-400">
+                {orderType === 'AIR' ? '预估重量' : '预估体积'}
+              </span>
+              <p className="text-lg font-bold text-cyan-400 font-mono mt-0.5">
+                {orderType === 'AIR'
+                  ? `${totalWeightKg.toFixed(2)} kg`
+                  : `${totalVolumeCbm.toFixed(4)} m³`}
+              </p>
+            </div>
+            <div>
+              <span className="text-slate-400">预计应收总额</span>
+              <p className="text-lg font-bold text-emerald-400 font-mono mt-0.5">
+                ¥ {finalReceivable.toFixed(2)}
+              </p>
+            </div>
+            <div>
+              <span className="text-slate-400">预计毛利</span>
+              <p className="text-lg font-bold text-amber-400 font-mono mt-0.5">
+                ¥ {estimatedProfit.toFixed(2)}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 self-end md:self-auto">
+            <button
+              type="button"
+              onClick={() => navigate('/v2/waybills')}
+              className="px-5 py-2.5 text-slate-300 hover:text-white rounded-xl text-xs font-semibold transition-colors"
+            >
+              取消返回
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-500/30 flex items-center gap-2 transition-all disabled:opacity-50"
+            >
+              {isSubmitting ? '保存中...' : '提交预报单 (进入生命周期流转)'}
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </form>
+
+      {/* ========================================================= */}
+      {/* 预报单创建成功提示弹窗 (展示生成的系统运单号，支持一键复制保存) */}
+      {/* ========================================================= */}
+      {createdResult && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl space-y-6">
+            {/* Header */}
+            <div className="text-center space-y-2">
+              <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+                <CheckCircle2 className="w-9 h-9" />
+              </div>
+              <h2 className="text-xl font-extrabold text-slate-900">
+                委托预报单创建成功！
+              </h2>
+              <p className="text-xs text-slate-500">
+                系统已自动生成全局唯一运单号，请妥善复制保存并告知客户
+              </p>
+            </div>
+
+            {/* Waybill Number Copy Area */}
+            <div className="p-5 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-2xl space-y-2 text-center relative">
+              <span className="text-[11px] font-bold text-blue-700 uppercase tracking-wider">
+                系统生成运单号 (System Waybill No.)
+              </span>
+              <div className="flex items-center justify-center gap-3">
+                <span className="text-2xl sm:text-3xl font-black font-mono tracking-wider text-blue-950 select-all">
+                  {createdResult.waybillNo}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleCopyWaybillNo(createdResult.waybillNo)}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm ${
+                    hasCopied
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-white hover:bg-blue-600 hover:text-white text-blue-700 border border-blue-300'
+                  }`}
+                  title="点击复制运单号"
+                >
+                  {hasCopied ? (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      已复制
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      复制单号
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Summary Details */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs space-y-2">
+              <div className="flex justify-between text-slate-600">
+                <span>客户唛头/编码:</span>
+                <strong className="text-slate-900 font-mono">{createdResult.userMark}</strong>
+              </div>
+              <div className="flex justify-between text-slate-600">
+                <span>运输通道类型:</span>
+                <span className="font-semibold text-slate-900">
+                  {createdResult.orderType === 'SEA_LCL'
+                    ? '🚢 海运拼箱 (LCL)'
+                    : createdResult.orderType === 'AIR'
+                    ? '✈️ 空运专线 (AIR)'
+                    : '📦 海运整柜 (FCL)'}
+                </span>
+              </div>
+              <div className="flex justify-between text-slate-600">
+                <span>起运/目的地:</span>
+                <span className="text-slate-900 font-medium">
+                  {createdResult.originWarehouse || '待定起运仓'} ➔ {createdResult.destinationCountry || '待定目的国'}
+                </span>
+              </div>
+              <div className="flex justify-between text-slate-600">
+                <span>货物商品数量:</span>
+                <span className="text-slate-900 font-medium">{createdResult.itemCount} 行商品</span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="space-y-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  handleCopyWaybillNo(createdResult.waybillNo);
+                  navigate(`/v2/waybills/${createdResult.id}`);
+                }}
+                className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs sm:text-sm font-bold shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <span>📋 复制单号并进入详情 (生命周期推进)</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  继续预报下一单
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/v2/waybills')}
+                  className="w-full py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  返回运单列表
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

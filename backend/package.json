@@ -19,6 +19,7 @@
   "author": "",
   "license": "UNLICENSED",
   "dependencies": {
+    "@embedded-postgres/windows-x64": "^18.1.0-beta.15",
     "@fastify/cors": "^8.5.0",
     "@fastify/jwt": "^7.2.4",
     "@fastify/multipart": "^8.3.1",
@@ -27,6 +28,7 @@
     "axios": "^1.13.6",
     "bcryptjs": "^2.4.3",
     "dotenv": "^16.4.7",
+    "embedded-postgres": "^18.4.0-beta.17",
     "fastify": "^4.28.1",
     "fastify-socket.io": "^5.1.0",
     "ioredis": "^5.4.2",

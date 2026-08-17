@@ -16,6 +16,11 @@ import ExternalTracking from './pages/ExternalTracking';
 import UserManagement from './pages/UserManagement';
 import AdminOrderManagement from './pages/AdminOrderManagement';
 import VesselPosition from './pages/VesselPosition';
+import InboundWorkbench from './pages/v2/InboundWorkbench';
+import WaybillManagement from './pages/v2/WaybillManagement';
+import WaybillDetailView from './pages/v2/WaybillDetailView';
+import ContainerTracking from './pages/v2/ContainerTracking';
+import CustomerManagement from './pages/v2/CustomerManagement';
 
 export default function App() {
   return (
@@ -104,6 +109,48 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <WaybillDetail />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* V2 REFACTORED WORKBENCH & DISPATCH ROUTES */}
+          <Route
+            path="/v2/inbound"
+            element={
+              <ProtectedRoute>
+                <InboundWorkbench />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/v2/waybills"
+            element={
+              <ProtectedRoute>
+                <WaybillManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/v2/waybills/:id"
+            element={
+              <ProtectedRoute>
+                <WaybillDetailView />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/v2/containers"
+            element={
+              <ProtectedRoute>
+                <ContainerTracking />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/v2/customers"
+            element={
+              <ProtectedRoute>
+                <CustomerManagement />
               </ProtectedRoute>
             }
           />

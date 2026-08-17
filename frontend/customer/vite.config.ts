@@ -10,7 +10,7 @@ export default defineConfig({
     strictPort: false,
     proxy: {
       '/api': {
-        target: 'http://globallink-backend:3000',
+        target: process.env.VITE_BACKEND_TARGET || 'http://localhost:3000',
         changeOrigin: true,
       },
     },

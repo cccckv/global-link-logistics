@@ -1,0 +1,12 @@
+{
+  "name": "global-link-logistics",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Global Link Logistics System",
+  "scripts": {
+    "db:start": "node backend/scripts/start-embedded-pg.js",
+    "db:seed": "node backend/scripts/seed.js",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend/customer run dev"
+  }
+}

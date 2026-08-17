@@ -151,6 +151,28 @@ export class ContainerV2Service {
       }
     }
 
+    // 校验：若试图将货柜修改为 COMPLETED (全部完结)，必须校验柜内所有运单是否都已签收完结 (DELIVERED)
+    if (data.status === 'COMPLETED') {
+      const containerWithWaybills = await prisma.containerMaster.findUnique({
+        where: { id },
+        include: {
+          waybills: { select: { id: true, waybillNo: true, status: true } },
+        },
+      });
+      if (containerWithWaybills && containerWithWaybills.waybills.length > 0) {
+        const uncompletedWaybills = containerWithWaybills.waybills.filter(
+          (w) => w.status !== 'DELIVERED'
+        );
+        if (uncompletedWaybills.length > 0) {
+          const sampleNos = uncompletedWaybills.slice(0, 3).map((w) => w.waybillNo).join('、');
+          const extra = uncompletedWaybills.length > 3 ? ` 等共 ${uncompletedWaybills.length} 票` : '';
+          throw new Error(
+            `无法将货柜修改为全部完结：柜内仍有 ${uncompletedWaybills.length} 票运单未签收完结（${sampleNos}${extra}）。必须等待所有运单完成派送签收后方可完结货柜！`
+          );
+        }
+      }
+    }
+
     const updated = await prisma.containerMaster.update({
       where: { id },
       data: updateData,

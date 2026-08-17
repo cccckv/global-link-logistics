@@ -202,12 +202,29 @@ export default function ContainerTracking() {
   };
 
   const handleStatusChange = async (cId: string, status: ContainerStatus) => {
+    // 拦截校验：如果切换为全部完结 (COMPLETED)，先检查该货柜是否所有订单都是 DELIVERED (已签收完结)
+    if (status === 'COMPLETED') {
+      const targetCont = containers.find((c) => c.id === cId);
+      if (targetCont && targetCont.waybills && targetCont.waybills.length > 0) {
+        const unfinished = targetCont.waybills.filter((w) => w.status !== 'DELIVERED');
+        if (unfinished.length > 0) {
+          const sampleList = unfinished.slice(0, 3).map((w) => w.waybillNo).join('、');
+          const extra = unfinished.length > 3 ? ` 等共 ${unfinished.length} 票` : '';
+          toast.error(
+            `无法将货柜修改为全部完结：柜内仍有 ${unfinished.length} 票运单未签收完结（${sampleList}${extra}），必须等待所有运单签收完结后方可修改！`,
+            { duration: 6000 }
+          );
+          return;
+        }
+      }
+    }
+
     try {
       await containerV2Api.update(cId, { status });
       toast.success('集装箱状态与名下散货已同步更新');
       loadContainers();
     } catch (err: any) {
-      toast.error('更新状态失败');
+      toast.error(err.response?.data?.error || '更新状态失败');
     }
   };
 

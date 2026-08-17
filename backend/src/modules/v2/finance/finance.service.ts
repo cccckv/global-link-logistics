@@ -1,4 +1,5 @@
 import { PrismaClient, FeeDirection, CurrencyType, AttachmentType } from '@prisma/client';
+import { calculateWaybillFinancials } from '../waybill/waybill.service';
 
 const prisma = new PrismaClient();
 
@@ -73,44 +74,21 @@ export class FinanceV2Service {
     });
     if (!waybill) return;
 
-    let baseRecv = 0;
-    let basePay = 0;
-
-    waybill.items.forEach(item => {
-      const qty = item.quantity || 1;
-      const recvPrice = Number(item.receivableUnitPrice) || 0;
-      const payPrice = Number(item.payableUnitPrice) || 0;
-
-      if (waybill.orderType === 'AIR') {
-        const wt = Number(item.unitWeight) || 0;
-        baseRecv += recvPrice * wt * qty;
-        basePay += payPrice * wt * qty;
-      } else {
-        const vol = Number(item.receivableVolume) || 0;
-        const payVol = Number(item.payableVolume) || 0;
-        baseRecv += recvPrice * vol;
-        basePay += payPrice * payVol;
-      }
-    });
-
-    let finalRecv = waybill.isFixedPrice && waybill.receivableAmount ? Number(waybill.receivableAmount) : baseRecv;
-    let finalPay = basePay;
-
-    waybill.fees.forEach(fee => {
-      const cny = Number(fee.amountInCny) || 0;
-      if (fee.feeDirection === 'RECEIVABLE') {
-        finalRecv += cny;
-      } else {
-        finalPay += cny;
-      }
+    const financials = calculateWaybillFinancials({
+      orderType: waybill.orderType,
+      isFixedPrice: waybill.isFixedPrice,
+      fixedPriceAmount: waybill.fixedPriceAmount ? Number(waybill.fixedPriceAmount) : undefined,
+      currentReceivableAmount: waybill.receivableAmount ? Number(waybill.receivableAmount) : undefined,
+      items: waybill.items,
+      fees: waybill.fees,
     });
 
     await prisma.waybill.update({
       where: { id: waybillId },
       data: {
-        receivableAmount: finalRecv,
-        payableAmount: finalPay,
-        profitAmount: finalRecv - finalPay,
+        receivableAmount: financials.receivableAmount,
+        payableAmount: financials.payableAmount,
+        profitAmount: financials.profitAmount,
       },
     });
   }

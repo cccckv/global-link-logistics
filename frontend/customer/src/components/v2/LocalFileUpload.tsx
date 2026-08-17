@@ -3,7 +3,6 @@ import { toast } from 'sonner';
 import {
   Upload,
   FileText,
-  Image as ImageIcon,
   CheckCircle2,
   X,
   ExternalLink,

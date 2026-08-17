@@ -1,21 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import {
-  UserCheck,
-  Plus,
-  Search,
-  MapPin,
-  Building,
-  Phone,
-  CheckCircle2,
-  Trash2,
-  ExternalLink,
-} from 'lucide-react';
-import {
-  customerV2Api,
-  type Customer,
-  type CustomerAddress,
-} from '../../lib/v2-api';
+import { Plus, Building } from 'lucide-react';
+import { customerV2Api, type Customer } from '../../lib/v2-api';
 import {
   DESTINATION_COUNTRIES,
   getPortsByCountry,
@@ -26,7 +12,6 @@ import {
 export default function CustomerManagement() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
 
   // New customer modal
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -37,18 +22,16 @@ export default function CustomerManagement() {
   const [destinationCountry, setDestinationCountry] = useState('');
   const [destinationPort, setDestinationPort] = useState('');
   const [defaultWarehouse, setDefaultWarehouse] = useState('');
-  const [note, setNote] = useState('');
 
   // Default address fields
   const [addrName, setAddrName] = useState('');
   const [addrPhone, setAddrPhone] = useState('');
-  const [addrCompany, setAddrCompany] = useState('');
   const [addrDetail, setAddrDetail] = useState('');
 
   const loadCustomers = async () => {
     setLoading(true);
     try {
-      const res = await customerV2Api.list({ search: searchQuery.trim() || undefined });
+      const res = await customerV2Api.list();
       if (res.data.success) {
         setCustomers(res.data.data);
       }
@@ -76,13 +59,11 @@ export default function CustomerManagement() {
         destinationCountry,
         destinationPort,
         defaultWarehouse,
-        note: note.trim() || undefined,
         addresses: addrName.trim()
           ? [
               {
                 name: addrName.trim(),
                 phone: addrPhone.trim() || phone.trim() || '-',
-                company: addrCompany.trim() || undefined,
                 country: destinationCountry,
                 region: destinationPort,
                 address: addrDetail.trim() || '默认地址',

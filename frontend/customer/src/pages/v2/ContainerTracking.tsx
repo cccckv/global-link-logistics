@@ -3,24 +3,15 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   Container,
-  Ship,
   Plus,
   Search,
   Anchor,
-  Calendar,
   Layers,
   ChevronDown,
   ChevronRight,
   DollarSign,
-  Clock,
-  CheckCircle2,
-  AlertTriangle,
-  ArrowRight,
-  MapPin,
-  FileSpreadsheet,
   Edit3,
   X,
-  Filter,
   RotateCcw,
 } from 'lucide-react';
 import {
@@ -67,7 +58,6 @@ export default function ContainerTracking() {
   const [destinationPort, setDestinationPort] = useState('');
   const [bookingChannel, setBookingChannel] = useState('');
   const [clearanceChannel, setClearanceChannel] = useState('');
-  const [loadingDate, setLoadingDate] = useState(new Date().toISOString().slice(0, 10));
 
   // Edit container modal (补录提单号/船讯)
   const [editingContainer, setEditingContainer] = useState<ContainerMaster | null>(null);
@@ -162,7 +152,7 @@ export default function ContainerTracking() {
         destinationPort: destinationPort.trim() || undefined,
         bookingChannel: bookingChannel.trim() || undefined,
         clearanceChannel: clearanceChannel.trim() || undefined,
-        loadingDate,
+        loadingDate: new Date().toISOString(),
         status: 'LOADING',
       });
       toast.success('集装箱创建成功！');

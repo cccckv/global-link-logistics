@@ -50,7 +50,7 @@ export interface Customer {
   destinationPort?: string;
   defaultWarehouse?: string;
   note?: string;
-  addresses?: CustomerAddress[];
+  addresses?: Array<Partial<CustomerAddress>>;
 }
 
 export interface WaybillItem {

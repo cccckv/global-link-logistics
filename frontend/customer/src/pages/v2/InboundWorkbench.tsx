@@ -217,10 +217,10 @@ export default function InboundWorkbench() {
       const defaultAddr =
         matched.addresses?.find((a) => a.isDefault) || matched.addresses?.[0];
       if (defaultAddr) {
-        setOverseasName(defaultAddr.name);
-        setOverseasPhone(defaultAddr.phone);
+        setOverseasName(defaultAddr.name || '');
+        setOverseasPhone(defaultAddr.phone || '');
         setOverseasCompany(defaultAddr.company || '');
-        setOverseasAddress(defaultAddr.address);
+        setOverseasAddress(defaultAddr.address || '');
       }
     }
   };

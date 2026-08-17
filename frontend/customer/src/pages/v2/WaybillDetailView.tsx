@@ -7,23 +7,18 @@ import {
   Clock,
   Truck,
   Ship,
-  FileText,
   DollarSign,
   Paperclip,
   Upload,
   ExternalLink,
   Trash2,
   Edit3,
-  Calendar,
-  AlertCircle,
   Plus,
-  Layers,
   Container as ContainerIcon,
   ChevronRight,
   ShieldCheck,
   RotateCcw,
   Save,
-  UserCheck,
   Package,
   Copy,
   Lock,
@@ -161,7 +156,7 @@ export default function WaybillDetailView() {
 
   // General Attachment Modal
   const [showAttachModal, setShowAttachModal] = useState(false);
-  const [attachmentType, setAttachmentType] = useState<AttachmentType>('WAREHOUSE_IMAGE');
+  const [attachmentType, setAttachmentType] = useState<AttachmentType>('OTHER');
   const [fileUrl, setFileUrl] = useState('');
   const [fileName, setFileName] = useState('');
 
@@ -207,7 +202,7 @@ export default function WaybillDetailView() {
         setInboundDate(wb.inboundDate ? new Date(wb.inboundDate).toISOString().slice(0, 10) : '');
         setSignedDate(wb.signedDate ? new Date(wb.signedDate).toISOString().slice(0, 10) : '');
         setClearanceDate(wb.clearanceDate ? new Date(wb.clearanceDate).toISOString().slice(0, 10) : '');
-        setInspectStatus(wb.inspectStatus || '正常放行');
+        setInspectStatus((wb as any).inspectStatus || '正常放行');
         setLoadingDate(
           wb.loadingDate
             ? new Date(wb.loadingDate).toISOString().slice(0, 10)
@@ -369,7 +364,7 @@ export default function WaybillDetailView() {
   // Stage 1 Save (修改预报信息与货物快照)
   const handleStage1Save = async () => {
     try {
-      const isInitialStage = waybill.status === 'PRE_DECLARED' || waybill.status === 'DRAFT';
+      const isInitialStage = waybill.status === 'DRAFT';
       await waybillV2Api.update(waybill.id, {
         userMark: userMark.trim(),
         originWarehouse,
@@ -993,7 +988,10 @@ export default function WaybillDetailView() {
                     const actVol = item.payableVolume ? Number(item.payableVolume) : (hasActDim ? (Number(actL) * Number(actW) * Number(actH) * Number(actQty)) / 1_000_000 : null);
 
                     const volDiff = estVol !== null && actVol !== null ? actVol - estVol : null;
-                    const volDiffPct = estVol !== null && actVol !== null && estVol > 0 ? ((actVol - estVol) / estVol) * 100 : null;
+                    const volDiffPct =
+                      estVol !== null && actVol !== null && estVol > 0.00001
+                        ? ((actVol - estVol) / estVol) * 100
+                        : null;
 
                     return (
                       <tr key={item.id || idx} className="hover:bg-slate-50/70 transition-colors">
@@ -1032,7 +1030,8 @@ export default function WaybillDetailView() {
                           </div>
                           {volDiff !== null && Math.abs(volDiff) > 0.0001 && (
                             <div className={`text-[10px] font-semibold mt-0.5 ${volDiff > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
-                              {volDiff > 0 ? `+${volDiff.toFixed(3)}` : volDiff.toFixed(3)} m³ ({volDiffPct !== null && volDiffPct > 0 ? `+${volDiffPct.toFixed(1)}%` : `${volDiffPct?.toFixed(1)}%`})
+                              {volDiff > 0 ? `+${volDiff.toFixed(4)}` : volDiff.toFixed(4)} m³
+                              {volDiffPct !== null && isFinite(volDiffPct) ? ` (${volDiffPct > 0 ? `+${volDiffPct.toFixed(1)}%` : `${volDiffPct.toFixed(1)}%`})` : ''}
                             </div>
                           )}
                         </td>
@@ -1119,7 +1118,7 @@ export default function WaybillDetailView() {
                   <button
                     onClick={() =>
                       navigate(
-                        `/v2/containers?search=${encodeURIComponent(waybill.containerMaster.containerNo)}`
+                        `/v2/containers?search=${encodeURIComponent(waybill.containerMaster?.containerNo || '')}`
                       )
                     }
                     className="text-xs text-indigo-800 font-semibold hover:underline"
@@ -1150,23 +1149,26 @@ export default function WaybillDetailView() {
                   <div>
                     <span className="text-indigo-500">开船日 / ETA</span>
                     <p className="font-semibold text-indigo-900">
-                      {waybill.containerMaster.sailingDate ? new Date(waybill.containerMaster.sailingDate).toISOString().slice(0, 10) : '待启运'}
-                      {waybill.containerMaster.eta ? ` ➔ ${new Date(waybill.containerMaster.eta).toISOString().slice(0, 10)}` : ''}
+                      {waybill.containerMaster.sailingDate
+                        ? new Date(waybill.containerMaster.sailingDate).toISOString().slice(0, 10)
+                        : '-'} ➔ {waybill.containerMaster.eta
+                        ? new Date(waybill.containerMaster.eta).toISOString().slice(0, 10)
+                        : '-'}
                     </p>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="p-6 bg-slate-50 border border-dashed border-slate-300 rounded-xl text-center space-y-2">
+              <div className="p-8 border border-dashed border-slate-200 rounded-xl text-center space-y-2">
                 <p className="text-xs text-slate-500">
                   该运单暂未分配集装箱柜号。等仓库现场装箱后即可在此绑定货柜。
                 </p>
                 {currentStageIdx >= 1 && (
                   <button
                     onClick={() => setActiveStageModal(3)}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700"
+                    className="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-xs font-semibold hover:bg-blue-100"
                   >
-                    立即安排装柜 (阶段 3)
+                    安排装柜配载 ➔
                   </button>
                 )}
               </div>
@@ -1236,10 +1238,25 @@ export default function WaybillDetailView() {
         {/* Right 1 Col: 财务收支看板 */}
         <div className="space-y-6">
           <div className="bg-slate-900 text-white rounded-2xl p-6 shadow-xl space-y-5">
-            <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-              <DollarSign className="w-4 h-4 text-emerald-400" />
-              财务收支与毛利看板
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                <DollarSign className="w-4 h-4 text-emerald-400" />
+                财务收支与毛利看板
+              </h2>
+              {waybill.isFixedPrice ? (
+                <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded text-[10px] font-semibold">
+                  包干一口价
+                </span>
+              ) : currentStageIdx === 0 ? (
+                <span className="px-2 py-0.5 bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 rounded text-[10px] font-semibold">
+                  预估参考 (待实测)
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded text-[10px] font-semibold">
+                  实测核量结算
+                </span>
+              )}
+            </div>
 
             <div className="space-y-3 font-mono">
               <div className="flex items-center justify-between text-xs text-slate-400">
@@ -1299,9 +1316,9 @@ export default function WaybillDetailView() {
                       </span>
                       <button
                         onClick={() => f.id && handleDeleteFee(f.id)}
-                        className="text-slate-500 hover:text-red-400"
+                        className="text-slate-500 hover:text-rose-400"
                       >
-                        ✕
+                        ×
                       </button>
                     </div>
                   </div>

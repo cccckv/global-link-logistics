@@ -370,14 +370,16 @@ export class WaybillV2Service {
       }
     }
 
-    const skip = (page - 1) * limit;
+    const pageNum = Math.max(1, Number(params.page) || 1);
+    const limitNum = Math.max(1, Number(params.limit) || 10);
+    const skip = (pageNum - 1) * limitNum;
 
     const [total, waybills, counts] = await Promise.all([
       prisma.waybill.count({ where }),
       prisma.waybill.findMany({
         where,
         skip,
-        take: limit,
+        take: limitNum,
         orderBy: { createdAt: 'desc' },
         include: {
           items: { orderBy: { itemIndex: 'asc' } },
@@ -414,9 +416,9 @@ export class WaybillV2Service {
       data: waybills,
       pagination: {
         total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum),
       },
       counts: countsMap,
     };

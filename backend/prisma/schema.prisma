@@ -499,18 +499,26 @@ model WaybillItem {
   itemIndex           Int          @default(1)
   trackingNumber      String?      // 国内送仓快递单号
   productName         String       // 中文品名
-  quantity            Int          @default(1)
+  quantity            Int          @default(1) // 实际实收件数 (结算基准)
   
-  // 尺寸与体积计算 (海运核心)
-  length              Decimal?     @db.Decimal(8, 2) // cm
-  width               Decimal?     @db.Decimal(8, 2) // cm
-  height              Decimal?     @db.Decimal(8, 2) // cm
-  payableVolume       Decimal?     @db.Decimal(10, 4) // 自动算得体积 m³
+  // 阶段 1：客户初始预报快照 (可随时修改纠偏，保留原始基准)
+  estimatedQuantity   Int?         // 预报件数
+  estimatedLength     Decimal?     @db.Decimal(8, 2) // 预报长 (cm)
+  estimatedWidth      Decimal?     @db.Decimal(8, 2) // 预报宽 (cm)
+  estimatedHeight     Decimal?     @db.Decimal(8, 2) // 预报高 (cm)
+  estimatedWeight     Decimal?     @db.Decimal(10, 3) // 预报单件重量 (kg)
+  estimatedVolume     Decimal?     @db.Decimal(10, 4) // 预报总算方体积 (m³)
+
+  // 阶段 2：仓库现场实测数据 (运费结算与装柜配载基准)
+  length              Decimal?     @db.Decimal(8, 2) // 实测长 cm
+  width               Decimal?     @db.Decimal(8, 2) // 实测宽 cm
+  height              Decimal?     @db.Decimal(8, 2) // 实测高 cm
+  payableVolume       Decimal?     @db.Decimal(10, 4) // 实测体积 m³
   receivableVolume    Decimal?     @db.Decimal(10, 4) // 计费体积 m³
   
   // 重量 (空运核心)
-  unitWeight          Decimal?     @db.Decimal(10, 3) // kg
-  totalWeight         Decimal?     @db.Decimal(10, 3) // kg
+  unitWeight          Decimal?     @db.Decimal(10, 3) // 实测单重 kg
+  totalWeight         Decimal?     @db.Decimal(10, 3) // 实测总重 kg
 
   // 单价
   receivableCurrency  CurrencyType @default(CNY)

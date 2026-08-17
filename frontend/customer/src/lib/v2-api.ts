@@ -59,6 +59,16 @@ export interface WaybillItem {
   trackingNumber?: string;
   productName: string;
   quantity: number;
+  
+  // 阶段 1：预报快照 (可随时修改纠偏)
+  estimatedQuantity?: number;
+  estimatedLength?: number;
+  estimatedWidth?: number;
+  estimatedHeight?: number;
+  estimatedWeight?: number;
+  estimatedVolume?: number;
+
+  // 阶段 2：仓库实测 (计费基准)
   length?: number;
   width?: number;
   height?: number;

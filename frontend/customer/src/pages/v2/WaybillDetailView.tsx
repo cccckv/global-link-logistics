@@ -21,10 +21,11 @@ import {
   Container as ContainerIcon,
   ChevronRight,
   ShieldCheck,
-  Lock,
   RotateCcw,
   Save,
   UserCheck,
+  Package,
+  Copy,
 } from 'lucide-react';
 import {
   waybillV2Api,
@@ -145,6 +146,9 @@ export default function WaybillDetailView() {
   const [signedDate, setSignedDate] = useState('');
   const [signImageUrl, setSignImageUrl] = useState('');
 
+  // Dual-track Items State
+  const [stage1Items, setStage1Items] = useState<WaybillItem[]>([]);
+
   // General Fee Modal
   const [showFeeModal, setShowFeeModal] = useState(false);
   const [feeName, setFeeName] = useState('');
@@ -184,7 +188,8 @@ export default function WaybillDetailView() {
         setForwarderChannel(wb.forwarderChannel || '');
         setNote(wb.note || '');
         setExpressNo(wb.expressNo || '');
-        setEditableItems(wb.items || []);
+        setEditableItems(JSON.parse(JSON.stringify(wb.items || [])));
+        setStage1Items(JSON.parse(JSON.stringify(wb.items || [])));
         setSelectedContainerId(wb.containerId || '');
         setVesselVoyage(wb.containerMaster?.vesselVoyage || wb.voyageNumber || '');
         setInboundDate(wb.inboundDate ? new Date(wb.inboundDate).toISOString().slice(0, 10) : '');
@@ -218,6 +223,61 @@ export default function WaybillDetailView() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Helper operations for Stage 1 pre-declaration cargo items
+  const addStage1Item = () => {
+    setStage1Items([
+      ...stage1Items,
+      {
+        id: `temp_${Date.now()}`,
+        productName: '',
+        trackingNumber: '',
+        quantity: 1,
+        estimatedQuantity: 1,
+        estimatedLength: undefined,
+        estimatedWidth: undefined,
+        estimatedHeight: undefined,
+        estimatedWeight: undefined,
+        receivableCurrency: 'CNY',
+        receivableUnitPrice: undefined,
+        payableCurrency: 'CNY',
+        payableUnitPrice: undefined,
+      },
+    ]);
+  };
+
+  const removeStage1Item = (idx: number) => {
+    if (stage1Items.length <= 1) return;
+    setStage1Items(stage1Items.filter((_, i) => i !== idx));
+  };
+
+  const updateStage1Item = (idx: number, field: keyof WaybillItem, val: any) => {
+    setStage1Items((prev) =>
+      prev.map((it, i) => (i === idx ? { ...it, [field]: val } : it))
+    );
+  };
+
+  // Helper for Stage 2: One-click copy estimated to actual
+  const handleCopyEstimatedToActual = () => {
+    setEditableItems((prev) =>
+      prev.map((it) => {
+        const estQty = it.estimatedQuantity !== undefined && it.estimatedQuantity !== null ? it.estimatedQuantity : it.quantity;
+        const estL = it.estimatedLength !== undefined && it.estimatedLength !== null ? it.estimatedLength : it.length;
+        const estW = it.estimatedWidth !== undefined && it.estimatedWidth !== null ? it.estimatedWidth : it.width;
+        const estH = it.estimatedHeight !== undefined && it.estimatedHeight !== null ? it.estimatedHeight : it.height;
+        const estWt = it.estimatedWeight !== undefined && it.estimatedWeight !== null ? it.estimatedWeight : it.unitWeight;
+        return {
+          ...it,
+          quantity: estQty,
+          length: estL,
+          width: estW,
+          height: estH,
+          unitWeight: estWt,
+        };
+      })
+    );
+    toast.success('已一键带入客户预报尺寸、重量与件数！');
   };
 
   const handleCustomsTypeChange = (newType: string) => {
@@ -294,7 +354,7 @@ export default function WaybillDetailView() {
     }
   };
 
-  // Stage 1 Save (修改预报信息)
+  // Stage 1 Save (修改预报信息与货物快照)
   const handleStage1Save = async () => {
     try {
       await waybillV2Api.update(waybill.id, {
@@ -305,8 +365,39 @@ export default function WaybillDetailView() {
         customsType,
         forwarderChannel: forwarderChannel.trim() || undefined,
         note: note.trim() || undefined,
+        items: stage1Items.map((it, idx) => {
+          const orig = waybill.items?.find((i) => i.id === it.id) || (waybill.items ? waybill.items[idx] : undefined);
+          const estQty = Number(it.estimatedQuantity) || Number(it.quantity) || 1;
+          const estL = it.estimatedLength !== undefined && it.estimatedLength !== null && String(it.estimatedLength).trim() !== '' ? Number(it.estimatedLength) : undefined;
+          const estW = it.estimatedWidth !== undefined && it.estimatedWidth !== null && String(it.estimatedWidth).trim() !== '' ? Number(it.estimatedWidth) : undefined;
+          const estH = it.estimatedHeight !== undefined && it.estimatedHeight !== null && String(it.estimatedHeight).trim() !== '' ? Number(it.estimatedHeight) : undefined;
+          const estWt = it.estimatedWeight !== undefined && it.estimatedWeight !== null && String(it.estimatedWeight).trim() !== '' ? Number(it.estimatedWeight) : undefined;
+          const estVol = estL && estW && estH ? (estL * estW * estH * estQty) / 1_000_000 : (it.estimatedVolume ? Number(it.estimatedVolume) : undefined);
+
+          return {
+            id: it.id?.startsWith('temp_') ? undefined : it.id,
+            trackingNumber: it.trackingNumber?.trim() || undefined,
+            productName: it.productName.trim() || '通用货物',
+            estimatedQuantity: estQty,
+            estimatedLength: estL,
+            estimatedWidth: estW,
+            estimatedHeight: estH,
+            estimatedWeight: estWt,
+            estimatedVolume: estVol,
+            // Retain existing stage 2 actuals if already measured, otherwise initialize with estimates
+            quantity: orig?.quantity || estQty,
+            length: orig?.length ? Number(orig.length) : (estL || undefined),
+            width: orig?.width ? Number(orig.width) : (estW || undefined),
+            height: orig?.height ? Number(orig.height) : (estH || undefined),
+            unitWeight: orig?.unitWeight ? Number(orig.unitWeight) : (estWt || undefined),
+            receivableCurrency: it.receivableCurrency || 'CNY',
+            receivableUnitPrice: it.receivableUnitPrice !== undefined && it.receivableUnitPrice !== null ? Number(it.receivableUnitPrice) : undefined,
+            payableCurrency: it.payableCurrency || 'CNY',
+            payableUnitPrice: it.payableUnitPrice !== undefined && it.payableUnitPrice !== null ? Number(it.payableUnitPrice) : undefined,
+          };
+        }),
       });
-      toast.success('阶段 1 预报基本信息与渠道属性已更新！');
+      toast.success('阶段 1 客户预报信息与货物快照已成功更新！');
       setActiveStageModal(null);
       loadData();
     } catch (err: any) {
@@ -320,17 +411,30 @@ export default function WaybillDetailView() {
       const payload: any = {
         inboundDate,
         expressNo: expressNo.trim() || undefined,
-        items: editableItems.map((item) => ({
-          id: item.id,
-          productName: item.productName,
-          quantity: Number(item.quantity) || 1,
-          length: Number(item.length) || undefined,
-          width: Number(item.width) || undefined,
-          height: Number(item.height) || undefined,
-          unitWeight: Number(item.unitWeight) || undefined,
-          receivableUnitPrice: Number(item.receivableUnitPrice) || undefined,
-          payableUnitPrice: Number(item.payableUnitPrice) || undefined,
-        })),
+        items: editableItems.map((item, idx) => {
+          const orig = waybill.items?.find((i) => i.id === item.id) || (waybill.items ? waybill.items[idx] : undefined);
+          return {
+            id: item.id?.startsWith('temp_') ? undefined : item.id,
+            productName: item.productName,
+            trackingNumber: item.trackingNumber,
+            quantity: Number(item.quantity) || 1,
+            // Preserve estimated snapshot
+            estimatedQuantity: orig?.estimatedQuantity !== undefined && orig?.estimatedQuantity !== null ? Number(orig.estimatedQuantity) : undefined,
+            estimatedLength: orig?.estimatedLength !== undefined && orig?.estimatedLength !== null ? Number(orig.estimatedLength) : undefined,
+            estimatedWidth: orig?.estimatedWidth !== undefined && orig?.estimatedWidth !== null ? Number(orig.estimatedWidth) : undefined,
+            estimatedHeight: orig?.estimatedHeight !== undefined && orig?.estimatedHeight !== null ? Number(orig.estimatedHeight) : undefined,
+            estimatedWeight: orig?.estimatedWeight !== undefined && orig?.estimatedWeight !== null ? Number(orig.estimatedWeight) : undefined,
+            estimatedVolume: orig?.estimatedVolume !== undefined && orig?.estimatedVolume !== null ? Number(orig.estimatedVolume) : undefined,
+            length: item.length !== undefined && item.length !== null && String(item.length).trim() !== '' ? Number(item.length) : undefined,
+            width: item.width !== undefined && item.width !== null && String(item.width).trim() !== '' ? Number(item.width) : undefined,
+            height: item.height !== undefined && item.height !== null && String(item.height).trim() !== '' ? Number(item.height) : undefined,
+            unitWeight: item.unitWeight !== undefined && item.unitWeight !== null && String(item.unitWeight).trim() !== '' ? Number(item.unitWeight) : undefined,
+            receivableCurrency: item.receivableCurrency || 'CNY',
+            receivableUnitPrice: item.receivableUnitPrice !== undefined && item.receivableUnitPrice !== null ? Number(item.receivableUnitPrice) : undefined,
+            payableCurrency: item.payableCurrency || 'CNY',
+            payableUnitPrice: item.payableUnitPrice !== undefined && item.payableUnitPrice !== null ? Number(item.payableUnitPrice) : undefined,
+          };
+        }),
       };
 
       if (advanceStatus) {
@@ -338,7 +442,7 @@ export default function WaybillDetailView() {
       }
 
       await waybillV2Api.update(waybill.id, payload);
-      toast.success(advanceStatus ? '阶段 2 实测核量已保存，运单流转至【已入库】！' : '阶段 2 尺寸与单价数据已更新！');
+      toast.success(advanceStatus ? '阶段 2 实测核量已保存，运单流转至【已入库】！' : '阶段 2 实测尺寸与件数数据已成功更新！');
       setActiveStageModal(null);
       loadData();
     } catch (err: any) {
@@ -765,20 +869,34 @@ export default function WaybillDetailView() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left 2 Cols: 实测明细 + 绑定货柜 + 凭证池 */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Cargo items */}
+          {/* Cargo items: 双轨对比展示 */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Truck className="w-5 h-5 text-indigo-600" />
-                货物实测明细与尺寸数据
-              </h2>
-              <button
-                onClick={() => setActiveStageModal(2)}
-                className="text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1"
-              >
-                <Edit3 className="w-3.5 h-3.5" />
-                {waybill.orderType === 'SEA_FCL' ? '修改阶段2实测尺寸与件数' : '修改阶段2实测尺寸与单价'}
-              </button>
+              <div>
+                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Truck className="w-5 h-5 text-indigo-600" />
+                  货物实测明细与双轨数据对比
+                </h2>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  对照 <span className="font-semibold text-slate-700">阶段 1 客户初始预报快照</span> 与 <span className="font-semibold text-indigo-700">阶段 2 仓库实测核量</span>
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setActiveStageModal(1)}
+                  className="px-2.5 py-1 text-xs font-semibold text-blue-600 hover:bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-1 transition-colors"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  修改阶段1预报
+                </button>
+                <button
+                  onClick={() => setActiveStageModal(2)}
+                  className="px-2.5 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 border border-indigo-200 rounded-lg flex items-center gap-1 transition-colors"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  {waybill.orderType === 'SEA_FCL' ? '修改阶段2实测' : '修改阶段2实测与单价'}
+                </button>
+              </div>
             </div>
 
             <div className="overflow-x-auto border border-slate-200 rounded-xl">
@@ -788,44 +906,147 @@ export default function WaybillDetailView() {
                     <th className="py-2.5 px-3">#</th>
                     <th className="py-2.5 px-3">送仓快递单号</th>
                     <th className="py-2.5 px-3">品名</th>
-                    <th className="py-2.5 px-2 text-center">实测件数</th>
-                    <th className="py-2.5 px-2 text-center">实测尺寸 (L×W×H)</th>
-                    <th className="py-2.5 px-3 text-right">核算体积</th>
+                    <th className="py-2.5 px-3 text-center">
+                      <div className="flex flex-col items-center">
+                        <span>件数对比</span>
+                        <span className="text-[10px] text-slate-400 font-normal">预报 ➔ 实测</span>
+                      </div>
+                    </th>
+                    <th className="py-2.5 px-3 text-center">
+                      <div className="flex flex-col items-center">
+                        <span>尺寸 (L×W×H cm)</span>
+                        <span className="text-[10px] text-slate-400 font-normal">预报 ➔ 实测</span>
+                      </div>
+                    </th>
+                    <th className="py-2.5 px-3 text-right">
+                      <div className="flex flex-col items-end">
+                        <span>核算体积 (m³)</span>
+                        <span className="text-[10px] text-slate-400 font-normal">预报 ➔ 实测 (偏差)</span>
+                      </div>
+                    </th>
+                    <th className="py-2.5 px-3 text-right">
+                      <div className="flex flex-col items-end">
+                        <span>单件重量 (kg)</span>
+                        <span className="text-[10px] text-slate-400 font-normal">预报 ➔ 实测</span>
+                      </div>
+                    </th>
                     {waybill.orderType !== 'SEA_FCL' && (
                       <>
                         <th className="py-2.5 px-3 text-right">应收单价</th>
                         <th className="py-2.5 px-3 text-right">成本单价</th>
                       </>
                     )}
+                    <th className="py-2.5 px-3 text-center">状态</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {(waybill.items || []).map((item, idx) => (
-                    <tr key={item.id || idx}>
-                      <td className="py-2.5 px-3 font-mono text-slate-400">{idx + 1}</td>
-                      <td className="py-2.5 px-3 font-mono">{item.trackingNumber || '-'}</td>
-                      <td className="py-2.5 px-3 font-bold text-slate-900">{item.productName}</td>
-                      <td className="py-2.5 px-2 text-center font-bold">{item.quantity}</td>
-                      <td className="py-2.5 px-2 text-center font-mono">
-                        {item.length && item.width && item.height
-                          ? `${item.length}×${item.width}×${item.height} cm`
-                          : '-'}
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-mono font-bold text-indigo-700">
-                        {item.payableVolume ? `${Number(item.payableVolume).toFixed(4)} m³` : '-'}
-                      </td>
-                      {waybill.orderType !== 'SEA_FCL' && (
-                        <>
-                          <td className="py-2.5 px-3 text-right font-mono">
-                            ¥ {Number(item.receivableUnitPrice || 0).toFixed(2)}
-                          </td>
-                          <td className="py-2.5 px-3 text-right font-mono text-slate-500">
-                            ¥ {Number(item.payableUnitPrice || 0).toFixed(2)}
-                          </td>
-                        </>
-                      )}
-                    </tr>
-                  ))}
+                  {(waybill.items || []).map((item, idx) => {
+                    const estQty = item.estimatedQuantity !== null && item.estimatedQuantity !== undefined ? item.estimatedQuantity : item.quantity;
+                    const actQty = item.quantity;
+                    const isQtyMismatch = item.estimatedQuantity !== null && item.estimatedQuantity !== undefined && item.estimatedQuantity !== item.quantity;
+
+                    const estL = item.estimatedLength;
+                    const estW = item.estimatedWidth;
+                    const estH = item.estimatedHeight;
+                    const hasEstDim = estL && estW && estH;
+
+                    const actL = item.length;
+                    const actW = item.width;
+                    const actH = item.height;
+                    const hasActDim = actL && actW && actH;
+
+                    const estVol = item.estimatedVolume ? Number(item.estimatedVolume) : (hasEstDim ? (Number(estL) * Number(estW) * Number(estH) * Number(estQty)) / 1_000_000 : null);
+                    const actVol = item.payableVolume ? Number(item.payableVolume) : (hasActDim ? (Number(actL) * Number(actW) * Number(actH) * Number(actQty)) / 1_000_000 : null);
+
+                    const volDiff = estVol !== null && actVol !== null ? actVol - estVol : null;
+                    const volDiffPct = estVol !== null && actVol !== null && estVol > 0 ? ((actVol - estVol) / estVol) * 100 : null;
+
+                    return (
+                      <tr key={item.id || idx} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-3 px-3 font-mono text-slate-400">{idx + 1}</td>
+                        <td className="py-3 px-3 font-mono text-slate-600">{item.trackingNumber || '-'}</td>
+                        <td className="py-3 px-3 font-bold text-slate-900">{item.productName}</td>
+
+                        {/* 件数对比 */}
+                        <td className="py-3 px-3 text-center">
+                          <div className="flex items-center justify-center gap-1 font-mono">
+                            <span className="text-slate-400 text-xs">{estQty}</span>
+                            <span className="text-slate-300">➔</span>
+                            <span className={`font-bold ${isQtyMismatch ? 'text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200' : 'text-slate-900'}`}>
+                              {actQty} 件
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* 尺寸对比 */}
+                        <td className="py-3 px-3 text-center font-mono">
+                          <div className="text-slate-400 text-[11px]">
+                            预: {hasEstDim ? `${estL}×${estW}×${estH}` : '-'}
+                          </div>
+                          <div className="text-slate-900 font-bold text-xs mt-0.5">
+                            实: {hasActDim ? `${actL}×${actW}×${actH}` : <span className="text-slate-400 font-normal italic">待实测</span>}
+                          </div>
+                        </td>
+
+                        {/* 体积对比 */}
+                        <td className="py-3 px-3 text-right font-mono">
+                          <div className="text-slate-400 text-[11px]">
+                            {estVol ? `${estVol.toFixed(4)} m³` : '-'}
+                          </div>
+                          <div className="text-indigo-700 font-bold text-xs mt-0.5">
+                            {actVol ? `${actVol.toFixed(4)} m³` : <span className="text-slate-400 font-normal italic">待实测</span>}
+                          </div>
+                          {volDiff !== null && Math.abs(volDiff) > 0.0001 && (
+                            <div className={`text-[10px] font-semibold mt-0.5 ${volDiff > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                              {volDiff > 0 ? `+${volDiff.toFixed(3)}` : volDiff.toFixed(3)} m³ ({volDiffPct !== null && volDiffPct > 0 ? `+${volDiffPct.toFixed(1)}%` : `${volDiffPct?.toFixed(1)}%`})
+                            </div>
+                          )}
+                        </td>
+
+                        {/* 重量对比 */}
+                        <td className="py-3 px-3 text-right font-mono">
+                          <div className="text-slate-400 text-[11px]">
+                            {item.estimatedWeight ? `${Number(item.estimatedWeight).toFixed(1)} kg` : '-'}
+                          </div>
+                          <div className="text-slate-800 font-semibold text-xs mt-0.5">
+                            {item.unitWeight ? `${Number(item.unitWeight).toFixed(1)} kg` : <span className="text-slate-400 font-normal italic">-</span>}
+                          </div>
+                        </td>
+
+                        {waybill.orderType !== 'SEA_FCL' && (
+                          <>
+                            <td className="py-3 px-3 text-right font-mono font-medium">
+                              ¥ {Number(item.receivableUnitPrice || 0).toFixed(2)}
+                            </td>
+                            <td className="py-3 px-3 text-right font-mono text-slate-500">
+                              ¥ {Number(item.payableUnitPrice || 0).toFixed(2)}
+                            </td>
+                          </>
+                        )}
+
+                        {/* 状态标签 */}
+                        <td className="py-3 px-3 text-center">
+                          {isQtyMismatch ? (
+                            <span className="px-2 py-0.5 bg-rose-100 text-rose-700 rounded-full text-[10px] font-bold">
+                              件数差异 ({estQty}➔{actQty})
+                            </span>
+                          ) : volDiffPct !== null && volDiffPct > 15 ? (
+                            <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full text-[10px] font-bold">
+                              体积超标 +{volDiffPct.toFixed(0)}%
+                            </span>
+                          ) : actVol ? (
+                            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full text-[10px] font-medium">
+                              实测正常
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full text-[10px]">
+                              待到仓实测
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1058,19 +1279,22 @@ export default function WaybillDetailView() {
       </div>
 
       {/* ========================================================= */}
-      {/* 阶段 1 模态框：客户预报基本信息修改 */}
+      {/* 阶段 1 模态框：客户预报基本信息与原始货物清单快照修改 */}
       {/* ========================================================= */}
       {activeStageModal === 1 && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5">
+          <div className="bg-white rounded-2xl max-w-4xl w-full p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b pb-3">
               <div>
                 <span className="px-2.5 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-bold">
                   阶段 1 维护
                 </span>
                 <h2 className="text-lg font-bold text-slate-900 mt-1">
-                  修改客户预报与路线基本信息
+                  修改客户预报与原始货物清单快照
                 </h2>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  用于纠正业务员或客户初次下单时的录入错误，修改后将更新预报快照基准，不会破坏已有的实测数据。
+                </p>
               </div>
               <button
                 onClick={() => setActiveStageModal(null)}
@@ -1080,148 +1304,317 @@ export default function WaybillDetailView() {
               </button>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  客户唛头 / 编码 <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={userMark}
-                  onChange={(e) => setUserMark(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-blue-900"
-                />
-              </div>
+            <div className="space-y-5">
+              {/* 基本属性 */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                  运单基本属性与航线通道
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      客户唛头 / 编码 <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={userMark}
+                      onChange={(e) => setUserMark(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-blue-900"
+                    />
+                  </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    始发仓
-                  </label>
-                  <select
-                    value={originWarehouse}
-                    onChange={(e) => setOriginWarehouse(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium"
-                  >
-                    <option value="">-- 请选择起运仓 --</option>
-                    {ORIGIN_WAREHOUSES.map((w) => (
-                      <option key={w.value} value={w.value}>
-                        {w.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    目的国
-                  </label>
-                  <select
-                    value={destinationCountry}
-                    onChange={(e) => {
-                      const country = e.target.value;
-                      setDestinationCountry(country);
-                      setDestinationPort(getDefaultPortByCountry(country));
-                    }}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium"
-                  >
-                    <option value="">-- 请选择目的国 --</option>
-                    {DESTINATION_COUNTRIES.map((c) => (
-                      <option key={c.name} value={c.name}>
-                        {c.name} ({c.enName})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  目的港口 (与目的国关联)
-                </label>
-                <select
-                  value={destinationPort}
-                  onChange={(e) => setDestinationPort(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium"
-                >
-                  <option value="">-- 请选择目的港口 --</option>
-                  {getPortsByCountry(destinationCountry).map((port) => (
-                    <option key={port} value={port}>
-                      {port}
-                    </option>
-                  ))}
-                  {destinationPort && !getPortsByCountry(destinationCountry).includes(destinationPort) && (
-                    <option value={destinationPort}>
-                      {destinationPort} (自定义/已指定)
-                    </option>
-                  )}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    报关通道 / 货品属性
-                  </label>
-                  <select
-                    value={customsType}
-                    onChange={(e) => handleCustomsTypeChange(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium"
-                  >
-                    <option value="">-- 请选择报关通道 --</option>
-                    <option value="普货双清">普货双清 (常规拼箱/包税)</option>
-                    <option value="退税报关">退税报关 (化妆退税/大宗退税)</option>
-                    <option value="敏感特货">敏感特货 (带电/带磁/液体)</option>
-                    <option value="一般贸易买单">一般贸易买单报关</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    承运渠道 / 服务商
-                  </label>
-                  <select
-                    value={forwarderChannel}
-                    onChange={(e) => setForwarderChannel(e.target.value)}
-                    className="w-full px-3 py-2 bg-blue-50/40 border border-blue-300 rounded-lg text-xs font-bold text-slate-900 focus:bg-white"
-                  >
-                    <option value="">-- 请选择承运渠道 --</option>
-                    {(() => {
-                      if (!customsType) return null;
-                      const valid = channelMappings
-                        .filter((m) => m.customsType === customsType)
-                        .map((m) => m.forwarderChannel);
-
-                      const list = valid.length > 0
-                        ? valid
-                        : customsType === '退税报关'
-                          ? ['中外运', '万海自营专线']
-                          : customsType === '敏感特货'
-                            ? ['菲通货运', '万海特货通道']
-                            : ['万海自营专线', '中外运', '天帆东南亚', '同行外发分拨'];
-
-                      return list.map((ch) => (
-                        <option key={ch} value={ch}>
-                          {ch}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      始发仓
+                    </label>
+                    <select
+                      value={originWarehouse}
+                      onChange={(e) => setOriginWarehouse(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium"
+                    >
+                      <option value="">-- 请选择起运仓 --</option>
+                      {ORIGIN_WAREHOUSES.map((w) => (
+                        <option key={w.value} value={w.value}>
+                          {w.label}
                         </option>
-                      ));
-                    })()}
-                  </select>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      目的国与港口
+                    </label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <select
+                        value={destinationCountry}
+                        onChange={(e) => {
+                          const country = e.target.value;
+                          setDestinationCountry(country);
+                          setDestinationPort(getDefaultPortByCountry(country));
+                        }}
+                        className="w-full px-2 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium"
+                      >
+                        <option value="">- 目的国 -</option>
+                        {DESTINATION_COUNTRIES.map((c) => (
+                          <option key={c.name} value={c.name}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={destinationPort}
+                        onChange={(e) => setDestinationPort(e.target.value)}
+                        className="w-full px-2 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium"
+                      >
+                        <option value="">- 目的港 -</option>
+                        {getPortsByCountry(destinationCountry).map((port) => (
+                          <option key={port} value={port}>
+                            {port}
+                          </option>
+                        ))}
+                        {destinationPort && !getPortsByCountry(destinationCountry).includes(destinationPort) && (
+                          <option value={destinationPort}>
+                            {destinationPort}
+                          </option>
+                        )}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      报关通道 / 货品属性
+                    </label>
+                    <select
+                      value={customsType}
+                      onChange={(e) => handleCustomsTypeChange(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium"
+                    >
+                      <option value="">-- 请选择报关通道 --</option>
+                      <option value="普货双清">普货双清 (常规拼箱/包税)</option>
+                      <option value="退税报关">退税报关 (化妆退税/大宗退税)</option>
+                      <option value="敏感特货">敏感特货 (带电/带磁/液体)</option>
+                      <option value="一般贸易买单">一般贸易买单报关</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      承运渠道 / 服务商
+                    </label>
+                    <select
+                      value={forwarderChannel}
+                      onChange={(e) => setForwarderChannel(e.target.value)}
+                      className="w-full px-3 py-2 bg-blue-50/40 border border-blue-300 rounded-lg text-xs font-bold text-slate-900 focus:bg-white"
+                    >
+                      <option value="">-- 请选择承运渠道 --</option>
+                      {(() => {
+                        if (!customsType) return null;
+                        const valid = channelMappings
+                          .filter((m) => m.customsType === customsType)
+                          .map((m) => m.forwarderChannel);
+
+                        const list = valid.length > 0
+                          ? valid
+                          : customsType === '退税报关'
+                            ? ['中外运', '万海自营专线']
+                            : customsType === '敏感特货'
+                              ? ['菲通货运', '万海特货通道']
+                              : ['万海自营专线', '中外运', '天帆东南亚', '同行外发分拨'];
+
+                        return list.map((ch) => (
+                          <option key={ch} value={ch}>
+                            {ch}
+                          </option>
+                        ));
+                      })()}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      预报备注说明
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="如 优先配载、易碎品"
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  预报备注
-                </label>
-                <input
-                  type="text"
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs"
-                />
+              {/* 货物预报清单编辑 */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Package className="w-4 h-4 text-blue-600" />
+                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                      客户初始预报货物明细清单
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addStage1Item}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-semibold transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    添加预报货物行
+                  </button>
+                </div>
+
+                <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-700 border-b border-slate-200 font-semibold">
+                        <th className="py-2 px-3 w-10">#</th>
+                        <th className="py-2 px-3 w-36">国内快递单号</th>
+                        <th className="py-2 px-3 min-w-[130px]">中文品名</th>
+                        <th className="py-2 px-2 w-16 text-center">预报件数</th>
+                        <th className="py-2 px-2 w-18 text-center">预报长(cm)</th>
+                        <th className="py-2 px-2 w-18 text-center">预报宽(cm)</th>
+                        <th className="py-2 px-2 w-18 text-center">预报高(cm)</th>
+                        <th className="py-2 px-2 w-20 text-center">预报单重(kg)</th>
+                        <th className="py-2 px-3 w-24 text-right bg-blue-50/50">预估体积</th>
+                        {waybill.orderType !== 'SEA_FCL' && (
+                          <>
+                            <th className="py-2 px-2 w-24">应收单价(¥)</th>
+                            <th className="py-2 px-2 w-24">成本单价(¥)</th>
+                          </>
+                        )}
+                        <th className="py-2 px-2 w-10 text-center">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {stage1Items.map((item, idx) => {
+                        const qty = Number(item.estimatedQuantity) || Number(item.quantity) || 1;
+                        const l = Number(item.estimatedLength) || 0;
+                        const w = Number(item.estimatedWidth) || 0;
+                        const h = Number(item.estimatedHeight) || 0;
+                        const vol = l && w && h ? (l * w * h * qty) / 1_000_000 : 0;
+
+                        return (
+                          <tr key={item.id || idx}>
+                            <td className="py-2 px-3 font-mono text-slate-400">{idx + 1}</td>
+                            <td className="py-2 px-2">
+                              <input
+                                type="text"
+                                placeholder="快递单号"
+                                value={item.trackingNumber || ''}
+                                onChange={(e) => updateStage1Item(idx, 'trackingNumber', e.target.value)}
+                                className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-xs font-mono"
+                              />
+                            </td>
+                            <td className="py-2 px-2">
+                              <input
+                                type="text"
+                                placeholder="如 实业配件"
+                                value={item.productName}
+                                onChange={(e) => updateStage1Item(idx, 'productName', e.target.value)}
+                                className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-xs font-bold"
+                              />
+                            </td>
+                            <td className="py-2 px-2">
+                              <input
+                                type="number"
+                                min="1"
+                                value={item.estimatedQuantity || item.quantity}
+                                onChange={(e) => updateStage1Item(idx, 'estimatedQuantity', Number(e.target.value))}
+                                className="w-full px-1.5 py-1 bg-white border border-slate-300 rounded text-center text-xs"
+                              />
+                            </td>
+                            <td className="py-2 px-2">
+                              <input
+                                type="number"
+                                step="0.1"
+                                placeholder="长"
+                                value={item.estimatedLength !== undefined && item.estimatedLength !== null ? item.estimatedLength : ''}
+                                onChange={(e) => updateStage1Item(idx, 'estimatedLength', e.target.value ? Number(e.target.value) : undefined)}
+                                className="w-full px-1.5 py-1 bg-white border border-slate-300 rounded text-center text-xs"
+                              />
+                            </td>
+                            <td className="py-2 px-2">
+                              <input
+                                type="number"
+                                step="0.1"
+                                placeholder="宽"
+                                value={item.estimatedWidth !== undefined && item.estimatedWidth !== null ? item.estimatedWidth : ''}
+                                onChange={(e) => updateStage1Item(idx, 'estimatedWidth', e.target.value ? Number(e.target.value) : undefined)}
+                                className="w-full px-1.5 py-1 bg-white border border-slate-300 rounded text-center text-xs"
+                              />
+                            </td>
+                            <td className="py-2 px-2">
+                              <input
+                                type="number"
+                                step="0.1"
+                                placeholder="高"
+                                value={item.estimatedHeight !== undefined && item.estimatedHeight !== null ? item.estimatedHeight : ''}
+                                onChange={(e) => updateStage1Item(idx, 'estimatedHeight', e.target.value ? Number(e.target.value) : undefined)}
+                                className="w-full px-1.5 py-1 bg-white border border-slate-300 rounded text-center text-xs"
+                              />
+                            </td>
+                            <td className="py-2 px-2">
+                              <input
+                                type="number"
+                                step="0.1"
+                                placeholder="kg"
+                                value={item.estimatedWeight !== undefined && item.estimatedWeight !== null ? item.estimatedWeight : ''}
+                                onChange={(e) => updateStage1Item(idx, 'estimatedWeight', e.target.value ? Number(e.target.value) : undefined)}
+                                className="w-full px-1.5 py-1 bg-white border border-slate-300 rounded text-center text-xs"
+                              />
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono font-bold text-blue-700 bg-blue-50/40">
+                              {vol > 0 ? `${vol.toFixed(4)} m³` : '-'}
+                            </td>
+                            {waybill.orderType !== 'SEA_FCL' && (
+                              <>
+                                <td className="py-2 px-2">
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    placeholder="应收"
+                                    value={item.receivableUnitPrice !== undefined && item.receivableUnitPrice !== null ? item.receivableUnitPrice : ''}
+                                    onChange={(e) => updateStage1Item(idx, 'receivableUnitPrice', e.target.value ? Number(e.target.value) : undefined)}
+                                    className="w-full px-1.5 py-1 bg-white border border-slate-300 rounded text-xs"
+                                  />
+                                </td>
+                                <td className="py-2 px-2">
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    placeholder="成本"
+                                    value={item.payableUnitPrice !== undefined && item.payableUnitPrice !== null ? item.payableUnitPrice : ''}
+                                    onChange={(e) => updateStage1Item(idx, 'payableUnitPrice', e.target.value ? Number(e.target.value) : undefined)}
+                                    className="w-full px-1.5 py-1 bg-white border border-slate-300 rounded text-xs"
+                                  />
+                                </td>
+                              </>
+                            )}
+                            <td className="py-2 px-2 text-center">
+                              <button
+                                type="button"
+                                onClick={() => removeStage1Item(idx)}
+                                disabled={stage1Items.length <= 1}
+                                className="text-slate-400 hover:text-red-600 disabled:opacity-30 p-1"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-3 border-t">
+            <div className="flex items-center justify-between pt-4 border-t">
               {currentStageIdx > 0 ? (
                 <button
                   type="button"
@@ -1247,7 +1640,7 @@ export default function WaybillDetailView() {
                   className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-md flex items-center gap-1.5"
                 >
                   <Save className="w-3.5 h-3.5" />
-                  保存预报修改
+                  保存预报快照修改
                 </button>
               </div>
             </div>
@@ -1260,15 +1653,18 @@ export default function WaybillDetailView() {
       {/* ========================================================= */}
       {activeStageModal === 2 && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-3xl w-full p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-4xl w-full p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b pb-3">
               <div>
-                <span className="px-2.5 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-bold">
+                <span className="px-2.5 py-0.5 bg-indigo-100 text-indigo-800 rounded text-xs font-bold">
                   阶段 2 操作
                 </span>
                 <h2 className="text-lg font-bold text-slate-900 mt-1">
                   包裹到仓：实测长宽高、单重与核算计费
                 </h2>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  输入仓库现场实测数据。支持参考客户初始预报值，若无偏差可点击右上角一键快速带入。
+                </p>
               </div>
               <button
                 onClick={() => setActiveStageModal(null)}
@@ -1307,25 +1703,36 @@ export default function WaybillDetailView() {
               </div>
 
               <div className="space-y-2">
-                <label className="block text-xs font-semibold text-slate-700">
-                  {waybill.orderType === 'SEA_FCL'
-                    ? '各包裹实测尺寸与件数录入 (长/宽/高 单位: cm)'
-                    : '各包裹实测尺寸与单价录入 (长/宽/高 单位: cm)'}
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    {waybill.orderType === 'SEA_FCL'
+                      ? '各包裹实测尺寸与件数录入 (长/宽/高 单位: cm)'
+                      : '各包裹实测尺寸与单价录入 (长/宽/高 单位: cm)'}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleCopyEstimatedToActual}
+                    className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg text-xs font-semibold transition-colors"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    📋 一键带入客户预报值
+                  </button>
+                </div>
                 <div className="overflow-x-auto border border-slate-200 rounded-xl">
                   <table className="w-full text-left text-xs">
                     <thead>
                       <tr className="bg-slate-50 text-slate-700 border-b">
-                        <th className="py-2 px-3">品名</th>
-                        <th className="py-2 px-2 w-16 text-center">件数</th>
-                        <th className="py-2 px-2 w-20 text-center">长(cm)</th>
-                        <th className="py-2 px-2 w-20 text-center">宽(cm)</th>
-                        <th className="py-2 px-2 w-20 text-center">高(cm)</th>
-                        <th className="py-2 px-3 w-28 text-center bg-indigo-50/50">核算体积</th>
+                        <th className="py-2.5 px-3">品名与预报基准</th>
+                        <th className="py-2.5 px-2 w-20 text-center">实收件数</th>
+                        <th className="py-2.5 px-2 w-20 text-center">实测长(cm)</th>
+                        <th className="py-2.5 px-2 w-20 text-center">实测宽(cm)</th>
+                        <th className="py-2.5 px-2 w-20 text-center">实测高(cm)</th>
+                        <th className="py-2.5 px-2 w-20 text-center">实测单重(kg)</th>
+                        <th className="py-2.5 px-3 w-28 text-right bg-indigo-50/50">核算体积</th>
                         {waybill.orderType !== 'SEA_FCL' && (
                           <>
-                            <th className="py-2 px-3 w-28">应收单价(¥)</th>
-                            <th className="py-2 px-3 w-28">成本单价(¥)</th>
+                            <th className="py-2.5 px-3 w-24">应收单价(¥)</th>
+                            <th className="py-2.5 px-3 w-24">成本单价(¥)</th>
                           </>
                         )}
                       </tr>
@@ -1338,9 +1745,17 @@ export default function WaybillDetailView() {
                         const h = Number(item.height) || 0;
                         const vol = l && w && h ? (l * w * h * qty) / 1_000_000 : 0;
 
+                        const estQty = item.estimatedQuantity ?? qty;
+                        const estDim = item.estimatedLength && item.estimatedWidth && item.estimatedHeight ? `${item.estimatedLength}×${item.estimatedWidth}×${item.estimatedHeight}cm` : null;
+
                         return (
                           <tr key={item.id || idx}>
-                            <td className="py-2 px-3 font-bold">{item.productName}</td>
+                            <td className="py-2 px-3">
+                              <div className="font-bold text-slate-900">{item.productName}</div>
+                              <div className="text-[10px] text-slate-400 mt-0.5">
+                                预报: {estQty}件 {estDim ? `| ${estDim}` : ''} {item.estimatedWeight ? `| ${item.estimatedWeight}kg` : ''}
+                              </div>
+                            </td>
                             <td className="py-2 px-2">
                               <input
                                 type="number"
@@ -1352,7 +1767,7 @@ export default function WaybillDetailView() {
                                     prev.map((it, i) => (i === idx ? { ...it, quantity: val } : it))
                                   );
                                 }}
-                                className="w-full px-1.5 py-1 bg-slate-50 border rounded text-center text-xs"
+                                className="w-full px-1.5 py-1 bg-slate-50 border rounded text-center text-xs font-bold"
                               />
                             </td>
                             <td className="py-2 px-2">
@@ -1397,7 +1812,21 @@ export default function WaybillDetailView() {
                                 className="w-full px-1.5 py-1 bg-slate-50 border rounded text-center text-xs"
                               />
                             </td>
-                            <td className="py-2 px-3 text-center font-mono font-bold text-indigo-700 bg-indigo-50/40">
+                            <td className="py-2 px-2">
+                              <input
+                                type="number"
+                                step="0.1"
+                                value={item.unitWeight || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setEditableItems((prev) =>
+                                    prev.map((it, i) => (i === idx ? { ...it, unitWeight: val } : it))
+                                  );
+                                }}
+                                className="w-full px-1.5 py-1 bg-slate-50 border rounded text-center text-xs"
+                              />
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono font-bold text-indigo-700 bg-indigo-50/40">
                               {vol > 0 ? `${vol.toFixed(4)} m³` : '-'}
                             </td>
                             {waybill.orderType !== 'SEA_FCL' && (
@@ -1468,7 +1897,7 @@ export default function WaybillDetailView() {
                     className="px-5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold shadow-md flex items-center gap-1.5"
                   >
                     <Save className="w-3.5 h-3.5" />
-                    保存修改 (保持当前阶段)
+                    仅更新实测尺寸数据
                   </button>
                 ) : (
                   <button

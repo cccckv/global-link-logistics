@@ -362,19 +362,32 @@ export default function InboundWorkbench() {
         overseasCompany: overseasCompany.trim() || undefined,
         overseasAddress: overseasAddress.trim() || undefined,
 
-        items: items.map((item) => ({
-          trackingNumber: item.trackingNumber.trim() || undefined,
-          productName: item.productName.trim(),
-          quantity: Number(item.quantity) || 1,
-          length: item.length ? Number(item.length) : undefined,
-          width: item.width ? Number(item.width) : undefined,
-          height: item.height ? Number(item.height) : undefined,
-          unitWeight: item.unitWeight ? Number(item.unitWeight) : undefined,
-          receivableCurrency: item.receivableCurrency,
-          receivableUnitPrice: item.receivableUnitPrice ? Number(item.receivableUnitPrice) : undefined,
-          payableCurrency: item.payableCurrency,
-          payableUnitPrice: item.payableUnitPrice ? Number(item.payableUnitPrice) : undefined,
-        })),
+        items: items.map((item) => {
+          const qty = Number(item.quantity) || 1;
+          const l = item.length ? Number(item.length) : undefined;
+          const w = item.width ? Number(item.width) : undefined;
+          const h = item.height ? Number(item.height) : undefined;
+          const estVol = l && w && h ? (l * w * h * qty) / 1_000_000 : undefined;
+          return {
+            trackingNumber: item.trackingNumber.trim() || undefined,
+            productName: item.productName.trim(),
+            quantity: qty,
+            estimatedQuantity: qty,
+            estimatedLength: l,
+            estimatedWidth: w,
+            estimatedHeight: h,
+            estimatedWeight: item.unitWeight ? Number(item.unitWeight) : undefined,
+            estimatedVolume: estVol,
+            length: l,
+            width: w,
+            height: h,
+            unitWeight: item.unitWeight ? Number(item.unitWeight) : undefined,
+            receivableCurrency: item.receivableCurrency,
+            receivableUnitPrice: item.receivableUnitPrice ? Number(item.receivableUnitPrice) : undefined,
+            payableCurrency: item.payableCurrency,
+            payableUnitPrice: item.payableUnitPrice ? Number(item.payableUnitPrice) : undefined,
+          };
+        }),
 
         fees: fees
           .filter((f) => f.amount > 0)

@@ -124,11 +124,24 @@ export class WaybillV2Service {
         basePayable += payPrice * payableVol;
       }
 
+      const estQty = item.estimatedQuantity !== undefined && item.estimatedQuantity !== null ? item.estimatedQuantity : qty;
+      const estL = item.estimatedLength !== undefined && item.estimatedLength !== null ? item.estimatedLength : item.length;
+      const estW = item.estimatedWidth !== undefined && item.estimatedWidth !== null ? item.estimatedWidth : item.width;
+      const estH = item.estimatedHeight !== undefined && item.estimatedHeight !== null ? item.estimatedHeight : item.height;
+      const estWt = item.estimatedWeight !== undefined && item.estimatedWeight !== null ? item.estimatedWeight : item.unitWeight;
+      const estVol = estL && estW && estH ? (estL * estW * estH * estQty) / 1_000_000 : (item.estimatedVolume || undefined);
+
       return {
         itemIndex: idx + 1,
         trackingNumber: item.trackingNumber,
         productName: item.productName,
         quantity: qty,
+        estimatedQuantity: estQty,
+        estimatedLength: estL,
+        estimatedWidth: estW,
+        estimatedHeight: estH,
+        estimatedWeight: estWt,
+        estimatedVolume: estVol,
         length: item.length,
         width: item.width,
         height: item.height,
@@ -340,12 +353,22 @@ export class WaybillV2Service {
     sailingDate?: Date | string;
     eta?: Date | string;
     clearanceDate?: Date | string;
-    signedDate?: Date | string;
-  }) {
-    const { items, fees, attachments, ...directFields } = data;
+        fees: {
+          create: feesToCreate,
+        },
+      },
+      include: {
+        items: true,
+        fees: true,
+        attachments: true,
+      },
+    });
+  }
 
-    const updateData: any = { ...directFields };
-    if (data.inboundDate) updateData.inboundDate = new Date(data.inboundDate);
+  async updateWaybill(id: string, data: UpdateWaybillInput) {
+    const { items, ...rest } = data;
+    const updateData: any = { ...rest };
+
     if (data.loadingDate) updateData.loadingDate = new Date(data.loadingDate);
     if (data.sailingDate) updateData.sailingDate = new Date(data.sailingDate);
     if (data.eta) updateData.eta = new Date(data.eta);
@@ -378,12 +401,25 @@ export class WaybillV2Service {
           totalWeightKg += item.unitWeight * qty;
         }
 
+        const estQty = item.estimatedQuantity !== undefined && item.estimatedQuantity !== null ? item.estimatedQuantity : undefined;
+        const estL = item.estimatedLength !== undefined && item.estimatedLength !== null ? item.estimatedLength : undefined;
+        const estW = item.estimatedWidth !== undefined && item.estimatedWidth !== null ? item.estimatedWidth : undefined;
+        const estH = item.estimatedHeight !== undefined && item.estimatedHeight !== null ? item.estimatedHeight : undefined;
+        const estWt = item.estimatedWeight !== undefined && item.estimatedWeight !== null ? item.estimatedWeight : undefined;
+        const estVol = estL && estW && estH ? (estL * estW * estH * (estQty || 1)) / 1_000_000 : (item.estimatedVolume || undefined);
+
         return {
           waybillId: id,
           itemIndex: idx + 1,
           trackingNumber: item.trackingNumber,
           productName: item.productName,
           quantity: qty,
+          estimatedQuantity: estQty,
+          estimatedLength: estL,
+          estimatedWidth: estW,
+          estimatedHeight: estH,
+          estimatedWeight: estWt,
+          estimatedVolume: estVol,
           length: item.length,
           width: item.width,
           height: item.height,

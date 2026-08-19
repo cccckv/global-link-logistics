@@ -59,3 +59,4 @@ erDiagram
 - 🗄️ [06_DATA_SCHEMA.md](./06_DATA_SCHEMA.md) — **全新 Prisma 数据表结构定义规范**
 - 🔄 [07_LIFECYCLE_AND_TABLES.md](./07_LIFECYCLE_AND_TABLES.md) — **订单全生命周期 6 阶段与数据表使用指南**
 - 🛠️ [08_BUSINESS_PRACTICE_AND_PITFALLS.md](./08_BUSINESS_PRACTICE_AND_PITFALLS.md) — **业务实战沉淀、调度工作台与工程避坑指南**
+- 📊 [09_BATCH_IMPORT_STANDARDS.md](./09_BATCH_IMPORT_STANDARDS.md) — **批量导入业务与技术规范标准**（客户档案独立导入、专线独立模板、多行聚合与容错跳过）

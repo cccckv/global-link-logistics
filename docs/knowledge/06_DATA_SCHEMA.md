@@ -393,17 +393,33 @@ model ContainerAttachment {
 }
 
 // ==========================================
-// 10. 渠道轻量级联映射表 (ChannelMapping)
+// 10. 渠道分类与服务商管理模型 (ShippingChannel)
 // ==========================================
-model ChannelMapping {
-  id               String          @id @default(uuid())
-  customsType      String          // 报关通道 (如 "普货双清", "退税报关", "敏感特货", "一般贸易买单")
-  forwarderChannel String          // 承运服务商 (如 "万海自营专线", "中外运", "菲通货运", "天帆东南亚")
-  note             String?         // 简短说明
-  createdAt        DateTime        @default(now())
+enum ChannelCategory {
+  SEA_LCL        // 海运拼箱专线渠道
+  AIR            // 空运专线渠道
+  FCL_BOOKING    // 整柜 - 订舱渠道 (船司/订舱代理)
+  FCL_CUSTOMS    // 整柜 - 报关渠道 (国内报关行)
+  FCL_CLEARANCE  // 整柜 - 清关渠道 (目的港清关行)
+  FCL_TRUCKING   // 整柜 - 拖车渠道 (卡车车队)
+}
 
-  @@unique([customsType, forwarderChannel])
-  @@index([customsType])
+model ShippingChannel {
+  id            String          @id @default(uuid())
+  category      ChannelCategory // 渠道所属分类
+  name          String          // 渠道/服务商名称 (如 "万海自营拼箱专线", "中外运", "优尼科订舱")
+  code          String?         // 简码/代号
+  contactPerson String?         // 联系人
+  contactPhone  String?         // 联系电话
+  isDefault     Boolean         @default(false) // 是否为该分类下的默认推荐选项
+  isActive      Boolean         @default(true)  // 启用状态
+  sortOrder     Int             @default(0)     // 排序权重
+  note          String?         // 业务备注说明
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([category, isActive])
 }
 ```
+
 

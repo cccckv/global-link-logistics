@@ -13,7 +13,9 @@ import {
   Trash2,
   Layers,
   Package,
+  FileSpreadsheet,
 } from 'lucide-react';
+import { BatchImportModal, type ImportType } from '../../components/v2/BatchImportModal';
 import {
   waybillV2Api,
   containerV2Api,
@@ -58,6 +60,11 @@ export default function WaybillManagement() {
   const [containers, setContainers] = useState<ContainerMaster[]>([]);
   const [selectedContainerId, setSelectedContainerId] = useState('');
   const [batchLoadingDate, setBatchLoadingDate] = useState(new Date().toISOString().slice(0, 10));
+
+  // Import Modal
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importModalType, setImportModalType] = useState<ImportType>('SEA_LCL');
+  const [showImportDropdown, setShowImportDropdown] = useState(false);
 
   const loadWaybills = async () => {
     setLoading(true);
@@ -193,6 +200,58 @@ export default function WaybillManagement() {
               批量排柜 ({selectedIds.length})
             </button>
           )}
+
+          {/* 批量导入下拉 */}
+          <div className="relative">
+            <button
+              onClick={() => setShowImportDropdown(!showImportDropdown)}
+              className="px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5 transition-all"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+              批量导入订单
+            </button>
+
+            {showImportDropdown && (
+              <div
+                className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-1.5 z-30 animate-fade-in"
+                onMouseLeave={() => setShowImportDropdown(false)}
+              >
+                <button
+                  onClick={() => {
+                    setImportModalType('SEA_LCL');
+                    setShowImportModal(true);
+                    setShowImportDropdown(false);
+                  }}
+                  className="w-full text-left px-4 py-2 text-xs font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-600 flex items-center gap-2"
+                >
+                  <Ship className="w-3.5 h-3.5 text-blue-600" />
+                  海运散拼导入 (LCL)
+                </button>
+                <button
+                  onClick={() => {
+                    setImportModalType('AIR');
+                    setShowImportModal(true);
+                    setShowImportDropdown(false);
+                  }}
+                  className="w-full text-left px-4 py-2 text-xs font-medium text-slate-700 hover:bg-sky-50 hover:text-sky-600 flex items-center gap-2"
+                >
+                  <Plane className="w-3.5 h-3.5 text-sky-600" />
+                  空运专线导入 (AIR)
+                </button>
+                <button
+                  onClick={() => {
+                    setImportModalType('SEA_FCL');
+                    setShowImportModal(true);
+                    setShowImportDropdown(false);
+                  }}
+                  className="w-full text-left px-4 py-2 text-xs font-medium text-slate-700 hover:bg-emerald-50 hover:text-emerald-600 flex items-center gap-2"
+                >
+                  <Container className="w-3.5 h-3.5 text-emerald-600" />
+                  海运整柜导入 (FCL)
+                </button>
+              </div>
+            )}
+          </div>
 
           <button
             onClick={() => navigate('/v2/inbound')}
@@ -529,6 +588,17 @@ export default function WaybillManagement() {
           </div>
         </div>
       )}
+
+      {/* 批量导入订单弹窗 */}
+      <BatchImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        importType={importModalType}
+        onSuccess={() => {
+          toast.success('订单批量导入完成！');
+          loadWaybills();
+        }}
+      />
     </div>
   );
 }

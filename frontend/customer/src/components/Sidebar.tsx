@@ -1,5 +1,6 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Package, LogOut, User, Menu, X, Search, Zap, Users, List, Ship } from 'lucide-react';
+import { Package, LogOut, User, Menu, X, Search, Zap, Users, List, Ship, Building2 } from 'lucide-react';
+
 import { useEffect, useState } from 'react';
 
 export default function Sidebar() {
@@ -137,6 +138,8 @@ export default function Sidebar() {
           <NavItem to="/v2/waybills" icon={List} label="运单全景调度" />
           <NavItem to="/v2/containers" icon={Ship} label="集装箱整柜跟踪" />
           <NavItem to="/v2/customers" icon={Users} label="客户档案与唛头" />
+          <NavItem to="/v2/channels" icon={Building2} label="渠道与服务商" />
+
 
           <div className="pt-3 pb-1 px-3 text-[11px] font-bold uppercase tracking-wider text-gray-400 border-t border-white/10 mt-3">
             辅助工具 & 历史模块

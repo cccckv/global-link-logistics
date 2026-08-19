@@ -81,4 +81,16 @@ export async function customerV2Routes(fastify: FastifyInstance) {
       return reply.code(500).send({ success: false, error: err.message });
     }
   });
+
+  // Delete customer
+  fastify.delete<{
+    Params: { id: string };
+  }>('/:id', async (request, reply) => {
+    try {
+      await customerService.deleteCustomer(request.params.id);
+      return reply.send({ success: true, message: '客户档案已删除' });
+    } catch (err: any) {
+      return reply.code(400).send({ success: false, error: err.message || '删除客户失败' });
+    }
+  });
 }

@@ -110,7 +110,7 @@ export const LocalFileUpload: React.FC<LocalFileUploadProps> = ({
             {isImage(value) ? (
               <div className="w-12 h-12 rounded-lg overflow-hidden border border-blue-200 bg-white flex-shrink-0 relative group">
                 <img
-                  src={value.startsWith('http') ? value : `http://localhost:3000${value}`}
+                  src={value}
                   alt="preview"
                   className="w-full h-full object-cover"
                   onError={(e) => {
@@ -138,7 +138,7 @@ export const LocalFileUpload: React.FC<LocalFileUploadProps> = ({
                   <CheckCircle2 className="w-3 h-3" /> 本地上传就绪
                 </span>
                 <a
-                  href={value.startsWith('http') ? value : `http://localhost:3000${value}`}
+                  href={value}
                   target="_blank"
                   rel="noreferrer"
                   className="text-[10px] text-blue-600 hover:underline flex items-center gap-0.5 font-medium"

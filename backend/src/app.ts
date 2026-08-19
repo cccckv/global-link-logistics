@@ -19,6 +19,7 @@ import { containerV2Routes } from './modules/v2/container/container.routes';
 import { financeV2Routes } from './modules/v2/finance/finance.routes';
 import { channelV2Routes } from './modules/v2/channel/channel.routes';
 import { uploadV2Routes } from './modules/v2/upload/upload.routes';
+import { importV2Routes } from './modules/v2/import/import.routes';
 import { authenticate } from './lib/jwt';
 
 type SocketLike = {
@@ -43,7 +44,7 @@ const fastify = Fastify({
 async function start() {
   try {
     await fastify.register(cors, {
-      origin: process.env.CORS_ORIGIN?.split(',') || '*',
+      origin: true,
       credentials: true,
     });
 
@@ -94,6 +95,7 @@ async function start() {
     await fastify.register(financeV2Routes, { prefix: '/api/v2/finance' });
     await fastify.register(channelV2Routes, { prefix: '/api/v2/channels' });
     await fastify.register(uploadV2Routes, { prefix: '/api/v2' });
+    await fastify.register(importV2Routes, { prefix: '/api/v2/import' });
 
     fastify.get('/health', async () => {
       return { status: 'ok', timestamp: new Date().toISOString() };

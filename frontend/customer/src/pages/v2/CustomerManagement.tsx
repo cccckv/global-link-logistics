@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Plus, Building } from 'lucide-react';
+import { Plus, Building, FileSpreadsheet, Trash2 } from 'lucide-react';
 import { customerV2Api, type Customer } from '../../lib/v2-api';
+import { BatchImportModal } from '../../components/v2/BatchImportModal';
 import {
   DESTINATION_COUNTRIES,
   getPortsByCountry,
@@ -12,6 +13,7 @@ import {
 export default function CustomerManagement() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   // New customer modal
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -87,6 +89,20 @@ export default function CustomerManagement() {
     }
   };
 
+  const handleDeleteCustomer = async (id: string, name: string, code: string) => {
+    if (!window.confirm(`确认删除客户档案【${name || code}】(${code}) 吗？\n删除后关联的默认地址也将一并移除。`)) {
+      return;
+    }
+
+    try {
+      await customerV2Api.delete(id);
+      toast.success(`客户档案 [${code}] 已成功删除`);
+      loadCustomers();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || '删除客户失败');
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -102,13 +118,23 @@ export default function CustomerManagement() {
           </p>
         </div>
 
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/20 flex items-center gap-1.5 transition-all self-start md:self-auto"
-        >
-          <Plus className="w-4 h-4" />
-          新建客户唛头
-        </button>
+        <div className="flex items-center gap-2 self-start md:self-auto">
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5 transition-all"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+            批量导入客户
+          </button>
+
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/20 flex items-center gap-1.5 transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            新建客户唛头
+          </button>
+        </div>
       </div>
 
       {/* Grid of Customers */}
@@ -142,6 +168,14 @@ export default function CustomerManagement() {
                         </p>
                       )}
                     </div>
+
+                    <button
+                      onClick={() => handleDeleteCustomer(c.id, c.name, c.clientCode)}
+                      title="删除客户档案"
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
 
                   <div className="p-3 bg-slate-50 rounded-xl space-y-1.5 text-xs text-slate-600">
@@ -345,6 +379,17 @@ export default function CustomerManagement() {
           </form>
         </div>
       )}
+
+      {/* 批量导入客户弹窗 */}
+      <BatchImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        importType="CUSTOMER"
+        onSuccess={() => {
+          toast.success('客户档案批量导入成功！');
+          loadCustomers();
+        }}
+      />
     </div>
   );
 }

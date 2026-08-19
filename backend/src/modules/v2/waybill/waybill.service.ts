@@ -11,6 +11,7 @@ function generateWaybillNo(type: ShipmentType = 'SEA_LCL'): string {
 }
 
 export interface CreateWaybillItemInput {
+  id?: string;
   trackingNumber?: string;
   productName: string;
   quantity?: number;
@@ -18,6 +19,12 @@ export interface CreateWaybillItemInput {
   width?: number;
   height?: number;
   unitWeight?: number;
+  estimatedQuantity?: number;
+  estimatedLength?: number;
+  estimatedWidth?: number;
+  estimatedHeight?: number;
+  estimatedWeight?: number;
+  estimatedVolume?: number;
   receivableCurrency?: CurrencyType;
   receivableUnitPrice?: number;
   payableCurrency?: CurrencyType;
@@ -43,14 +50,16 @@ export interface CreateWaybillInput {
   expressNo?: string;
   customsType?: string;
   forwarderChannel?: string;
-  voyageNumber?: string;
-  airWaybillNo?: string;
-  note?: string;
   isFixedPrice?: boolean;
   fixedPriceAmount?: number;
 
+  voyageNumber?: string;
+  airWaybillNo?: string;
+  note?: string;
+
   recipientName?: string;
   recipientPhone?: string;
+
   recipientCompany?: string;
   recipientAddress?: string;
   recipientRegion?: string;
@@ -331,9 +340,8 @@ export class WaybillV2Service {
       userMark,
       startDate,
       endDate,
-      page = 1,
-      limit = 10,
     } = params;
+
 
     const where: any = {};
 
@@ -478,55 +486,56 @@ export class WaybillV2Service {
 
       const newItems = items.map((item: any, idx: number) => {
         const qty = item.quantity && item.quantity > 0 ? Number(item.quantity) : 1;
+        const l = Number(item.length) || 0;
+        const w = Number(item.width) || 0;
+        const h = Number(item.height) || 0;
+        const payableCbm = (l * w * h * qty) / 1_000_000;
+        const recvCbm = item.receivableVolume ? Number(item.receivableVolume) : payableCbm;
+        const unitWt = item.unitWeight ? Number(item.unitWeight) : 0;
+        const totalWt = unitWt * qty;
+
         totalPieces += qty;
-
-        let payableVol = 0;
-        let receivableVol = 0;
-        if (item.length && item.width && item.height) {
-          payableVol = (Number(item.length) * Number(item.width) * Number(item.height) * qty) / 1_000_000;
-          receivableVol = payableVol;
-        }
-        totalPayableCbm += payableVol;
-        totalReceivableCbm += receivableVol;
-
-        if (item.unitWeight) {
-          totalWeightKg += Number(item.unitWeight) * qty;
-        }
+        totalPayableCbm += payableCbm;
+        totalReceivableCbm += recvCbm;
+        totalWeightKg += totalWt;
 
         const estQty = item.estimatedQuantity !== undefined && item.estimatedQuantity !== null ? Number(item.estimatedQuantity) : qty;
-        const estL = item.estimatedLength !== undefined && item.estimatedLength !== null ? Number(item.estimatedLength) : (item.length !== undefined && item.length !== null ? Number(item.length) : undefined);
-        const estW = item.estimatedWidth !== undefined && item.estimatedWidth !== null ? Number(item.estimatedWidth) : (item.width !== undefined && item.width !== null ? Number(item.width) : undefined);
-        const estH = item.estimatedHeight !== undefined && item.estimatedHeight !== null ? Number(item.estimatedHeight) : (item.height !== undefined && item.height !== null ? Number(item.height) : undefined);
-        const estWt = item.estimatedWeight !== undefined && item.estimatedWeight !== null ? Number(item.estimatedWeight) : (item.unitWeight !== undefined && item.unitWeight !== null ? Number(item.unitWeight) : undefined);
-        const estVol = estL && estW && estH ? (estL * estW * estH * estQty) / 1_000_000 : (item.estimatedVolume ? Number(item.estimatedVolume) : (payableVol > 0 ? payableVol : undefined));
+        const estL = item.estimatedLength !== undefined && item.estimatedLength !== null ? Number(item.estimatedLength) : (item.length !== undefined && item.length !== null ? Number(item.length) : null);
+        const estW = item.estimatedWidth !== undefined && item.estimatedWidth !== null ? Number(item.estimatedWidth) : (item.width !== undefined && item.width !== null ? Number(item.width) : null);
+        const estH = item.estimatedHeight !== undefined && item.estimatedHeight !== null ? Number(item.estimatedHeight) : (item.height !== undefined && item.height !== null ? Number(item.height) : null);
+        const estWt = item.estimatedWeight !== undefined && item.estimatedWeight !== null ? Number(item.estimatedWeight) : (item.unitWeight !== undefined && item.unitWeight !== null ? Number(item.unitWeight) : null);
+        const estVol = item.estimatedVolume !== undefined && item.estimatedVolume !== null
+          ? Number(item.estimatedVolume)
+          : (estL && estW && estH ? (estL * estW * estH * estQty) / 1_000_000 : null);
 
         return {
           waybillId: id,
           itemIndex: idx + 1,
-          trackingNumber: item.trackingNumber,
-          productName: item.productName,
+          trackingNumber: item.trackingNumber ? String(item.trackingNumber).trim() : null,
+          productName: item.productName ? String(item.productName).trim() : '通用货物',
           quantity: qty,
+          length: item.length !== undefined && item.length !== null ? Number(item.length) : null,
+          width: item.width !== undefined && item.width !== null ? Number(item.width) : null,
+          height: item.height !== undefined && item.height !== null ? Number(item.height) : null,
+          payableVolume: payableCbm > 0 ? payableCbm : null,
+          receivableVolume: recvCbm > 0 ? recvCbm : null,
+          unitWeight: item.unitWeight !== undefined && item.unitWeight !== null ? Number(item.unitWeight) : null,
+          totalWeight: totalWt > 0 ? totalWt : null,
           estimatedQuantity: estQty,
           estimatedLength: estL,
           estimatedWidth: estW,
           estimatedHeight: estH,
           estimatedWeight: estWt,
           estimatedVolume: estVol,
-          length: item.length !== undefined && item.length !== null ? Number(item.length) : undefined,
-          width: item.width !== undefined && item.width !== null ? Number(item.width) : undefined,
-          height: item.height !== undefined && item.height !== null ? Number(item.height) : undefined,
-          payableVolume: payableVol > 0 ? payableVol : undefined,
-          receivableVolume: receivableVol > 0 ? receivableVol : undefined,
-          unitWeight: item.unitWeight !== undefined && item.unitWeight !== null ? Number(item.unitWeight) : undefined,
-          totalWeight: item.unitWeight ? Number(item.unitWeight) * qty : undefined,
           receivableCurrency: item.receivableCurrency || 'CNY',
-          receivableUnitPrice: item.receivableUnitPrice !== undefined && item.receivableUnitPrice !== null ? Number(item.receivableUnitPrice) : undefined,
+          receivableUnitPrice: item.receivableUnitPrice !== undefined && item.receivableUnitPrice !== null ? Number(item.receivableUnitPrice) : null,
           payableCurrency: item.payableCurrency || 'CNY',
-          payableUnitPrice: item.payableUnitPrice !== undefined && item.payableUnitPrice !== null ? Number(item.payableUnitPrice) : undefined,
+          payableUnitPrice: item.payableUnitPrice !== undefined && item.payableUnitPrice !== null ? Number(item.payableUnitPrice) : null,
         };
       });
 
       await prisma.waybillItem.createMany({ data: newItems });
+
 
       updateData.totalPieces = totalPieces;
       updateData.totalPayableCbm = totalPayableCbm;
@@ -538,8 +547,8 @@ export class WaybillV2Service {
         isFixedPrice: effectiveIsFixed,
         fixedPriceAmount: effectiveFixedAmt,
         currentReceivableAmount: existingWb.receivableAmount ? Number(existingWb.receivableAmount) : undefined,
-        items: newItems,
-        fees: existingWb.fees,
+        items: newItems as any,
+        fees: existingWb.fees as any,
       });
 
       updateData.receivableAmount = financials.receivableAmount;
@@ -551,8 +560,8 @@ export class WaybillV2Service {
         isFixedPrice: effectiveIsFixed,
         fixedPriceAmount: effectiveFixedAmt,
         currentReceivableAmount: existingWb.receivableAmount ? Number(existingWb.receivableAmount) : undefined,
-        items: existingWb.items,
-        fees: existingWb.fees,
+        items: existingWb.items as any,
+        fees: existingWb.fees as any,
       });
       updateData.receivableAmount = financials.receivableAmount;
       updateData.payableAmount = financials.payableAmount;

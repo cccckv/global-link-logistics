@@ -109,4 +109,19 @@ export class CustomerV2Service {
       },
     });
   }
+
+  async deleteCustomer(id: string) {
+    // 检查是否有运单关联
+    const waybillCount = await prisma.waybill.count({
+      where: { customerId: id },
+    });
+
+    if (waybillCount > 0) {
+      throw new Error(`该客户名下已关联 ${waybillCount} 票运单，无法直接删除！请先处理或转移相关运单。`);
+    }
+
+    return prisma.customer.delete({
+      where: { id },
+    });
+  }
 }

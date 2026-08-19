@@ -17,7 +17,9 @@ import {
   Info,
   Copy,
   Check,
+  FileSpreadsheet,
 } from 'lucide-react';
+import { BatchImportModal } from '../../components/v2/BatchImportModal';
 import {
   customerV2Api,
   waybillV2Api,
@@ -25,8 +27,9 @@ import {
   type Customer,
   type ShipmentType,
   type CurrencyType,
-  type ChannelMapping,
+  type ShippingChannel,
 } from '../../lib/v2-api';
+
 import {
   DESTINATION_COUNTRIES,
   getPortsByCountry,
@@ -63,6 +66,7 @@ export default function InboundWorkbench() {
 
   // Mode: SEA_LCL, AIR, SEA_FCL
   const [orderType, setOrderType] = useState<ShipmentType>('SEA_LCL');
+  const [showImportModal, setShowImportModal] = useState(false);
 
   // Customer Autocomplete & Data
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -73,11 +77,11 @@ export default function InboundWorkbench() {
   const [originWarehouse, setOriginWarehouse] = useState('');
   const [destinationCountry, setDestinationCountry] = useState('');
   const [destinationPort, setDestinationPort] = useState('');
-  const [customsType, setCustomsType] = useState('');
   const [forwarderChannel, setForwarderChannel] = useState('');
-  const [channelMappings, setChannelMappings] = useState<ChannelMapping[]>([]);
+  const [channels, setChannels] = useState<ShippingChannel[]>([]);
   const [expressNo, setExpressNo] = useState('');
   const [note, setNote] = useState('');
+
 
   // Address
   const [showAddressDetail, setShowAddressDetail] = useState(false);
@@ -139,8 +143,8 @@ export default function InboundWorkbench() {
     setOriginWarehouse('');
     setDestinationCountry('');
     setDestinationPort('');
-    setCustomsType('');
-    setForwarderChannel('');
+    const defaultCh = channels.find((c) => c.isDefault);
+    setForwarderChannel(defaultCh ? defaultCh.name : '');
     setExpressNo('');
     setNote('');
     setOverseasName('');
@@ -166,7 +170,7 @@ export default function InboundWorkbench() {
     setCreatedResult(null);
   };
 
-  // Load customers & channel mappings
+  // Load customers & SEA_LCL channels
   useEffect(() => {
     customerV2Api.list().then((res) => {
       if (res.data.data) {
@@ -174,32 +178,17 @@ export default function InboundWorkbench() {
       }
     });
 
-    channelV2Api.list().then((res) => {
+    channelV2Api.list({ category: 'SEA_LCL', isActive: true }).then((res) => {
       if (res.data.data && res.data.data.length > 0) {
-        setChannelMappings(res.data.data);
+        setChannels(res.data.data);
+        const defaultCh = res.data.data.find((c) => c.isDefault);
+        if (defaultCh && !forwarderChannel) {
+          setForwarderChannel(defaultCh.name);
+        }
       }
     });
   }, []);
 
-  // Cascading Channel Switch
-  const handleCustomsTypeChange = (newType: string) => {
-    setCustomsType(newType);
-    const validChannels = channelMappings
-      .filter((m) => m.customsType === newType)
-      .map((m) => m.forwarderChannel);
-
-    const allowed = validChannels.length > 0
-      ? validChannels
-      : newType === '退税报关'
-      ? ['中外运', '万海自营专线']
-      : newType === '敏感特货'
-      ? ['菲通货运', '万海特货通道']
-      : ['万海自营专线', '中外运', '天帆东南亚', '同行外发分拨'];
-
-    if (!allowed.includes(forwarderChannel)) {
-      setForwarderChannel(allowed[0] || '万海自营专线');
-    }
-  };
 
   // Handle Mark Select / Input
   const handleMarkChange = (val: string) => {
@@ -347,9 +336,9 @@ export default function InboundWorkbench() {
         originWarehouse,
         destinationCountry,
         destinationPort,
-        customsType,
         forwarderChannel: forwarderChannel.trim() || undefined,
         expressNo: expressNo.trim() || undefined,
+
         note: note.trim() || undefined,
         isFixedPrice: isFcl ? true : isFixedPrice,
         fixedPriceAmount: isFcl ? (Number(fclQuotation) || undefined) : isFixedPrice ? fixedPriceAmount : undefined,
@@ -437,44 +426,55 @@ export default function InboundWorkbench() {
           </p>
         </div>
 
-        {/* Mode Selector Tabs */}
-        <div className="flex bg-black/20 p-1.5 rounded-xl backdrop-blur-md self-start md:self-auto">
+        {/* Mode Selector & Batch Import */}
+        <div className="flex items-center gap-3 self-start md:self-auto">
           <button
             type="button"
-            onClick={() => setOrderType('SEA_LCL')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              orderType === 'SEA_LCL'
-                ? 'bg-white text-blue-800 shadow-md font-semibold'
-                : 'text-white/80 hover:text-white'
-            }`}
+            onClick={() => setShowImportModal(true)}
+            className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl text-xs font-semibold backdrop-blur-md border border-white/20 flex items-center gap-1.5 transition-all shadow-sm"
           >
-            <Ship className="w-4 h-4" />
-            海运拼柜 (LCL)
+            <FileSpreadsheet className="w-4 h-4 text-emerald-300" />
+            批量导入此类型订单
           </button>
-          <button
-            type="button"
-            onClick={() => setOrderType('AIR')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              orderType === 'AIR'
-                ? 'bg-white text-blue-800 shadow-md font-semibold'
-                : 'text-white/80 hover:text-white'
-            }`}
-          >
-            <Plane className="w-4 h-4" />
-            空运快递 (AIR)
-          </button>
-          <button
-            type="button"
-            onClick={() => setOrderType('SEA_FCL')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              orderType === 'SEA_FCL'
-                ? 'bg-white text-blue-800 shadow-md font-semibold'
-                : 'text-white/80 hover:text-white'
-            }`}
-          >
-            <Container className="w-4 h-4" />
-            海运整柜 (FCL)
-          </button>
+
+          <div className="flex bg-black/20 p-1.5 rounded-xl backdrop-blur-md">
+            <button
+              type="button"
+              onClick={() => setOrderType('SEA_LCL')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                orderType === 'SEA_LCL'
+                  ? 'bg-white text-blue-800 shadow-md font-semibold'
+                  : 'text-white/80 hover:text-white'
+              }`}
+            >
+              <Ship className="w-4 h-4" />
+              海运拼柜 (LCL)
+            </button>
+            <button
+              type="button"
+              onClick={() => setOrderType('AIR')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                orderType === 'AIR'
+                  ? 'bg-white text-blue-800 shadow-md font-semibold'
+                  : 'text-white/80 hover:text-white'
+              }`}
+            >
+              <Plane className="w-4 h-4" />
+              空运快递 (AIR)
+            </button>
+            <button
+              type="button"
+              onClick={() => setOrderType('SEA_FCL')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                orderType === 'SEA_FCL'
+                  ? 'bg-white text-blue-800 shadow-md font-semibold'
+                  : 'text-white/80 hover:text-white'
+              }`}
+            >
+              <Container className="w-4 h-4" />
+              海运整柜 (FCL)
+            </button>
+          </div>
         </div>
       </div>
 
@@ -589,64 +589,39 @@ export default function InboundWorkbench() {
               </select>
             </div>
 
-            {/* 报关通道 / 货品属性 (customsType) */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-slate-700">
-                报关通道 / 货品属性
-              </label>
-              <select
-                value={customsType}
-                onChange={(e) => handleCustomsTypeChange(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">-- 请选择报关通道 --</option>
-                <option value="普货双清">普货双清 (常规拼箱/包税)</option>
-                <option value="退税报关">退税报关 (化妆退税/大宗退税)</option>
-                <option value="敏感特货">敏感特货 (带电/带磁/液体)</option>
-                <option value="一般贸易买单">一般贸易买单报关</option>
-              </select>
-            </div>
-
-            {/* 承运渠道 / 服务商 (forwarderChannel) - 动态级联防错 */}
+            {/* 承运服务商 / 专线渠道 (forwarderChannel) */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-semibold text-slate-700">
                   承运服务商 / 专线渠道
                 </label>
-                {customsType && (
-                  <span className="text-[10px] text-blue-600 font-semibold">
-                    (已按【{customsType}】过滤)
-                  </span>
-                )}
+                <button
+                  type="button"
+                  onClick={() => navigate('/v2/channels')}
+                  className="text-[11px] text-blue-600 hover:text-blue-700 hover:underline font-semibold"
+                >
+                  管理渠道 →
+                </button>
               </div>
               <select
                 value={forwarderChannel}
                 onChange={(e) => setForwarderChannel(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-blue-50/40 border border-blue-300 rounded-lg text-sm font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="">-- 请选择承运渠道 --</option>
-                {(() => {
-                  if (!customsType) return null;
-                  const valid = channelMappings
-                    .filter((m) => m.customsType === customsType)
-                    .map((m) => m.forwarderChannel);
-
-                  const list = valid.length > 0
-                    ? valid
-                    : customsType === '退税报关'
-                    ? ['中外运', '万海自营专线']
-                    : customsType === '敏感特货'
-                    ? ['菲通货运', '万海特货通道']
-                    : ['万海自营专线', '中外运', '天帆东南亚', '同行外发分拨'];
-
-                  return list.map((ch) => (
-                    <option key={ch} value={ch}>
-                      {ch}
-                    </option>
-                  ));
-                })()}
+                <option value="">-- 请选择拼箱承运渠道 --</option>
+                {channels.map((ch) => (
+                  <option key={ch.id} value={ch.name}>
+                    {ch.name} {ch.code ? `(${ch.code})` : ''} {ch.isDefault ? '⭐ [默认]' : ''}
+                  </option>
+                ))}
+                {forwarderChannel && !channels.some((c) => c.name === forwarderChannel) && (
+                  <option value={forwarderChannel}>
+                    {forwarderChannel} (自定义/历史渠道)
+                  </option>
+                )}
               </select>
             </div>
+
 
             {/* 订单备注 */}
             <div className="space-y-1.5 lg:col-span-2">
@@ -1240,6 +1215,17 @@ export default function InboundWorkbench() {
           </div>
         </div>
       )}
+
+      {/* 批量导入弹窗 */}
+      <BatchImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        importType={orderType}
+        onSuccess={() => {
+          toast.success('订单批量导入完成！');
+          navigate('/v2/waybills');
+        }}
+      />
     </div>
   );
 }

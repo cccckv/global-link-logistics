@@ -34,8 +34,9 @@ import {
   type WaybillStatus,
   type AttachmentType,
   type CurrencyType,
-  type ChannelMapping,
+  type ShippingChannel,
 } from '../../lib/v2-api';
+
 import {
   DESTINATION_COUNTRIES,
   getPortsByCountry,
@@ -112,10 +113,10 @@ export default function WaybillDetailView() {
   const [originWarehouse, setOriginWarehouse] = useState('');
   const [destinationCountry, setDestinationCountry] = useState('');
   const [destinationPort, setDestinationPort] = useState('');
-  const [customsType, setCustomsType] = useState('');
   const [forwarderChannel, setForwarderChannel] = useState('');
-  const [channelMappings, setChannelMappings] = useState<ChannelMapping[]>([]);
+  const [channels, setChannels] = useState<ShippingChannel[]>([]);
   const [note, setNote] = useState('');
+
 
   // Stage 2 (实测尺寸) State
   const [inboundDate, setInboundDate] = useState('');
@@ -167,11 +168,11 @@ export default function WaybillDetailView() {
       const [wbRes, contRes, chanRes] = await Promise.all([
         waybillV2Api.getById(id),
         containerV2Api.list({ limit: 100 }),
-        channelV2Api.list(),
+        channelV2Api.list({ isActive: true }),
       ]);
 
       if (chanRes.data.success && chanRes.data.data) {
-        setChannelMappings(chanRes.data.data);
+        setChannels(chanRes.data.data);
       }
 
       if (wbRes.data.success) {
@@ -181,9 +182,9 @@ export default function WaybillDetailView() {
         setOriginWarehouse(wb.originWarehouse || '');
         setDestinationCountry(wb.destinationCountry || '');
         setDestinationPort(wb.destinationPort || '');
-        setCustomsType(wb.customsType || '');
         setForwarderChannel(wb.forwarderChannel || '');
         setNote(wb.note || '');
+
         setExpressNo(wb.expressNo || '');
         const rawItems = wb.items || [];
         const normalizedItems = rawItems.map((it: any) => ({
@@ -287,93 +288,25 @@ export default function WaybillDetailView() {
     toast.success('已一键带入客户预报尺寸、重量与件数！');
   };
 
-  const handleCustomsTypeChange = (newType: string) => {
-    setCustomsType(newType);
-    const valid = channelMappings
-      .filter((m) => m.customsType === newType)
-      .map((m) => m.forwarderChannel);
-    const allowed = valid.length > 0
-      ? valid
-      : newType === '退税报关'
-        ? ['中外运', '万海自营专线']
-        : newType === '敏感特货'
-          ? ['菲通货运', '万海特货通道']
-          : ['万海自营专线', '中外运', '天帆东南亚', '同行外发分拨'];
-
-    if (!allowed.includes(forwarderChannel)) {
-      setForwarderChannel(allowed[0] || '万海自营专线');
-    }
-  };
-
   useEffect(() => {
     loadData();
   }, [id]);
 
-  if (loading) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 py-20 text-center text-slate-400">
-        运单数据加载中...
-      </div>
-    );
-  }
-
-  if (!waybill) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 py-20 text-center space-y-4">
-        <p className="text-slate-500">未找到该运单记录</p>
-        <button
-          onClick={() => navigate('/v2/waybills')}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs"
-        >
-          返回运单看板
-        </button>
-      </div>
-    );
-  }
-
-  // Calculate current stage index
-  // Map CUSTOMS to index 4 (same as DISPATCHING)
-  let currentStageIdx = STAGES.findIndex((s) => s.key === waybill.status);
-  if (currentStageIdx === -1) {
-    if (waybill.status === 'CUSTOMS') currentStageIdx = 4;
-    else currentStageIdx = 0;
-  }
-  const currentStage = STAGES[currentStageIdx] || STAGES[0];
-
-  // Rollback Stage Handler
-  const handleRollback = async (targetStageIdx: number) => {
-    const targetStage = STAGES[targetStageIdx];
-    if (!targetStage) return;
-
-    if (!confirm(`确认将运单状态回退至【${targetStage.label}】？\n已录入的尺寸、货柜或费用信息将予以保留。`)) {
-      return;
-    }
-
-    try {
-      await waybillV2Api.update(waybill.id, {
-        status: targetStage.key,
-      });
-      toast.success(`运单已成功回退至【${targetStage.label}】！`);
-      setActiveStageModal(null);
-      loadData();
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || '状态回退失败');
-    }
-  };
-
   // Stage 1 Save (修改预报信息与货物快照)
   const handleStage1Save = async () => {
+    if (!waybill) return;
     try {
       const isInitialStage = waybill.status === 'DRAFT';
       await waybillV2Api.update(waybill.id, {
+
         userMark: userMark.trim(),
         originWarehouse,
         destinationCountry,
         destinationPort: destinationPort.trim() || undefined,
-        customsType,
         forwarderChannel: forwarderChannel.trim() || undefined,
         note: note.trim() || undefined,
         items: stage1Items.map((it, idx) => {
+
           const orig = waybill.items?.find((i) => i.id === it.id) || (waybill.items ? waybill.items[idx] : undefined);
           const estQty = it.estimatedQuantity !== undefined && it.estimatedQuantity !== null && String(it.estimatedQuantity).trim() !== ''
             ? Number(it.estimatedQuantity)
@@ -436,6 +369,7 @@ export default function WaybillDetailView() {
 
   // Stage 2 Save & Advance: 到仓实测尺寸与入库
   const handleStage2Submit = async (advanceStatus: boolean = true) => {
+    if (!waybill) return;
     try {
       const payload: any = {
         inboundDate,
@@ -481,6 +415,7 @@ export default function WaybillDetailView() {
 
   // Stage 3 Save & Advance: 人工排柜
   const handleStage3Submit = async (advanceStatus: boolean = true) => {
+    if (!waybill) return;
     try {
       let targetContainerId = selectedContainerId;
 
@@ -522,6 +457,7 @@ export default function WaybillDetailView() {
 
   // Stage 4 Save & Advance: 干线启运在途
   const handleStage4Submit = async (advanceStatus: boolean = true) => {
+    if (!waybill) return;
     if (!vesselVoyage.trim()) {
       toast.error('请填写船名/航次 (Vessel/Voyage)，该字段为必填项！');
       return;
@@ -561,6 +497,7 @@ export default function WaybillDetailView() {
 
   // Stage 5 Save & Advance: 清关放行
   const handleStage5Submit = async (advanceStatus: boolean = true) => {
+    if (!waybill) return;
     try {
       if (advanceStatus) {
         await waybillV2Api.update(waybill.id, {
@@ -594,6 +531,7 @@ export default function WaybillDetailView() {
 
   // Stage 6 Save & Advance: 签收完结
   const handleStage6Submit = async () => {
+    if (!waybill) return;
     if (!signedDate) {
       toast.error('请填写客户签收日期！');
       return;
@@ -624,6 +562,7 @@ export default function WaybillDetailView() {
   // Add Fee
   const handleAddFee = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!waybill) return;
     if (!feeAmount || feeAmount <= 0) {
       toast.error('请输入有效金额');
       return;
@@ -659,6 +598,7 @@ export default function WaybillDetailView() {
   // Add Attachment
   const handleAddAttachment = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!waybill) return;
     if (!fileUrl.trim()) {
       toast.error('请输入或上传附件链接');
       return;
@@ -679,6 +619,7 @@ export default function WaybillDetailView() {
     }
   };
 
+
   // Delete Attachment
   const handleDeleteAttachment = async (attId: string) => {
     if (!confirm('确认删除该单证附件？')) return;
@@ -688,6 +629,57 @@ export default function WaybillDetailView() {
       loadData();
     } catch (err: any) {
       toast.error('删除附件失败');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-20 text-center text-slate-400">
+        运单数据加载中...
+      </div>
+    );
+  }
+
+  if (!waybill) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-20 text-center space-y-4">
+        <p className="text-slate-500">未找到该运单记录</p>
+        <button
+          onClick={() => navigate('/v2/waybills')}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs"
+        >
+          返回运单看板
+        </button>
+      </div>
+    );
+  }
+
+  // Calculate current stage index
+  let currentStageIdx = STAGES.findIndex((s) => s.key === waybill.status);
+  if (currentStageIdx === -1) {
+    if (waybill.status === 'CUSTOMS') currentStageIdx = 4;
+    else currentStageIdx = 0;
+  }
+  const currentStage = STAGES[currentStageIdx] || STAGES[0];
+
+  // Rollback Stage Handler
+  const handleRollback = async (targetStageIdx: number) => {
+    const targetStage = STAGES[targetStageIdx];
+    if (!targetStage) return;
+
+    if (!confirm(`确认将运单状态回退至【${targetStage.label}】？\n已录入的尺寸、货柜或费用信息将予以保留。`)) {
+      return;
+    }
+
+    try {
+      await waybillV2Api.update(waybill.id, {
+        status: targetStage.key,
+      });
+      toast.success(`运单已成功回退至【${targetStage.label}】！`);
+      setActiveStageModal(null);
+      loadData();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || '状态回退失败');
     }
   };
 
@@ -702,6 +694,7 @@ export default function WaybillDetailView() {
     }
     setActiveStageModal(targetStageNum);
   };
+
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
@@ -1434,24 +1427,7 @@ export default function WaybillDetailView() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      报关通道 / 货品属性
-                    </label>
-                    <select
-                      value={customsType}
-                      onChange={(e) => handleCustomsTypeChange(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium"
-                    >
-                      <option value="">-- 请选择报关通道 --</option>
-                      <option value="普货双清">普货双清 (常规拼箱/包税)</option>
-                      <option value="退税报关">退税报关 (化妆退税/大宗退税)</option>
-                      <option value="敏感特货">敏感特货 (带电/带磁/液体)</option>
-                      <option value="一般贸易买单">一般贸易买单报关</option>
-                    </select>
-                  </div>
-
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
                       承运渠道 / 服务商
@@ -1462,26 +1438,18 @@ export default function WaybillDetailView() {
                       className="w-full px-3 py-2 bg-blue-50/40 border border-blue-300 rounded-lg text-xs font-bold text-slate-900 focus:bg-white"
                     >
                       <option value="">-- 请选择承运渠道 --</option>
-                      {(() => {
-                        if (!customsType) return null;
-                        const valid = channelMappings
-                          .filter((m) => m.customsType === customsType)
-                          .map((m) => m.forwarderChannel);
-
-                        const list = valid.length > 0
-                          ? valid
-                          : customsType === '退税报关'
-                            ? ['中外运', '万海自营专线']
-                            : customsType === '敏感特货'
-                              ? ['菲通货运', '万海特货通道']
-                              : ['万海自营专线', '中外运', '天帆东南亚', '同行外发分拨'];
-
-                        return list.map((ch) => (
-                          <option key={ch} value={ch}>
-                            {ch}
+                      {channels
+                        .filter((c) => !waybill?.orderType || c.category === waybill.orderType)
+                        .map((ch) => (
+                          <option key={ch.id} value={ch.name}>
+                            {ch.name} {ch.code ? `(${ch.code})` : ''} {ch.isDefault ? '⭐ [默认]' : ''}
                           </option>
-                        ));
-                      })()}
+                        ))}
+                      {forwarderChannel && !channels.some((c) => c.name === forwarderChannel) && (
+                        <option value={forwarderChannel}>
+                          {forwarderChannel} (自定义/历史渠道)
+                        </option>
+                      )}
                     </select>
                   </div>
 
@@ -1498,6 +1466,7 @@ export default function WaybillDetailView() {
                     />
                   </div>
                 </div>
+
               </div>
 
               {/* 货物预报清单编辑 */}

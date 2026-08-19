@@ -21,6 +21,8 @@ import WaybillManagement from './pages/v2/WaybillManagement';
 import WaybillDetailView from './pages/v2/WaybillDetailView';
 import ContainerTracking from './pages/v2/ContainerTracking';
 import CustomerManagement from './pages/v2/CustomerManagement';
+import ChannelManagement from './pages/v2/ChannelManagement';
+
 
 export default function App() {
   return (
@@ -154,7 +156,16 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/v2/channels"
+            element={
+              <ProtectedRoute>
+                <ChannelManagement />
+              </ProtectedRoute>
+            }
+          />
         </Route>
+
       </Routes>
     </BrowserRouter>
   );

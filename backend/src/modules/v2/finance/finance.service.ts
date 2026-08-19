@@ -79,9 +79,10 @@ export class FinanceV2Service {
       isFixedPrice: waybill.isFixedPrice,
       fixedPriceAmount: waybill.fixedPriceAmount ? Number(waybill.fixedPriceAmount) : undefined,
       currentReceivableAmount: waybill.receivableAmount ? Number(waybill.receivableAmount) : undefined,
-      items: waybill.items,
-      fees: waybill.fees,
+      items: waybill.items as any,
+      fees: waybill.fees as any,
     });
+
 
     await prisma.waybill.update({
       where: { id: waybillId },

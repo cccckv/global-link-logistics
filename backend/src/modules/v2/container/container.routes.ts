@@ -60,7 +60,8 @@ export async function containerV2Routes(fastify: FastifyInstance) {
     Body: any;
   }>('/:id', async (request, reply) => {
     try {
-      const updated = await containerService.updateContainer(request.params.id, request.body);
+      const updated = await containerService.updateContainer(request.params.id, request.body as any);
+
       return reply.send({ success: true, data: updated });
     } catch (err: any) {
       return reply.code(500).send({ success: false, error: err.message });

@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
-const V2_BASE_URL = `${API_BASE_URL.replace(/\/api$/, '')}/api/v2`;
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+const V2_BASE_URL = API_BASE_URL.endsWith('/api') ? `${API_BASE_URL}/v2` : (API_BASE_URL.endsWith('/api/') ? `${API_BASE_URL}v2` : `${API_BASE_URL}/api/v2`);
 
 export const v2Api = axios.create({
   baseURL: V2_BASE_URL,
@@ -220,6 +220,9 @@ export const customerV2Api = {
 
   addAddress: (customerId: string, address: Partial<CustomerAddress>) =>
     v2Api.post<{ success: boolean; data: CustomerAddress }>(`/customers/${customerId}/addresses`, address),
+
+  delete: (id: string) =>
+    v2Api.delete<{ success: boolean; message: string }>(`/customers/${id}`),
 };
 
 export const waybillV2Api = {
@@ -308,22 +311,67 @@ export const financeV2Api = {
     v2Api.delete<{ success: boolean; message: string }>(`/finance/attachments/${attachmentId}`),
 };
 
-export interface ChannelMapping {
+export type ChannelCategory =
+  | 'SEA_LCL'
+  | 'AIR'
+  | 'FCL_BOOKING'
+  | 'FCL_CUSTOMS'
+  | 'FCL_CLEARANCE'
+  | 'FCL_TRUCKING';
+
+export interface ShippingChannel {
   id: string;
-  customsType: string;
-  forwarderChannel: string;
-  note?: string;
+  category: ChannelCategory;
+  name: string;
+  code?: string | null;
+  contactPerson?: string | null;
+  contactPhone?: string | null;
+  isDefault: boolean;
+  isActive: boolean;
+  sortOrder: number;
+  note?: string | null;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export const channelV2Api = {
-  list: (params?: { customsType?: string }) =>
-    v2Api.get<{ success: boolean; data: ChannelMapping[] }>('/channels/channel-mappings', { params }),
-  create: (data: { customsType: string; forwarderChannel: string; note?: string }) =>
-    v2Api.post<{ success: boolean; data: ChannelMapping }>('/channels/channel-mappings', data),
+  list: (params?: { category?: ChannelCategory; isActive?: boolean; search?: string }) =>
+    v2Api.get<{ success: boolean; data: ShippingChannel[] }>('/channels', { params }),
+  getById: (id: string) =>
+    v2Api.get<{ success: boolean; data: ShippingChannel }>(`/channels/${id}`),
+  create: (data: {
+    category: ChannelCategory;
+    name: string;
+    code?: string;
+    contactPerson?: string;
+    contactPhone?: string;
+    isDefault?: boolean;
+    isActive?: boolean;
+    sortOrder?: number;
+    note?: string;
+  }) =>
+    v2Api.post<{ success: boolean; data: ShippingChannel }>('/channels', data),
+  update: (
+    id: string,
+    data: Partial<{
+      category: ChannelCategory;
+      name: string;
+      code?: string;
+      contactPerson?: string;
+      contactPhone?: string;
+      isDefault?: boolean;
+      isActive?: boolean;
+      sortOrder?: number;
+      note?: string;
+    }>
+  ) =>
+    v2Api.put<{ success: boolean; data: ShippingChannel }>(`/channels/${id}`, data),
+  toggleActive: (id: string) =>
+    v2Api.patch<{ success: boolean; data: ShippingChannel }>(`/channels/${id}/toggle`),
   delete: (id: string) =>
-    v2Api.delete<{ success: boolean; message: string }>(`/channels/channel-mappings/${id}`),
+    v2Api.delete<{ success: boolean; message: string }>(`/channels/${id}`),
 };
+
 
 export const uploadV2Api = {
   upload: (file: File) => {

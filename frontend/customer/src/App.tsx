@@ -22,6 +22,7 @@ import WaybillDetailView from './pages/v2/WaybillDetailView';
 import ContainerTracking from './pages/v2/ContainerTracking';
 import CustomerManagement from './pages/v2/CustomerManagement';
 import ChannelManagement from './pages/v2/ChannelManagement';
+import OriginWarehouseManagement from './pages/v2/OriginWarehouseManagement';
 
 
 export default function App() {
@@ -161,6 +162,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <ChannelManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/v2/warehouses"
+            element={
+              <ProtectedRoute>
+                <OriginWarehouseManagement />
               </ProtectedRoute>
             }
           />

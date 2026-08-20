@@ -46,8 +46,8 @@ export async function channelV2Routes(fastify: FastifyInstance) {
     }
   });
 
-  // PUT /api/v2/channels/:id
-  fastify.put('/:id', async (request, reply) => {
+  // PUT / POST /api/v2/channels/:id
+  const updateChannelHandler = async (request: any, reply: any) => {
     try {
       const { id } = request.params as { id: string };
       const body = request.body as Partial<CreateShippingChannelInput>;
@@ -56,10 +56,14 @@ export async function channelV2Routes(fastify: FastifyInstance) {
     } catch (err: any) {
       return reply.status(400).send({ success: false, error: err.message });
     }
-  });
+  };
+  fastify.put('/:id', updateChannelHandler);
+  fastify.patch('/:id', updateChannelHandler);
+  fastify.post('/:id/update', updateChannelHandler);
+  fastify.post('/:id', updateChannelHandler);
 
-  // PATCH /api/v2/channels/:id/toggle
-  fastify.patch('/:id/toggle', async (request, reply) => {
+  // PATCH / POST /api/v2/channels/:id/toggle
+  const toggleHandler = async (request: any, reply: any) => {
     try {
       const { id } = request.params as { id: string };
       const channel = await service.toggleActive(id);
@@ -67,7 +71,9 @@ export async function channelV2Routes(fastify: FastifyInstance) {
     } catch (err: any) {
       return reply.status(400).send({ success: false, error: err.message });
     }
-  });
+  };
+  fastify.patch('/:id/toggle', toggleHandler);
+  fastify.post('/:id/toggle', toggleHandler);
 
   // DELETE /api/v2/channels/:id
   fastify.delete('/:id', async (request, reply) => {

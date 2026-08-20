@@ -353,6 +353,7 @@ enum OrderVoucherType {
   OVERSEAS_RECEIPT
 }
 
+
 // ==========================================
 // V2 REFACTORED MODELS (全新独立演进架构)
 // ==========================================
@@ -454,7 +455,6 @@ model Waybill {
   profitAmount       Decimal?          @db.Decimal(12, 2)
   isFixedPrice       Boolean           @default(false) // 是否一口价
   fixedPriceAmount   Decimal?          @db.Decimal(12, 2) // 一口价协议金额
-
 
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
@@ -705,5 +705,24 @@ model ShippingChannel {
   @@index([category, isActive])
 }
 
+model OriginWarehouse {
+  id             String   @id @default(uuid())
+  code           String   @unique // 仓库标识码 (如 GZ-01, LY-01, YW-01)
+  name           String   // 仓库全称 (如 "广州白云集运总仓")
+  shortName      String   // 简称 (如 "广州仓")
+  contactName    String   // 仓库收货负责人/联系人 (如 "广州仓收货组")
+  contactPhone   String   // 仓库联系/收货电话 (如 "13800000000")
+  province       String?  // 省份
+  city           String?  // 城市
+  address        String   // 仓库详细收货地址
+  receivingHours String?  // 营业收货时间 (如 "09:00 - 21:00")
+  isDefault      Boolean  @default(false) // 是否系统默认仓
+  isActive       Boolean  @default(true)  // 启用状态
+  sortOrder      Int      @default(0)     // 排序权重
+  note           String?  // 备注/送仓指引说明
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
+  @@index([isActive])
+}
 

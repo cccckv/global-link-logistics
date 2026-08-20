@@ -51,7 +51,7 @@ export class TemplateGeneratorService {
   }
 
   // ==============================================================
-  // 1. 客户档案导入模板
+  // 1. 客户档案导入模板 (支持单客户多海外收件人)
   // ==============================================================
   private buildCustomerTemplate(workbook: ExcelJS.Workbook) {
     const sheet = workbook.addWorksheet('客户档案导入');
@@ -59,26 +59,51 @@ export class TemplateGeneratorService {
     sheet.columns = [
       { header: '客户唛头/编码 (必填)', key: 'clientCode', width: 25 },
       { header: '客户姓名/企业名 (选填)', key: 'name', width: 25 },
-      { header: '联系电话 (选填)', key: 'phone', width: 18 },
+      { header: '客户联系电话 (选填)', key: 'phone', width: 20 },
       { header: '电子邮箱 (选填)', key: 'email', width: 22 },
       { header: '常用起运仓 (选填)', key: 'defaultWarehouse', width: 18 },
-      { header: '常用目的国 (选填)', key: 'destinationCountry', width: 18 },
-      { header: '常用目的港 (选填)', key: 'destinationPort', width: 18 },
-      { header: '备注 (选填)', key: 'note', width: 30 },
+      { header: '海外收件联系人 (选填)', key: 'consigneeName', width: 22 },
+      { header: '海外联系电话/WhatsApp (选填)', key: 'consigneePhone', width: 25 },
+      { header: '海外收件公司 (选填)', key: 'consigneeCompany', width: 22 },
+      { header: '目的国家 (选填)', key: 'destinationCountry', width: 16 },
+      { header: '目的港口/地区 (选填)', key: 'destinationPort', width: 18 },
+      { header: '海外详细派送地址 (选填)', key: 'consigneeAddress', width: 35 },
+      { header: '是否默认收件人 (是/否)', key: 'isDefault', width: 20 },
+      { header: '备注 (选填)', key: 'note', width: 25 },
     ];
 
     this.styleHeaderRow(sheet.getRow(1));
 
-    // 添加示例数据
+    // 添加示例数据：展示单客户多海外收件人 (1:N)
     sheet.addRow({
       clientCode: 'WH-ZZY-FLB',
       name: '张三 (菲商贸)',
       phone: '13800138000',
       email: 'zhangsan@example.com',
       defaultWarehouse: '广州仓',
+      consigneeName: 'Alex Johnson',
+      consigneePhone: '+63 917 123 4567',
+      consigneeCompany: 'Manila Trading Inc.',
       destinationCountry: '菲律宾',
       destinationPort: '马尼拉南港',
+      consigneeAddress: 'Unit 802, BGC Tower, Taguig, Metro Manila',
+      isDefault: '是',
       note: '优质老客户，每周五装柜',
+    });
+    sheet.addRow({
+      clientCode: 'WH-ZZY-FLB',
+      name: '',
+      phone: '',
+      email: '',
+      defaultWarehouse: '',
+      consigneeName: 'Bob Williams',
+      consigneePhone: '+63 918 888 9999',
+      consigneeCompany: 'Cebu Distribution Hub',
+      destinationCountry: '菲律宾',
+      destinationPort: '宿务港',
+      consigneeAddress: 'Warehouse 3, Reclamation Area, Cebu City',
+      isDefault: '否',
+      note: '',
     });
     sheet.addRow({
       clientCode: 'WH-10115',
@@ -86,24 +111,21 @@ export class TemplateGeneratorService {
       phone: '09171234567',
       email: '',
       defaultWarehouse: '龙岩仓',
+      consigneeName: 'Maria Santos',
+      consigneePhone: '+63 915 222 3333',
+      consigneeCompany: 'Santos Store',
       destinationCountry: '菲律宾',
       destinationPort: '马尼拉北港',
+      consigneeAddress: '1245 Soler St, Binondo, Manila',
+      isDefault: '是',
       note: '',
-    });
-    sheet.addRow({
-      clientCode: 'WH-五金',
-      name: '',
-      phone: '',
-      email: '',
-      defaultWarehouse: '广州仓',
-      destinationCountry: '印尼',
-      destinationPort: '',
-      note: '客户名留空将默认同唛头',
     });
 
     // 添加提示批注
-    sheet.getCell('A1').note = '【唯一标识】系统核心客户编码/唛头，必填且全局唯一。';
-    sheet.getCell('B1').note = '选填。若留空，系统将自动填充为与客户唛头一致。';
+    sheet.getCell('A1').note = '【唯一标识】系统核心客户编码/唛头，必填。一个客户若有多个海外收件人，录入多行填写相同唛头即可。';
+    sheet.getCell('C1').note = '【客户联系电话】货主本人对账/业务联系电话，首行优先保护。';
+    sheet.getCell('F1').note = '【海外收件人】海外具体门牌/档口收货人姓名，每行独立存入该客户的地址簿。';
+    sheet.getCell('L1').note = '填【是】或【否】。若标为【是】，系统将自动提取其目的国和目的港作为客户主路线。未填默认首个地址为默认。';
   }
 
   // ==============================================================
@@ -119,6 +141,9 @@ export class TemplateGeneratorService {
       { header: '目的国', key: 'destinationCountry', width: 15 },
       { header: '承运渠道/服务商', key: 'forwarderChannel', width: 18 },
       { header: '报关/通道类型', key: 'customsType', width: 18 },
+      { header: '海外收件联系人', key: 'overseasName', width: 18 },
+      { header: '海外联系电话', key: 'overseasPhone', width: 20 },
+      { header: '海外详细派送地址', key: 'overseasAddress', width: 30 },
       { header: '专线单号', key: 'expressNo', width: 20 },
       { header: '申报品名 (必填)', key: 'productName', width: 25 },
       { header: '实收件数 (必填)', key: 'quantity', width: 15 },
@@ -145,6 +170,9 @@ export class TemplateGeneratorService {
       destinationCountry: '菲律宾',
       forwarderChannel: '中外运',
       customsType: '化妆退税',
+      overseasName: '',
+      overseasPhone: '',
+      overseasAddress: '',
       expressNo: 'FLY100002162',
       productName: '背心',
       quantity: 1,
@@ -168,6 +196,9 @@ export class TemplateGeneratorService {
       destinationCountry: '菲律宾',
       forwarderChannel: '万海自营专线',
       customsType: '普货双清',
+      overseasName: 'Alex Johnson',
+      overseasPhone: '+63 917 123 4567',
+      overseasAddress: 'Unit 802, BGC Tower, Taguig, Manila',
       expressNo: 'FLY100002256',
       productName: '吸油纸 (小规格)',
       quantity: 2,
@@ -191,6 +222,9 @@ export class TemplateGeneratorService {
       destinationCountry: '',
       forwarderChannel: '',
       customsType: '',
+      overseasName: '',
+      overseasPhone: '',
+      overseasAddress: '',
       expressNo: '',
       productName: '吸油纸 (大规格)',
       quantity: 6,
@@ -208,9 +242,9 @@ export class TemplateGeneratorService {
     });
 
     // 批注说明
-    sheet.getCell('A1').note = '【多明细聚合】相同分组号的多行将合并为同一张运单（如上面的两行吸油纸）。单票单品可留空。手输分组号纯作为内存解析，不入库。';
+    sheet.getCell('A1').note = '【多明细聚合】相同分组号的多行将合并为同一张运单。单票单品可留空。';
     sheet.getCell('B1').note = '【客户唛头】必填，必须已在系统客户档案中建档。';
-    sheet.getCell('L1').note = '选填。若填写了长宽高，系统将自动精确算方；也可直接填录体积。';
+    sheet.getCell('G1').note = '【海外收件人】选填。若留空，系统自动从该客户档案中继承其默认海外收件人。';
   }
 
   // ==============================================================
@@ -226,6 +260,9 @@ export class TemplateGeneratorService {
       { header: '目的国', key: 'destinationCountry', width: 15 },
       { header: '承运渠道/服务商', key: 'forwarderChannel', width: 18 },
       { header: '报关/通道类型', key: 'customsType', width: 18 },
+      { header: '海外收件联系人', key: 'overseasName', width: 18 },
+      { header: '海外联系电话', key: 'overseasPhone', width: 20 },
+      { header: '海外详细派送地址', key: 'overseasAddress', width: 30 },
       { header: '空运提单号 (AWB)', key: 'airWaybillNo', width: 20 },
       { header: '申报品名 (必填)', key: 'productName', width: 25 },
       { header: '实收件数 (必填)', key: 'quantity', width: 15 },
@@ -250,6 +287,9 @@ export class TemplateGeneratorService {
       destinationCountry: '菲律宾',
       forwarderChannel: '菲通货运',
       customsType: '普货双清',
+      overseasName: '',
+      overseasPhone: '',
+      overseasAddress: '',
       airWaybillNo: '91041985',
       productName: '电子配件',
       quantity: 6,
@@ -271,6 +311,9 @@ export class TemplateGeneratorService {
       destinationCountry: '菲律宾',
       forwarderChannel: '菲通货运',
       customsType: '普货双清',
+      overseasName: 'Maria Santos',
+      overseasPhone: '+63 915 222 3333',
+      overseasAddress: '1245 Soler St, Binondo, Manila',
       airWaybillNo: '91041999',
       productName: '五金工具',
       quantity: 11,
@@ -287,7 +330,7 @@ export class TemplateGeneratorService {
 
     sheet.getCell('A1').note = '【多明细聚合】相同分组号的多行归入同一票空运单。单票单品可留空。';
     sheet.getCell('B1').note = '【客户唛头】必填，必须已在系统客户档案中建档。';
-    sheet.getCell('I1').note = '【计费重量】空运按实际或计费公斤数核算金额。';
+    sheet.getCell('G1').note = '【海外收件人】选填。若留空，系统自动从该客户档案中继承其默认海外收件人。';
   }
 
   // ==============================================================
@@ -298,6 +341,9 @@ export class TemplateGeneratorService {
 
     sheet.columns = [
       { header: '客户唛头 (必填)', key: 'userMark', width: 22 },
+      { header: '海外收件联系人', key: 'overseasName', width: 18 },
+      { header: '海外联系电话', key: 'overseasPhone', width: 20 },
+      { header: '海外详细派送地址', key: 'overseasAddress', width: 30 },
       { header: '集装箱柜号 (必填)', key: 'containerNo', width: 22 },
       { header: '海运提单号 (B/L)', key: 'blNumber', width: 22 },
       { header: '船公司', key: 'carrier', width: 16 },
@@ -325,6 +371,9 @@ export class TemplateGeneratorService {
     // 示例数据
     sheet.addRow({
       userMark: 'WH-77777',
+      overseasName: 'Alex Johnson',
+      overseasPhone: '+63 917 123 4567',
+      overseasAddress: 'Unit 802, BGC Tower, Taguig, Manila',
       containerNo: 'FFAU7478798',
       blNumber: 'SNLGXGPL408017',
       carrier: '万海航运',
@@ -348,7 +397,8 @@ export class TemplateGeneratorService {
     });
 
     sheet.getCell('A1').note = '【客户唛头】必填，整柜货主。';
-    sheet.getCell('B1').note = '【集装箱柜号】必填，如 FFAU7478798。';
+    sheet.getCell('B1').note = '【海外收件人】选填。若留空，系统自动从该客户档案中继承其默认海外收件人。';
+    sheet.getCell('E1').note = '【集装箱柜号】必填，如 FFAU7478798。';
   }
 
   /**

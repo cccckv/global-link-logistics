@@ -89,25 +89,32 @@ interface BatchStatusBody {
 }
 
 export async function quickOrderRoutes(fastify: FastifyInstance) {
+  const batchStatusHandler = async (request: any, reply: any) => {
+    const { orderIds, status } = request.body;
+    if (!Array.isArray(orderIds) || orderIds.length === 0) {
+      return reply.code(400).send({ error: '请选择至少一条订单' });
+    }
+    if (!status) {
+      return reply.code(400).send({ error: '请选择目标状态' });
+    }
+    try {
+      const result = await service.batchUpdateStatus(orderIds, status);
+      return result;
+    } catch (error: any) {
+      fastify.log.error(error);
+      return reply.code(500).send({ error: error.message });
+    }
+  };
+
   fastify.patch<{ Body: BatchStatusBody }>(
     '/batch-status',
     { preHandler: [fastify.authenticate, authorize(['ADMIN'])] },
-    async (request, reply) => {
-      const { orderIds, status } = request.body;
-      if (!Array.isArray(orderIds) || orderIds.length === 0) {
-        return reply.code(400).send({ error: '请选择至少一条订单' });
-      }
-      if (!status) {
-        return reply.code(400).send({ error: '请选择目标状态' });
-      }
-      try {
-        const result = await service.batchUpdateStatus(orderIds, status);
-        return result;
-      } catch (error: any) {
-        fastify.log.error(error);
-        return reply.code(500).send({ error: error.message });
-      }
-    }
+    batchStatusHandler
+  );
+  fastify.post<{ Body: BatchStatusBody }>(
+    '/batch-status',
+    { preHandler: [fastify.authenticate, authorize(['ADMIN'])] },
+    batchStatusHandler
   );
 
   fastify.post<{ Body: CreateQuickOrderBody }>(
@@ -522,85 +529,65 @@ export async function quickOrderRoutes(fastify: FastifyInstance) {
     }
   );
 
-  fastify.patch<{ 
-    Params: { id: string };
-    Body: { 
-      status?: QuickOrderStatus;
-      note?: string;
-      voyageNumber?: string;
-      airWaybillNumber?: string;
-      billOfLading?: string;
-      containerNumber?: string;
-      bookingChannel?: string;
-      customsDeclarationChannel?: string;
-      customsClearanceChannel?: string;
-      loadingDate?: string;
-      eta?: string;
-      destination?: string;
-      warehouse?: string;
-      mark?: string;
-      userMark?: string;
-      markUserId?: string;
-      receivedAt?: string;
-      overseasReceivedAt?: string;
-      recipientAddress?: {
-        name: string;
-        company?: string;
-        phone: string;
-        region?: string;
-        address: string;
+  const updateOrderHandler = async (request: any, reply: any) => {
+    try {
+      const { id } = request.params;
+      const data = request.body;
+      
+      const order = await service.update(id, null, data);
+      
+      return {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        warehouse: order.warehouse,
+        destination: order.destination,
+        note: order.note,
+        mark: order.mark,
+        userMark: order.userMark,
+        markUserId: order.markUserId,
+        voyageNumber: order.voyageNumber,
+        airWaybillNumber: order.airWaybillNumber,
+        billOfLading: order.billOfLading,
+        containerNumber: order.containerNumber,
+        bookingChannel: order.bookingChannel,
+        customsDeclarationChannel: order.customsDeclarationChannel,
+        customsClearanceChannel: order.customsClearanceChannel,
+        loadingDate: order.loadingDate?.toISOString(),
+        eta: order.eta?.toISOString(),
+        totalShippingDays: order.totalShippingDays ?? null,
+        updatedAt: order.updatedAt.toISOString(),
+        recipientAddress: order.recipientAddress,
+        overseasAddress: order.overseasAddress,
       };
-      overseasAddress?: {
-        name: string;
-        company?: string;
-        phone: string;
-        region?: string;
-        address: string;
-      } | null;
-    };
-  }>(
+    } catch (error: any) {
+      fastify.log.error(error);
+      return reply.code(error.message === 'Order not found' ? 404 : 500).send({
+        error: error.message,
+      });
+    }
+  };
+
+  fastify.patch(
     '/:id',
     {
       preHandler: [fastify.authenticate, authorize(['ADMIN'])],
     },
-    async (request, reply) => {
-      try {
-        const { id } = request.params;
-        const data = request.body;
-        
-        const order = await service.update(id, null, data);
-        
-        return {
-          orderId: order.id,
-          orderNumber: order.orderNumber,
-          status: order.status,
-          warehouse: order.warehouse,
-          destination: order.destination,
-          note: order.note,
-          mark: order.mark,
-          userMark: order.userMark,
-          markUserId: order.markUserId,
-          voyageNumber: order.voyageNumber,
-          airWaybillNumber: order.airWaybillNumber,
-          billOfLading: order.billOfLading,
-          containerNumber: order.containerNumber,
-          bookingChannel: order.bookingChannel,
-          customsDeclarationChannel: order.customsDeclarationChannel,
-          customsClearanceChannel: order.customsClearanceChannel,
-          loadingDate: order.loadingDate?.toISOString(),
-          eta: order.eta?.toISOString(),
-          totalShippingDays: order.totalShippingDays ?? null,
-          updatedAt: order.updatedAt.toISOString(),
-          recipientAddress: order.recipientAddress,
-          overseasAddress: order.overseasAddress,
-        };
-      } catch (error: any) {
-        fastify.log.error(error);
-        return reply.code(error.message === 'Order not found' ? 404 : 500).send({
-          error: error.message,
-        });
-      }
-    }
+    updateOrderHandler
+  );
+  fastify.post(
+    '/:id/update',
+    {
+      preHandler: [fastify.authenticate, authorize(['ADMIN'])],
+    },
+    updateOrderHandler
+  );
+  fastify.post(
+    '/:id',
+    {
+      preHandler: [fastify.authenticate, authorize(['ADMIN'])],
+    },
+    updateOrderHandler
   );
 
   fastify.delete<{ Params: { id: string } }>(

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
@@ -18,16 +18,20 @@ import {
   Copy,
   Check,
   FileSpreadsheet,
+  Users,
 } from 'lucide-react';
 import { BatchImportModal } from '../../components/v2/BatchImportModal';
 import {
   customerV2Api,
   waybillV2Api,
   channelV2Api,
+  originWarehouseV2Api,
   type Customer,
+  type CustomerAddress,
   type ShipmentType,
   type CurrencyType,
   type ShippingChannel,
+  type OriginWarehouse,
 } from '../../lib/v2-api';
 
 import {
@@ -41,22 +45,22 @@ interface CargoItemRow {
   id: string;
   trackingNumber: string;
   productName: string;
-  quantity: number;
-  length?: number;
-  width?: number;
-  height?: number;
-  unitWeight?: number;
+  quantity: number | '';
+  length?: number | '';
+  width?: number | '';
+  height?: number | '';
+  unitWeight?: number | '';
   receivableCurrency: CurrencyType;
-  receivableUnitPrice?: number;
+  receivableUnitPrice?: number | '';
   payableCurrency: CurrencyType;
-  payableUnitPrice?: number;
+  payableUnitPrice?: number | '';
 }
 
 interface FeeItemRow {
   id: string;
   feeName: string;
   feeDirection: 'RECEIVABLE' | 'PAYABLE';
-  amount: number;
+  amount: number | '';
   currency: CurrencyType;
   note?: string;
 }
@@ -64,16 +68,17 @@ interface FeeItemRow {
 export default function InboundWorkbench() {
   const navigate = useNavigate();
 
-  // Mode: SEA_LCL, AIR, SEA_FCL
+  // Mode: SEA_LCL | AIR | SEA_FCL
   const [orderType, setOrderType] = useState<ShipmentType>('SEA_LCL');
   const [showImportModal, setShowImportModal] = useState(false);
 
-  // Customer Autocomplete & Data
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  // Customer / userMark
   const [userMark, setUserMark] = useState('');
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [originWarehouses, setOriginWarehouses] = useState<OriginWarehouse[]>([]);
 
-  // Transportation Info (Phase 1 known info only!)
+  // Route and channel
   const [originWarehouse, setOriginWarehouse] = useState('');
   const [destinationCountry, setDestinationCountry] = useState('');
   const [destinationPort, setDestinationPort] = useState('');
@@ -82,15 +87,13 @@ export default function InboundWorkbench() {
   const [expressNo, setExpressNo] = useState('');
   const [note, setNote] = useState('');
 
-
-  // Address
-  const [showAddressDetail, setShowAddressDetail] = useState(false);
+  // Overseas Consignee Address (认唛头不认发货人，按目的国/港口级联过滤)
+  const [selectedConsigneeId, setSelectedConsigneeId] = useState<string>('');
   const [overseasName, setOverseasName] = useState('');
   const [overseasPhone, setOverseasPhone] = useState('');
   const [overseasCompany, setOverseasCompany] = useState('');
   const [overseasAddress, setOverseasAddress] = useState('');
-  const [recipientName, setRecipientName] = useState('');
-  const [recipientPhone, setRecipientPhone] = useState('');
+  const [saveToAddressBook, setSaveToAddressBook] = useState(false);
 
   // Cargo Items (Pre-declared items)
   const [items, setItems] = useState<CargoItemRow[]>([
@@ -140,37 +143,45 @@ export default function InboundWorkbench() {
   const resetForm = () => {
     setUserMark('');
     setSelectedCustomer(null);
-    setOriginWarehouse('');
+    const defaultWh = originWarehouses.find((w) => w.isDefault);
+    setOriginWarehouse(defaultWh ? (defaultWh.shortName || defaultWh.name) : '');
     setDestinationCountry('');
     setDestinationPort('');
     const defaultCh = channels.find((c) => c.isDefault);
     setForwarderChannel(defaultCh ? defaultCh.name : '');
     setExpressNo('');
     setNote('');
+    setSelectedConsigneeId('');
     setOverseasName('');
     setOverseasPhone('');
     setOverseasCompany('');
     setOverseasAddress('');
-    setRecipientName('');
-    setRecipientPhone('');
+    setSaveToAddressBook(false);
+    setIsFixedPrice(false);
+    setFixedPriceAmount(undefined);
+    setFclQuotation(undefined);
+    setFclQuotationCurrency('CNY');
+    setFees([]);
     setItems([
       {
         id: '1',
         trackingNumber: '',
         productName: '',
         quantity: 1,
+        length: undefined,
+        width: undefined,
+        height: undefined,
+        unitWeight: undefined,
         receivableCurrency: 'CNY',
+        receivableUnitPrice: undefined,
         payableCurrency: 'CNY',
+        payableUnitPrice: undefined,
       },
     ]);
-    setFclQuotation(undefined);
-    setIsFixedPrice(false);
-    setFixedPriceAmount(undefined);
-    setFees([]);
     setCreatedResult(null);
   };
 
-  // Load customers & SEA_LCL channels
+  // Load customers & origin warehouses
   useEffect(() => {
     customerV2Api.list().then((res) => {
       if (res.data.data) {
@@ -178,17 +189,67 @@ export default function InboundWorkbench() {
       }
     });
 
-    channelV2Api.list({ category: 'SEA_LCL', isActive: true }).then((res) => {
+    originWarehouseV2Api.list({ isActive: true }).then((res) => {
       if (res.data.data && res.data.data.length > 0) {
-        setChannels(res.data.data);
-        const defaultCh = res.data.data.find((c) => c.isDefault);
-        if (defaultCh && !forwarderChannel) {
-          setForwarderChannel(defaultCh.name);
+        setOriginWarehouses(res.data.data);
+        const defaultWh = res.data.data.find((w) => w.isDefault);
+        if (defaultWh) {
+          setOriginWarehouse(defaultWh.shortName || defaultWh.name);
         }
       }
     });
   }, []);
 
+  // Dynamically load channels matching current orderType (SEA_LCL / AIR / SEA_FCL)
+  useEffect(() => {
+    const targetCategory =
+      orderType === 'AIR'
+        ? 'AIR'
+        : orderType === 'SEA_FCL'
+        ? 'FCL_BOOKING'
+        : 'SEA_LCL';
+
+    channelV2Api.list({ category: targetCategory as any, isActive: true }).then((res) => {
+      if (res.data.data) {
+        setChannels(res.data.data);
+        const defaultCh = res.data.data.find((c) => c.isDefault);
+        if (defaultCh) {
+          setForwarderChannel(defaultCh.name);
+        } else if (res.data.data.length > 0) {
+          setForwarderChannel(res.data.data[0].name);
+        } else {
+          setForwarderChannel('');
+        }
+      }
+    });
+  }, [orderType]);
+
+
+  const applyConsignee = (addr?: Partial<CustomerAddress> | null) => {
+    if (addr) {
+      setSelectedConsigneeId(addr.id || '');
+      setOverseasName(addr.name || '');
+      setOverseasPhone(addr.phone || '');
+      setOverseasCompany(addr.company || '');
+      setOverseasAddress(addr.address || '');
+    } else {
+      setSelectedConsigneeId('');
+      setOverseasName('');
+      setOverseasPhone('');
+      setOverseasCompany('');
+      setOverseasAddress('');
+    }
+  };
+
+  // Available consignees under selected customer filtered by destination country and port
+  const availableConsignees = useMemo(() => {
+    if (!selectedCustomer?.addresses || selectedCustomer.addresses.length === 0) return [];
+    return selectedCustomer.addresses.filter((addr) => {
+      const matchCountry = !destinationCountry || !addr.country || addr.country === destinationCountry;
+      const matchPort = !destinationPort || !addr.region || addr.region === destinationPort;
+      return matchCountry && matchPort;
+    });
+  }, [selectedCustomer, destinationCountry, destinationPort]);
 
   // Handle Mark Select / Input
   const handleMarkChange = (val: string) => {
@@ -199,17 +260,63 @@ export default function InboundWorkbench() {
     if (matched) {
       setSelectedCustomer(matched);
       if (matched.defaultWarehouse) setOriginWarehouse(matched.defaultWarehouse);
-      if (matched.destinationCountry) setDestinationCountry(matched.destinationCountry);
-      if (matched.destinationPort) setDestinationPort(matched.destinationPort);
+      const targetCountry = matched.destinationCountry || destinationCountry || '菲律宾';
+      const targetPort = matched.destinationPort || destinationPort || '马尼拉南港';
+      setDestinationCountry(targetCountry);
+      setDestinationPort(targetPort);
 
-      // Auto-fill default overseas address
+      // Auto-fill matching overseas address
+      const matchingAddrs = (matched.addresses || []).filter((a) => {
+        const mC = !targetCountry || !a.country || a.country === targetCountry;
+        const mP = !targetPort || !a.region || a.region === targetPort;
+        return mC && mP;
+      });
       const defaultAddr =
-        matched.addresses?.find((a) => a.isDefault) || matched.addresses?.[0];
-      if (defaultAddr) {
-        setOverseasName(defaultAddr.name || '');
-        setOverseasPhone(defaultAddr.phone || '');
-        setOverseasCompany(defaultAddr.company || '');
-        setOverseasAddress(defaultAddr.address || '');
+        matchingAddrs.find((a) => a.isDefault) ||
+        matchingAddrs[0] ||
+        matched.addresses?.find((a) => a.isDefault) ||
+        matched.addresses?.[0];
+      
+      applyConsignee(defaultAddr);
+    } else {
+      setSelectedCustomer(null);
+    }
+  };
+
+  // Handle Country Change with dynamic consignee cascade
+  const handleCountryChange = (country: string) => {
+    setDestinationCountry(country);
+    const defaultPort = getDefaultPortByCountry(country);
+    setDestinationPort(defaultPort);
+
+    if (selectedCustomer?.addresses) {
+      const matching = selectedCustomer.addresses.filter((a) => {
+        const mC = !country || !a.country || a.country === country;
+        const mP = !defaultPort || !a.region || a.region === defaultPort;
+        return mC && mP;
+      });
+      const targetAddr = matching.find((a) => a.isDefault) || matching[0];
+      applyConsignee(targetAddr);
+      if (targetAddr) {
+        toast.info(`已按【${country}·${defaultPort}】自动匹配收件人【${targetAddr.name}】`);
+      }
+    }
+  };
+
+  // Handle Port Change with dynamic consignee cascade
+  const handlePortChange = (port: string) => {
+    setDestinationPort(port);
+
+    if (selectedCustomer?.addresses) {
+      const matching = selectedCustomer.addresses.filter((a) => {
+        const mC = !destinationCountry || !a.country || a.country === destinationCountry;
+        const mP = !port || !a.region || a.region === port;
+        return mC && mP;
+      });
+      const targetAddr = matching.find((a) => a.isDefault) || matching[0];
+      applyConsignee(targetAddr);
+      if (targetAddr) {
+        toast.info(`已按【${port}】自动匹配收件人【${targetAddr.name}】`);
       }
     }
   };
@@ -343,13 +450,11 @@ export default function InboundWorkbench() {
         isFixedPrice: isFcl ? true : isFixedPrice,
         fixedPriceAmount: isFcl ? (Number(fclQuotation) || undefined) : isFixedPrice ? fixedPriceAmount : undefined,
 
-        recipientName: recipientName.trim() || undefined,
-        recipientPhone: recipientPhone.trim() || undefined,
-
         overseasName: overseasName.trim() || undefined,
         overseasPhone: overseasPhone.trim() || undefined,
         overseasCompany: overseasCompany.trim() || undefined,
         overseasAddress: overseasAddress.trim() || undefined,
+        saveToAddressBook: saveToAddressBook && !!selectedCustomer,
 
         items: items.map((item) => {
           const qty = Number(item.quantity) || 1;
@@ -379,7 +484,7 @@ export default function InboundWorkbench() {
         }),
 
         fees: fees
-          .filter((f) => f.amount > 0)
+          .filter((f) => Number(f.amount) > 0)
           .map((f) => ({
             feeName: f.feeName,
             feeDirection: f.feeDirection,
@@ -401,6 +506,13 @@ export default function InboundWorkbench() {
           itemCount: payload.items.length,
         });
         toast.success(`预报单创建成功！系统运单号: ${res.data.data.waybillNo}`);
+
+        // 若勾选了沉淀到常用地址簿，重新拉取最新客户数据以同步缓存
+        if (payload.saveToAddressBook) {
+          customerV2Api.list().then((cRes) => {
+            if (cRes.data.data) setCustomers(cRes.data.data);
+          });
+        }
       }
     } catch (err: any) {
       toast.error(err.response?.data?.error || '创建预报运单失败');
@@ -523,22 +635,44 @@ export default function InboundWorkbench() {
               )}
             </div>
 
-            {/* 起运仓 / 渠道 */}
+            {/* 起运仓 / 集货点 */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-slate-700">
-                起运仓 / 集货点
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-semibold text-slate-700">
+                  起运仓 / 集货点
+                </label>
+                <button
+                  type="button"
+                  onClick={() => navigate('/v2/warehouses')}
+                  className="text-[11px] text-blue-600 hover:text-blue-700 hover:underline font-semibold"
+                >
+                  管理起运仓 →
+                </button>
+              </div>
               <select
                 value={originWarehouse}
                 onChange={(e) => setOriginWarehouse(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">-- 请选择起运仓 --</option>
-                {ORIGIN_WAREHOUSES.map((w) => (
-                  <option key={w.value} value={w.value}>
-                    {w.label}
-                  </option>
-                ))}
+                {originWarehouses.length > 0 ? (
+                  originWarehouses.map((w) => (
+                    <option key={w.id} value={w.shortName || w.name}>
+                      {w.name} {w.isDefault ? '⭐ [默认]' : ''}
+                    </option>
+                  ))
+                ) : (
+                  ORIGIN_WAREHOUSES.map((w) => (
+                    <option key={w.value} value={w.value}>
+                      {w.label}
+                    </option>
+                  ))
+                )}
+                {originWarehouse &&
+                  !originWarehouses.some((w) => w.shortName === originWarehouse || w.name === originWarehouse) &&
+                  !ORIGIN_WAREHOUSES.some((w) => w.value === originWarehouse) && (
+                    <option value={originWarehouse}>{originWarehouse} (自定义起运点)</option>
+                  )}
               </select>
             </div>
 
@@ -549,11 +683,7 @@ export default function InboundWorkbench() {
               </label>
               <select
                 value={destinationCountry}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setDestinationCountry(val);
-                  setDestinationPort(getDefaultPortByCountry(val));
-                }}
+                onChange={(e) => handleCountryChange(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">-- 请选择目的国 --</option>
@@ -572,7 +702,7 @@ export default function InboundWorkbench() {
               </label>
               <select
                 value={destinationPort}
-                onChange={(e) => setDestinationPort(e.target.value)}
+                onChange={(e) => handlePortChange(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">-- 请选择目的港口 --</option>
@@ -608,7 +738,13 @@ export default function InboundWorkbench() {
                 onChange={(e) => setForwarderChannel(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-blue-50/40 border border-blue-300 rounded-lg text-sm font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="">-- 请选择拼箱承运渠道 --</option>
+                <option value="">
+                  {orderType === 'AIR'
+                    ? '-- 请选择空运承运专线 --'
+                    : orderType === 'SEA_FCL'
+                    ? '-- 请选择整柜订舱渠道 --'
+                    : '-- 请选择散货拼箱承运渠道 --'}
+                </option>
                 {channels.map((ch) => (
                   <option key={ch.id} value={ch.name}>
                     {ch.name} {ch.code ? `(${ch.code})` : ''} {ch.isDefault ? '⭐ [默认]' : ''}
@@ -621,7 +757,6 @@ export default function InboundWorkbench() {
                 )}
               </select>
             </div>
-
 
             {/* 订单备注 */}
             <div className="space-y-1.5 lg:col-span-2">
@@ -638,70 +773,138 @@ export default function InboundWorkbench() {
             </div>
           </div>
 
-          {/* 收发人地址快速抽屉 */}
+          {/* 海外收件人与派送信息模块 */}
           <div className="pt-2">
-            <button
-              type="button"
-              onClick={() => setShowAddressDetail(!showAddressDetail)}
-              className="text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1.5"
-            >
-              <MapPin className="w-3.5 h-3.5" />
-              {showAddressDetail ? '收起收发人详细信息' : '展开/修改收发人详细地址 (已自动带出)'}
-            </button>
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3.5">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                  海外收货人与目的港派送档案 (Consignee)
+                </h3>
+                <span className="text-[11px] text-slate-400">
+                  认唛头不认发件人 · 始发由起运仓集运 · 末端派送依此档案
+                </span>
+              </div>
 
-            {showAddressDetail && (
-              <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-xl grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-3">
-                  <h3 className="text-xs font-bold text-slate-700 uppercase">海外收件人</h3>
+              {/* 动态收件人下拉选择条 (按目的国/港口级联过滤) */}
+              {selectedCustomer && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-white p-3 rounded-xl border border-emerald-200 shadow-sm text-xs">
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Users className="w-4 h-4 text-emerald-600" />
+                    <span className="font-bold text-slate-800">
+                      选择该港口下属海外收件人:
+                    </span>
+                    <span className="text-[11px] px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md font-medium">
+                      {destinationCountry || '未选国别'} · {destinationPort || '全口岸'} ({availableConsignees.length}个)
+                    </span>
+                  </div>
+
+                  <div className="flex-1 max-w-lg">
+                    <select
+                      value={selectedConsigneeId}
+                      onChange={(e) => {
+                        const addrId = e.target.value;
+                        if (!addrId) {
+                          applyConsignee(null);
+                        } else {
+                          const target = selectedCustomer.addresses?.find((a) => a.id === addrId);
+                          applyConsignee(target);
+                          if (target) toast.success(`已切换为收件人【${target.name}】`);
+                        }
+                      }}
+                      className="w-full px-3 py-1.5 bg-emerald-50/60 border border-emerald-300 rounded-lg font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    >
+                      {availableConsignees.length > 0 ? (
+                        <>
+                          <option value="">-- 点击选取已登记收件人 (或在下方直接编辑) --</option>
+                          {availableConsignees.map((addr) => (
+                            <option key={addr.id} value={addr.id}>
+                              {addr.name} ({addr.phone}) {addr.company ? `[${addr.company}]` : ''} - {addr.address ? addr.address.slice(0, 30) : ''}... {addr.isDefault ? '⭐[默认]' : ''}
+                            </option>
+                          ))}
+                        </>
+                      ) : (
+                        <option value="">-- 该港口暂无已登记收件人 (请在下方手工输入新档案) --</option>
+                      )}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                      海外收件联系人
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="如 Alex Johnson"
+                      value={overseasName}
+                      onChange={(e) => setOverseasName(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                      海外联系电话 / WhatsApp
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="如 +63 917 123 4567"
+                      value={overseasPhone}
+                      onChange={(e) => setOverseasPhone(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs font-mono font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                      海外公司名称 (选填)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="如 Manila Trading Inc."
+                      value={overseasCompany}
+                      onChange={(e) => setOverseasCompany(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">
+                    海外目的港详细派送地址
+                  </label>
                   <input
                     type="text"
-                    placeholder="海外联系人"
-                    value={overseasName}
-                    onChange={(e) => setOverseasName(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs"
-                  />
-                  <input
-                    type="text"
-                    placeholder="海外联系电话"
-                    value={overseasPhone}
-                    onChange={(e) => setOverseasPhone(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs"
-                  />
-                  <input
-                    type="text"
-                    placeholder="海外公司名称"
-                    value={overseasCompany}
-                    onChange={(e) => setOverseasCompany(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs"
-                  />
-                  <input
-                    type="text"
-                    placeholder="海外详细收件地址"
+                    placeholder="如 Unit 802, BGC Tower, Taguig City, Metro Manila"
                     value={overseasAddress}
                     onChange={(e) => setOverseasAddress(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs"
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs font-medium"
                   />
                 </div>
 
-                <div className="space-y-3">
-                  <h3 className="text-xs font-bold text-slate-700 uppercase">国内寄件/送仓人 (可选)</h3>
-                  <input
-                    type="text"
-                    placeholder="国内寄件人"
-                    value={recipientName}
-                    onChange={(e) => setRecipientName(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs"
-                  />
-                  <input
-                    type="text"
-                    placeholder="国内电话"
-                    value={recipientPhone}
-                    onChange={(e) => setRecipientPhone(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs"
-                  />
-                </div>
+                {/* 显式勾选同步保存至客户常用地址簿 (带防重校验) */}
+                {selectedCustomer && (
+                  <div className="pt-2 border-t border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={saveToAddressBook}
+                        onChange={(e) => setSaveToAddressBook(e.target.checked)}
+                        className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 border-slate-300"
+                      />
+                      <span className="font-semibold text-slate-800">
+                        💾 同步将该收件人保存至【<strong className="text-blue-900 font-bold">{selectedCustomer.clientCode}</strong>】的常用地址簿 (可复用)
+                      </span>
+                    </label>
+                    {saveToAddressBook && (
+                      <span className="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-medium">
+                        ✓ 下单时将自动执行电话与地址防重校验
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
-            )}
           </div>
         </div>
 

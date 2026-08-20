@@ -295,7 +295,7 @@ export const quickOrderApi = {
     recipientAddress?: { name: string; company?: string; phone: string; region?: string; address: string };
     overseasAddress?: { name: string; company?: string; phone: string; region?: string; address: string } | null;
   }) =>
-    api.patch<QuickOrder>(`/orders/quick/${orderId}`, data),
+    api.post<QuickOrder>(`/orders/quick/${orderId}/update`, data),
 
   cancel: (orderId: string) =>
     api.delete<{ orderId: string; orderNumber: string; status: string; message: string }>(`/orders/quick/${orderId}`),
@@ -310,7 +310,7 @@ export const quickOrderApi = {
     api.get<{ all: number; loading: number; sailing: number; arrived: number; customs: number; dispatching: number }>('/orders/quick/counts'),
 
   batchUpdateStatus: (orderIds: string[], status: QuickOrderStatus) =>
-    api.patch<{ updatedCount: number; updatedIds: string[] }>('/orders/quick/batch-status', { orderIds, status }),
+    api.post<{ updatedCount: number; updatedIds: string[] }>('/orders/quick/batch-status', { orderIds, status }),
 
   deleteOrder: (orderId: string) =>
     api.delete<{ orderId: string; orderNumber: string; message: string }>(`/orders/quick/${orderId}`),

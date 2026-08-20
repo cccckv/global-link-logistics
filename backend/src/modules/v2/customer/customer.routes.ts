@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { CustomerV2Service } from './customer.service';
+import { CustomerV2Service, CustomerAddressInput } from './customer.service';
 
 const customerService = new CustomerV2Service();
 
@@ -39,15 +39,7 @@ export async function customerV2Routes(fastify: FastifyInstance) {
       destinationPort?: string;
       defaultWarehouse?: string;
       note?: string;
-      addresses?: Array<{
-        name: string;
-        phone: string;
-        company?: string;
-        country?: string;
-        region?: string;
-        address: string;
-        isDefault?: boolean;
-      }>;
+      addresses?: Array<CustomerAddressInput>;
     };
   }>('/', async (request, reply) => {
     try {
@@ -55,7 +47,32 @@ export async function customerV2Routes(fastify: FastifyInstance) {
       return reply.code(201).send({ success: true, data: created });
     } catch (err: any) {
       if (err.code === 'P2002') {
-        return reply.code(400).send({ success: false, error: '客户编码已存在' });
+        return reply.code(400).send({ success: false, error: '客户编码/唛头已存在，请使用唯一编码' });
+      }
+      return reply.code(500).send({ success: false, error: err.message });
+    }
+  });
+
+  // Update customer basic info
+  fastify.put<{
+    Params: { id: string };
+    Body: Partial<{
+      clientCode: string;
+      name: string;
+      phone?: string;
+      company?: string;
+      destinationCountry?: string;
+      destinationPort?: string;
+      defaultWarehouse?: string;
+      note?: string;
+    }>;
+  }>('/:id', async (request, reply) => {
+    try {
+      const updated = await customerService.updateCustomer(request.params.id, request.body);
+      return reply.send({ success: true, data: updated });
+    } catch (err: any) {
+      if (err.code === 'P2002') {
+        return reply.code(400).send({ success: false, error: '客户编码/唛头已存在，请使用唯一编码' });
       }
       return reply.code(500).send({ success: false, error: err.message });
     }
@@ -64,19 +81,51 @@ export async function customerV2Routes(fastify: FastifyInstance) {
   // Add address to customer
   fastify.post<{
     Params: { id: string };
-    Body: {
-      name: string;
-      phone: string;
-      company?: string;
-      country?: string;
-      region?: string;
-      address: string;
-      isDefault?: boolean;
-    };
+    Body: CustomerAddressInput;
   }>('/:id/addresses', async (request, reply) => {
     try {
       const created = await customerService.addCustomerAddress(request.params.id, request.body);
       return reply.code(201).send({ success: true, data: created });
+    } catch (err: any) {
+      return reply.code(500).send({ success: false, error: err.message });
+    }
+  });
+
+  // Update customer address
+  fastify.put<{
+    Params: { id: string; addressId: string };
+    Body: Partial<CustomerAddressInput>;
+  }>('/:id/addresses/:addressId', async (request, reply) => {
+    try {
+      const updated = await customerService.updateCustomerAddress(request.params.addressId, {
+        ...request.body,
+        customerId: request.params.id,
+      });
+      return reply.send({ success: true, data: updated });
+    } catch (err: any) {
+      return reply.code(500).send({ success: false, error: err.message });
+    }
+  });
+
+  // Delete customer address
+  fastify.delete<{
+    Params: { id: string; addressId: string };
+  }>('/:id/addresses/:addressId', async (request, reply) => {
+    try {
+      await customerService.deleteCustomerAddress(request.params.addressId);
+      return reply.send({ success: true, message: '收件人地址已删除' });
+    } catch (err: any) {
+      return reply.code(500).send({ success: false, error: err.message });
+    }
+  });
+
+  // Set default customer address
+  fastify.put<{
+    Params: { id: string; addressId: string };
+  }>('/:id/addresses/:addressId/default', async (request, reply) => {
+    try {
+      const updated = await customerService.setDefaultCustomerAddress(request.params.id, request.params.addressId);
+      return reply.send({ success: true, data: updated });
     } catch (err: any) {
       return reply.code(500).send({ success: false, error: err.message });
     }

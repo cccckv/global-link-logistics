@@ -1,6 +1,8 @@
 import { PrismaClient, ShipmentType, WaybillStatus, CurrencyType, FeeDirection, AttachmentType } from '@prisma/client';
+import { CustomerV2Service } from '../customer/customer.service';
 
 const prisma = new PrismaClient();
+const customerService = new CustomerV2Service();
 
 function generateWaybillNo(type: ShipmentType = 'SEA_LCL'): string {
   const prefix = type === 'AIR' ? 'AWB' : type === 'SEA_FCL' ? 'FCL' : 'LCL';
@@ -8,6 +10,13 @@ function generateWaybillNo(type: ShipmentType = 'SEA_LCL'): string {
   const dateStr = now.toISOString().slice(2, 10).replace(/-/g, '');
   const randomStr = Math.floor(1000 + Math.random() * 9000).toString();
   return `${prefix}${dateStr}${randomStr}`;
+}
+
+export function parseNullableDate(val: any): Date | null | undefined {
+  if (val === undefined) return undefined;
+  if (val === null || val === '' || val === 'null' || val === 'undefined') return null;
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? null : d;
 }
 
 export interface CreateWaybillItemInput {
@@ -37,6 +46,7 @@ export interface CreateWaybillFeeInput {
   amount: number;
   currency?: CurrencyType;
   exchangeRate?: number;
+  amountInCny?: number;
   note?: string;
 }
 
@@ -52,6 +62,7 @@ export interface CreateWaybillInput {
   forwarderChannel?: string;
   isFixedPrice?: boolean;
   fixedPriceAmount?: number;
+  saveToAddressBook?: boolean;
 
   voyageNumber?: string;
   airWaybillNo?: string;
@@ -269,7 +280,7 @@ export class WaybillV2Service {
 
     const initialStatus: WaybillStatus = data.inboundDate ? 'INBOUND' : 'DRAFT';
 
-    return prisma.waybill.create({
+    const createdWaybill = await prisma.waybill.create({
       data: {
         waybillNo,
         orderType: data.orderType,
@@ -297,7 +308,7 @@ export class WaybillV2Service {
         overseasCompany: data.overseasCompany,
         overseasAddress: data.overseasAddress,
         overseasRegion: data.overseasRegion,
-        inboundDate: data.inboundDate ? new Date(data.inboundDate) : undefined,
+        inboundDate: parseNullableDate(data.inboundDate) || undefined,
         totalPieces,
         totalPayableCbm: totalPayableCbm > 0 ? totalPayableCbm : undefined,
         totalReceivableCbm: totalReceivableCbm > 0 ? totalReceivableCbm : undefined,
@@ -319,6 +330,24 @@ export class WaybillV2Service {
         attachments: true,
       },
     });
+
+    // 显式勾选同步沉淀至客户地址簿 (带多维防重校验)
+    if (data.saveToAddressBook && customerId && data.overseasName && (data.overseasPhone || data.overseasAddress)) {
+      try {
+        await customerService.saveCustomerAddressWithDeduplication(customerId, {
+          name: data.overseasName,
+          phone: data.overseasPhone || '-',
+          company: data.overseasCompany,
+          country: data.destinationCountry,
+          region: data.destinationPort,
+          address: data.overseasAddress || '默认目的港派送地址',
+        });
+      } catch (err) {
+        console.error('Failed to sync overseas consignee to customer address book:', err);
+      }
+    }
+
+    return createdWaybill;
   }
 
   async getWaybills(params: {
@@ -440,7 +469,13 @@ export class WaybillV2Service {
         fees: { orderBy: { createdAt: 'asc' } },
         attachments: { orderBy: { uploadedAt: 'desc' } },
         containerMaster: true,
-        customer: true,
+        customer: {
+          include: {
+            addresses: {
+              orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
+            },
+          },
+        },
       },
     });
   }
@@ -459,12 +494,12 @@ export class WaybillV2Service {
     const { items, ...rest } = data;
     const updateData: any = { ...rest };
 
-    if (data.inboundDate) updateData.inboundDate = new Date(data.inboundDate);
-    if (data.loadingDate) updateData.loadingDate = new Date(data.loadingDate);
-    if (data.sailingDate) updateData.sailingDate = new Date(data.sailingDate);
-    if (data.eta) updateData.eta = new Date(data.eta);
-    if (data.clearanceDate) updateData.clearanceDate = new Date(data.clearanceDate);
-    if (data.signedDate) updateData.signedDate = new Date(data.signedDate);
+    if ('inboundDate' in data) updateData.inboundDate = parseNullableDate(data.inboundDate);
+    if ('loadingDate' in data) updateData.loadingDate = parseNullableDate(data.loadingDate);
+    if ('sailingDate' in data) updateData.sailingDate = parseNullableDate(data.sailingDate);
+    if ('eta' in data) updateData.eta = parseNullableDate(data.eta);
+    if ('clearanceDate' in data) updateData.clearanceDate = parseNullableDate(data.clearanceDate);
+    if ('signedDate' in data) updateData.signedDate = parseNullableDate(data.signedDate);
 
     const existingWb = await prisma.waybill.findUnique({
       where: { id },
@@ -581,7 +616,7 @@ export class WaybillV2Service {
   }
 
   async batchAssignContainer(waybillIds: string[], containerId: string, loadingDate?: Date | string) {
-    const lDate = loadingDate ? new Date(loadingDate) : new Date();
+    const lDate = (loadingDate ? parseNullableDate(loadingDate) : undefined) || new Date();
     return prisma.waybill.updateMany({
       where: { id: { in: waybillIds } },
       data: {

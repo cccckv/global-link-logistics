@@ -394,8 +394,16 @@ export default function WaybillManagement() {
                 </tr>
               ) : (
                 (waybills || []).map((wb) => {
+                  const getStatusDisplay = () => {
+                    if (wb.orderType === 'AIR') {
+                      if (wb.status === 'LOADED') return { label: '已发货', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
+                      if (wb.status === 'IN_TRANSIT') return { label: '到海外仓/在途', color: 'bg-purple-50 text-purple-700 border-purple-200' };
+                      if (wb.status === 'DISPATCHING') return { label: '海外派送中', color: 'bg-cyan-50 text-cyan-700 border-cyan-200' };
+                    }
+                    return (wb && wb.status && STATUS_MAP[wb.status]) || STATUS_MAP.DRAFT;
+                  };
                   const isSelected = selectedIds.includes(wb.id);
-                  const st = (wb && wb.status && STATUS_MAP[wb.status]) || STATUS_MAP.DRAFT;
+                  const st = getStatusDisplay();
                   const itemSummary = (wb.items || []).map((i) => `${i.productName || '商品'}×${i.quantity || 1}`).join(', ') || '未填明细';
 
                   return (
@@ -463,7 +471,15 @@ export default function WaybillManagement() {
                         ¥ {Number(wb.receivableAmount || 0).toFixed(2)}
                       </td>
                       <td className="py-3 px-3">
-                        {wb.containerMaster ? (
+                        {wb.orderType === 'AIR' ? (
+                          wb.expressNo ? (
+                            <span className="px-2 py-0.5 bg-purple-50 border border-purple-200 text-purple-800 font-mono font-bold rounded text-[11px] block text-center" title="空运专线单号">
+                              {wb.expressNo}
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-slate-400 italic">待发货</span>
+                          )
+                        ) : wb.containerMaster ? (
                           <span className="px-2 py-0.5 bg-indigo-50 border border-indigo-200 text-indigo-800 font-mono font-bold rounded text-[11px] block text-center">
                             {wb.containerMaster.containerNo}
                           </span>

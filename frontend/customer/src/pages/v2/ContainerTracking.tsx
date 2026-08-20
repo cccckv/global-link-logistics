@@ -11,6 +11,7 @@ import {
   ChevronRight,
   DollarSign,
   Edit3,
+  Trash2,
   X,
   RotateCcw,
 } from 'lucide-react';
@@ -59,15 +60,24 @@ export default function ContainerTracking() {
   const [bookingChannel, setBookingChannel] = useState('');
   const [clearanceChannel, setClearanceChannel] = useState('');
 
-  // Edit container modal (补录提单号/船讯)
+  // Edit container modal (修改集装箱/货柜信息)
   const [editingContainer, setEditingContainer] = useState<ContainerMaster | null>(null);
+  const [editContainerNo, setEditContainerNo] = useState('');
+  const [editContainerType, setEditContainerType] = useState('HQ_40');
+  const [editLoadingDate, setEditLoadingDate] = useState('');
   const [editBlNumber, setEditBlNumber] = useState('');
   const [editCarrier, setEditCarrier] = useState('');
   const [editVesselVoyage, setEditVesselVoyage] = useState('');
   const [editSailingDate, setEditSailingDate] = useState('');
   const [editEta, setEditEta] = useState('');
+  const [editClearanceDate, setEditClearanceDate] = useState('');
   const [editOriginPort, setEditOriginPort] = useState('');
   const [editDestinationPort, setEditDestinationPort] = useState('');
+  const [editBookingChannel, setEditBookingChannel] = useState('');
+  const [editCustomsChannel, setEditCustomsChannel] = useState('');
+  const [editClearanceChannel, setEditClearanceChannel] = useState('');
+  const [editTruckingChannel, setEditTruckingChannel] = useState('');
+  const [editNote, setEditNote] = useState('');
 
   // Add Fee Modal
   const [feeModalContainerId, setFeeModalContainerId] = useState<string | null>(null);
@@ -171,33 +181,76 @@ export default function ContainerTracking() {
 
   const handleOpenEdit = (c: ContainerMaster) => {
     setEditingContainer(c);
+    setEditContainerNo(c.containerNo || '');
+    setEditContainerType(c.containerType || 'HQ_40');
+    setEditLoadingDate(c.loadingDate ? new Date(c.loadingDate).toISOString().slice(0, 10) : '');
     setEditBlNumber(c.blNumber || '');
     setEditCarrier(c.carrier || '');
     setEditVesselVoyage(c.vesselVoyage || '');
     setEditSailingDate(c.sailingDate ? new Date(c.sailingDate).toISOString().slice(0, 10) : '');
     setEditEta(c.eta ? new Date(c.eta).toISOString().slice(0, 10) : '');
+    setEditClearanceDate(c.clearanceDate ? new Date(c.clearanceDate).toISOString().slice(0, 10) : '');
     setEditOriginPort(c.originPort || '');
     setEditDestinationPort(c.destinationPort || '');
+    setEditBookingChannel(c.bookingChannel || '');
+    setEditCustomsChannel(c.customsChannel || '');
+    setEditClearanceChannel(c.clearanceChannel || '');
+    setEditTruckingChannel(c.truckingChannel || '');
+    setEditNote(c.note || '');
   };
 
   const handleUpdateContainer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingContainer) return;
+    if (!editContainerNo.trim()) {
+      toast.error('集装箱柜号不能为空');
+      return;
+    }
     try {
       await containerV2Api.update(editingContainer.id, {
+        containerNo: editContainerNo.trim(),
+        containerType: editContainerType,
+        loadingDate: editLoadingDate ? new Date(editLoadingDate).toISOString() : undefined,
         blNumber: editBlNumber.trim() || undefined,
         carrier: editCarrier.trim() || undefined,
         vesselVoyage: editVesselVoyage.trim() || undefined,
-        sailingDate: editSailingDate || undefined,
-        eta: editEta || undefined,
+        sailingDate: editSailingDate ? new Date(editSailingDate).toISOString() : undefined,
+        eta: editEta ? new Date(editEta).toISOString() : undefined,
+        clearanceDate: editClearanceDate ? new Date(editClearanceDate).toISOString() : undefined,
         originPort: editOriginPort || undefined,
         destinationPort: editDestinationPort || undefined,
+        bookingChannel: editBookingChannel.trim() || undefined,
+        customsChannel: editCustomsChannel.trim() || undefined,
+        clearanceChannel: editClearanceChannel.trim() || undefined,
+        truckingChannel: editTruckingChannel.trim() || undefined,
+        note: editNote.trim() || undefined,
       });
-      toast.success('货柜信息已更新 (提单号与船讯已同步)！');
+      toast.success('集装箱货柜信息已成功修改！');
       setEditingContainer(null);
       loadContainers();
     } catch (err: any) {
       toast.error(err.response?.data?.error || '更新失败');
+    }
+  };
+
+  const handleDeleteContainer = async (c: ContainerMaster) => {
+    const stuffedCount = c.waybills?.length || 0;
+    const confirmMsg =
+      stuffedCount > 0
+        ? `⚠️ 确定要删除集装箱货柜【${c.containerNo}】吗？\n\n该货柜内当前装载了 ${stuffedCount} 票拼箱散货，删除后这些散货将自动解绑并恢复为「已入库待装柜」状态，不会丢失数据。`
+        : `确定要删除集装箱货柜【${c.containerNo}】吗？此操作不可恢复。`;
+
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      await containerV2Api.delete(c.id);
+      toast.success(`集装箱【${c.containerNo}】已成功删除`);
+      if (editingContainer?.id === c.id) {
+        setEditingContainer(null);
+      }
+      loadContainers();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || '删除失败');
     }
   };
 
@@ -503,11 +556,11 @@ export default function ContainerTracking() {
 
                     <button
                       onClick={() => handleOpenEdit(container)}
-                      className="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
-                      title="补录提单号、船名航次或船期"
+                      className="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
+                      title="修改货柜号、柜型、港口、提单号、船讯与各段渠道信息"
                     >
                       <Edit3 className="w-3.5 h-3.5" />
-                      补录提单/船讯
+                      修改货柜信息
                     </button>
 
                     <button
@@ -524,6 +577,14 @@ export default function ContainerTracking() {
                       className="px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-colors"
                     >
                       + 录入整柜成本
+                    </button>
+
+                    <button
+                      onClick={() => handleDeleteContainer(container)}
+                      className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                      title="删除此货柜"
+                    >
+                      <Trash2 className="w-4 h-4" />
                     </button>
 
                     <button
@@ -903,165 +964,311 @@ export default function ContainerTracking() {
       )}
 
       {/* ========================================================= */}
-      {/* ✏️ 编辑集装箱 / 补录提单号与船讯模态框 */}
+      {/* ✏️ 修改集装箱 / 货柜全量信息维护模态框 */}
       {/* ========================================================= */}
       {editingContainer && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <form
             onSubmit={handleUpdateContainer}
-            className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4"
+            className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto"
           >
-            <div className="flex items-center justify-between border-b pb-3">
+            <div className="flex items-center justify-between border-b pb-3 sticky top-0 bg-white z-10">
               <div>
                 <span className="px-2.5 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-bold">
-                  货柜信息维护
+                  货柜主数据与干线维护
                 </span>
                 <h3 className="text-base font-bold text-slate-900 mt-1 flex items-center gap-2">
                   <Container className="w-5 h-5 text-blue-600" />
-                  {editingContainer.containerNo} (补录提单/船讯)
+                  修改货柜信息 ({editingContainer.containerNo})
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setEditingContainer(null)}
-                className="text-slate-400 hover:text-slate-700 text-xl font-bold"
+                className="text-slate-400 hover:text-slate-700 text-xl font-bold p-1"
               >
                 ✕
               </button>
             </div>
 
-            <div className="space-y-3.5">
-              {/* 海运提单号 (B/L No.) */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  海运提单号 (Bill of Lading / B/L No.)
-                </label>
-                <input
-                  type="text"
-                  placeholder="如 MCLPXMN082208, WHL01928374"
-                  value={editBlNumber}
-                  onChange={(e) => setEditBlNumber(e.target.value)}
-                  className="w-full px-3 py-2 bg-blue-50/40 border border-blue-300 rounded-lg text-xs font-mono font-bold text-blue-950 focus:bg-white focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              {/* 船司 & 船名航次 */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    船公司 / 承运庄家
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="如 万海航运, 中外运"
-                    value={editCarrier}
-                    onChange={(e) => setEditCarrier(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-medium"
-                  />
+            <div className="space-y-4 pt-1">
+              {/* 1. 基础货柜信息 */}
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 space-y-3">
+                <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5 border-b border-slate-200/60 pb-1.5">
+                  <Container className="w-3.5 h-3.5 text-indigo-600" />
+                  1. 集装箱基础主数据
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    船名 / 航次
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="如 WAN HAI 312 / V.S012"
-                    value={editVesselVoyage}
-                    onChange={(e) => setEditVesselVoyage(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-medium"
-                  />
-                </div>
-              </div>
-
-              {/* 开船日 & ETA */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    实际开船日 (ETD)
-                  </label>
-                  <input
-                    type="date"
-                    value={editSailingDate}
-                    onChange={(e) => setEditSailingDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    预计到港日 (ETA)
-                  </label>
-                  <input
-                    type="date"
-                    value={editEta}
-                    onChange={(e) => setEditEta(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      集装箱柜号 <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="如 MILU6019768 / 广62柜"
+                      value={editContainerNo}
+                      onChange={(e) => setEditContainerNo(e.target.value)}
+                      required
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold font-mono text-slate-900 focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      柜型规格
+                    </label>
+                    <select
+                      value={editContainerType}
+                      onChange={(e) => setEditContainerType(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-800 focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="HQ_40">40HQ 高柜</option>
+                      <option value="GP_20">20GP 小柜</option>
+                      <option value="GP_40">40GP 普柜</option>
+                      <option value="HQ_45">45HQ 超高柜</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      装柜日期
+                    </label>
+                    <input
+                      type="date"
+                      value={editLoadingDate}
+                      onChange={(e) => setEditLoadingDate(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
                 </div>
               </div>
 
-              {/* 起运港 & 目的港 */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    起运港口
-                  </label>
-                  <select
-                    value={editOriginPort}
-                    onChange={(e) => setEditOriginPort(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium"
-                  >
-                    <option value="">-- 请选择起运港 --</option>
-                    {ORIGIN_PORTS.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
-                    ))}
-                    {editOriginPort && !ORIGIN_PORTS.includes(editOriginPort) && (
-                      <option value={editOriginPort}>{editOriginPort} (自定义)</option>
-                    )}
-                  </select>
+              {/* 2. 航线与港口 */}
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 space-y-3">
+                <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5 border-b border-slate-200/60 pb-1.5">
+                  <Anchor className="w-3.5 h-3.5 text-blue-600" />
+                  2. 航线与港口
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    目的港口
-                  </label>
-                  <select
-                    value={editDestinationPort}
-                    onChange={(e) => setEditDestinationPort(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium"
-                  >
-                    <option value="">-- 请选择清关目的港 --</option>
-                    {DESTINATION_COUNTRIES.map((c) => (
-                      <optgroup key={c.name} label={`${c.name} (${c.enName})`}>
-                        {c.ports.map((port) => (
-                          <option key={port} value={port}>
-                            {port}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ))}
-                    {editDestinationPort && !DESTINATION_COUNTRIES.some((c) => c.ports.includes(editDestinationPort)) && (
-                      <option value={editDestinationPort}>{editDestinationPort} (自定义)</option>
-                    )}
-                  </select>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      起运港口
+                    </label>
+                    <select
+                      value={editOriginPort}
+                      onChange={(e) => setEditOriginPort(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-800 focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">-- 请选择起运港 --</option>
+                      {ORIGIN_PORTS.map((p) => (
+                        <option key={p} value={p}>
+                          {p}
+                        </option>
+                      ))}
+                      {editOriginPort && !ORIGIN_PORTS.includes(editOriginPort) && (
+                        <option value={editOriginPort}>{editOriginPort} (自定义)</option>
+                      )}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      清关目的港
+                    </label>
+                    <select
+                      value={editDestinationPort}
+                      onChange={(e) => setEditDestinationPort(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-800 focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">-- 请选择清关目的港 --</option>
+                      {DESTINATION_COUNTRIES.map((c) => (
+                        <optgroup key={c.name} label={`${c.name} (${c.enName})`}>
+                          {c.ports.map((port) => (
+                            <option key={port} value={port}>
+                              {port}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                      {editDestinationPort && !DESTINATION_COUNTRIES.some((c) => c.ports.includes(editDestinationPort)) && (
+                        <option value={editDestinationPort}>{editDestinationPort} (自定义)</option>
+                      )}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. 航运提单与船期船讯 */}
+              <div className="p-3.5 bg-blue-50/40 rounded-xl border border-blue-200/80 space-y-3">
+                <div className="text-xs font-bold text-blue-900 flex items-center gap-1.5 border-b border-blue-200/60 pb-1.5">
+                  <Edit3 className="w-3.5 h-3.5 text-blue-600" />
+                  3. 航运提单与船期船讯
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="sm:col-span-3">
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      海运提单号 (Bill of Lading / B/L No.)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="如 MCLPXMN082208, WHL01928374"
+                      value={editBlNumber}
+                      onChange={(e) => setEditBlNumber(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-blue-300 rounded-lg text-xs font-mono font-bold text-blue-950 focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      船公司 / 承运庄家
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="如 万海航运, 中远海运"
+                      value={editCarrier}
+                      onChange={(e) => setEditCarrier(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-800"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      船名 / 航次
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="如 WAN HAI 312 / V.S012"
+                      value={editVesselVoyage}
+                      onChange={(e) => setEditVesselVoyage(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      实际开船日 (ETD)
+                    </label>
+                    <input
+                      type="date"
+                      value={editSailingDate}
+                      onChange={(e) => setEditSailingDate(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      预计到港日 (ETA)
+                    </label>
+                    <input
+                      type="date"
+                      value={editEta}
+                      onChange={(e) => setEditEta(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      清关送达日
+                    </label>
+                    <input
+                      type="date"
+                      value={editClearanceDate}
+                      onChange={(e) => setEditClearanceDate(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. 渠道链条与备注 */}
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 space-y-3">
+                <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5 border-b border-slate-200/60 pb-1.5">
+                  <Layers className="w-3.5 h-3.5 text-indigo-600" />
+                  4. 全链路渠道与备注
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      订舱渠道
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="如 优尼科 / 顺丰海运"
+                      value={editBookingChannel}
+                      onChange={(e) => setEditBookingChannel(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      国内报关渠道
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="如 厦门外代 / 深圳报关行"
+                      value={editCustomsChannel}
+                      onChange={(e) => setEditCustomsChannel(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      目的港清关渠道
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="如 泉州万海-菲立亚-渠道5"
+                      value={editClearanceChannel}
+                      onChange={(e) => setEditClearanceChannel(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      目的港拖车渠道
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="如 马尼拉港口内陆车队"
+                      value={editTruckingChannel}
+                      onChange={(e) => setEditTruckingChannel(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      备注说明
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="如 特殊柜位、查验记录、堆存期提醒等..."
+                      value={editNote}
+                      onChange={(e) => setEditNote(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100 sticky bottom-0 bg-white z-10">
               <button
                 type="button"
-                onClick={() => setEditingContainer(null)}
-                className="px-4 py-2 text-slate-600 text-xs font-semibold hover:text-slate-800"
+                onClick={() => handleDeleteContainer(editingContainer)}
+                className="px-3 py-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors"
               >
-                取消
+                <Trash2 className="w-3.5 h-3.5" />
+                删除此货柜
               </button>
-              <button
-                type="submit"
-                className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold shadow-md"
-              >
-                保存更新
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEditingContainer(null)}
+                  className="px-4 py-2 text-slate-600 text-xs font-semibold hover:text-slate-800"
+                >
+                  取消
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold shadow-md transition-all"
+                >
+                  保存货柜修改
+                </button>
+              </div>
             </div>
           </form>
         </div>

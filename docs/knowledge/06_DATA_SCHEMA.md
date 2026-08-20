@@ -420,6 +420,31 @@ model ShippingChannel {
 
   @@index([category, isActive])
 }
+
+// ==========================================
+// 11. 国内起运仓 / 集货点主数据模型 (OriginWarehouse)
+// ==========================================
+model OriginWarehouse {
+  id             String   @id @default(uuid())
+  code           String   @unique             // 仓库唯一标识代码，如 GZ-01, YW-01
+  name           String                       // 仓库全称，如 广州白云集拼总仓
+  shortName      String                       // 仓库简称，如 广州仓
+  contactName    String                       // 收货负责人/组别，如 广州收货组 (李主管)
+  contactPhone   String                       // 收件联系电话
+  province       String?                      // 省份
+  city           String?                      // 城市
+  address        String                       // 详细仓址
+  receivingHours String?                      // 营业收货时间
+  isDefault      Boolean  @default(false)     // 是否系统全局默认起运仓
+  isActive       Boolean  @default(true)      // 启用状态
+  sortOrder      Int      @default(0)         // 排序权重
+  note           String?                      // 送仓指引 / 唛头要求提示
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([code])
+  @@index([isActive])
+}
 ```
 
 

@@ -18,6 +18,7 @@ import { waybillV2Routes } from './modules/v2/waybill/waybill.routes';
 import { containerV2Routes } from './modules/v2/container/container.routes';
 import { financeV2Routes } from './modules/v2/finance/finance.routes';
 import { channelV2Routes } from './modules/v2/channel/channel.routes';
+import { originWarehouseV2Routes } from './modules/v2/origin-warehouse/origin-warehouse.routes';
 import { uploadV2Routes } from './modules/v2/upload/upload.routes';
 import { importV2Routes } from './modules/v2/import/import.routes';
 import { authenticate } from './lib/jwt';
@@ -94,6 +95,7 @@ async function start() {
     await fastify.register(containerV2Routes, { prefix: '/api/v2/containers' });
     await fastify.register(financeV2Routes, { prefix: '/api/v2/finance' });
     await fastify.register(channelV2Routes, { prefix: '/api/v2/channels' });
+    await fastify.register(originWarehouseV2Routes, { prefix: '/api/v2/origin-warehouses' });
     await fastify.register(uploadV2Routes, { prefix: '/api/v2' });
     await fastify.register(importV2Routes, { prefix: '/api/v2/import' });
 

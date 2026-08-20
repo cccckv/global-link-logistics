@@ -207,7 +207,6 @@ export interface Waybill {
   customer?: Customer;
 }
 
-// API methods
 export const customerV2Api = {
   list: (params?: { search?: string; code?: string }) =>
     v2Api.get<{ success: boolean; data: Customer[] }>('/customers', { params }),
@@ -218,8 +217,20 @@ export const customerV2Api = {
   create: (data: Partial<Customer>) =>
     v2Api.post<{ success: boolean; data: Customer }>('/customers', data),
 
+  update: (id: string, data: Partial<Customer>) =>
+    v2Api.put<{ success: boolean; data: Customer }>(`/customers/${id}`, data),
+
   addAddress: (customerId: string, address: Partial<CustomerAddress>) =>
     v2Api.post<{ success: boolean; data: CustomerAddress }>(`/customers/${customerId}/addresses`, address),
+
+  updateAddress: (customerId: string, addressId: string, address: Partial<CustomerAddress>) =>
+    v2Api.put<{ success: boolean; data: CustomerAddress }>(`/customers/${customerId}/addresses/${addressId}`, address),
+
+  deleteAddress: (customerId: string, addressId: string) =>
+    v2Api.delete<{ success: boolean; message: string }>(`/customers/${customerId}/addresses/${addressId}`),
+
+  setDefaultAddress: (customerId: string, addressId: string) =>
+    v2Api.put<{ success: boolean; data: CustomerAddress }>(`/customers/${customerId}/addresses/${addressId}/default`),
 
   delete: (id: string) =>
     v2Api.delete<{ success: boolean; message: string }>(`/customers/${id}`),
@@ -253,7 +264,7 @@ export const waybillV2Api = {
     v2Api.post<{ success: boolean; data: Waybill }>('/waybills', data),
 
   update: (id: string, data: any) =>
-    v2Api.patch<{ success: boolean; data: Waybill }>(`/waybills/${id}`, data),
+    v2Api.post<{ success: boolean; data: Waybill }>(`/waybills/${id}/update`, data),
 
   batchAssignContainer: (data: { waybillIds: string[]; containerId: string; loadingDate?: string }) =>
     v2Api.post<{ success: boolean; updatedCount: number }>('/waybills/batch-assign-container', data),
@@ -285,7 +296,7 @@ export const containerV2Api = {
     v2Api.post<{ success: boolean; data: ContainerMaster }>('/containers', data),
 
   update: (id: string, data: Partial<ContainerMaster>) =>
-    v2Api.patch<{ success: boolean; data: ContainerMaster }>(`/containers/${id}`, data),
+    v2Api.post<{ success: boolean; data: ContainerMaster }>(`/containers/${id}/update`, data),
 
   addFee: (containerId: string, fee: any) =>
     v2Api.post<{ success: boolean; data: any }>(`/containers/${containerId}/fees`, fee),
@@ -367,7 +378,7 @@ export const channelV2Api = {
   ) =>
     v2Api.put<{ success: boolean; data: ShippingChannel }>(`/channels/${id}`, data),
   toggleActive: (id: string) =>
-    v2Api.patch<{ success: boolean; data: ShippingChannel }>(`/channels/${id}/toggle`),
+    v2Api.post<{ success: boolean; data: ShippingChannel }>(`/channels/${id}/toggle`),
   delete: (id: string) =>
     v2Api.delete<{ success: boolean; message: string }>(`/channels/${id}`),
 };
@@ -391,6 +402,71 @@ export const uploadV2Api = {
       },
     });
   },
+};
+
+export interface OriginWarehouse {
+  id: string;
+  code: string;
+  name: string;
+  shortName: string;
+  contactName: string;
+  contactPhone: string;
+  province?: string | null;
+  city?: string | null;
+  address: string;
+  receivingHours?: string | null;
+  isDefault: boolean;
+  isActive: boolean;
+  sortOrder: number;
+  note?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export const originWarehouseV2Api = {
+  list: (params?: { isActive?: boolean; search?: string }) =>
+    v2Api.get<{ success: boolean; data: OriginWarehouse[] }>('/origin-warehouses', { params }),
+  getById: (id: string) =>
+    v2Api.get<{ success: boolean; data: OriginWarehouse }>(`/origin-warehouses/${id}`),
+  create: (data: {
+    code: string;
+    name: string;
+    shortName: string;
+    contactName: string;
+    contactPhone: string;
+    province?: string;
+    city?: string;
+    address: string;
+    receivingHours?: string;
+    isDefault?: boolean;
+    isActive?: boolean;
+    sortOrder?: number;
+    note?: string;
+  }) =>
+    v2Api.post<{ success: boolean; data: OriginWarehouse }>('/origin-warehouses', data),
+  update: (
+    id: string,
+    data: Partial<{
+      code: string;
+      name: string;
+      shortName: string;
+      contactName: string;
+      contactPhone: string;
+      province?: string;
+      city?: string;
+      address: string;
+      receivingHours?: string;
+      isDefault?: boolean;
+      isActive?: boolean;
+      sortOrder?: number;
+      note?: string;
+    }>
+  ) =>
+    v2Api.put<{ success: boolean; data: OriginWarehouse }>(`/origin-warehouses/${id}`, data),
+  setDefault: (id: string) =>
+    v2Api.put<{ success: boolean; data: OriginWarehouse }>(`/origin-warehouses/${id}/set-default`),
+  delete: (id: string) =>
+    v2Api.delete<{ success: boolean; message: string }>(`/origin-warehouses/${id}`),
 };
 
 

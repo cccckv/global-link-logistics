@@ -13,21 +13,27 @@ import {
   ExternalLink,
   Trash2,
   Edit3,
+  Edit2,
   Plus,
   Container as ContainerIcon,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   ShieldCheck,
   RotateCcw,
   Save,
   Package,
   Copy,
   Lock,
+  Building,
+  MapPin,
 } from 'lucide-react';
 import {
   waybillV2Api,
   containerV2Api,
   financeV2Api,
   channelV2Api,
+  originWarehouseV2Api,
   type Waybill,
   type WaybillItem,
   type ContainerMaster,
@@ -35,6 +41,7 @@ import {
   type AttachmentType,
   type CurrencyType,
   type ShippingChannel,
+  type OriginWarehouse,
 } from '../../lib/v2-api';
 
 import {
@@ -53,49 +60,97 @@ interface StageMeta {
   actionText?: string;
 }
 
-const STAGES: StageMeta[] = [
-  {
-    key: 'DRAFT',
-    stageNum: 1,
-    label: '1. 客户预报',
-    desc: '客户提交品名、件数、单号',
-    actionText: '📦 包裹到仓 ➔ 阶段2实测核量',
-  },
-  {
-    key: 'INBOUND',
-    stageNum: 2,
-    label: '2. 到仓实测',
-    desc: '实测长宽高、单重、算方计费',
-    actionText: '🚢 安排装柜 ➔ 阶段3装箱配载',
-  },
-  {
-    key: 'LOADED',
-    stageNum: 3,
-    label: '3. 装柜配载',
-    desc: '绑定集装箱柜号与装箱日期',
-    actionText: '🌊 船舶启运 ➔ 阶段4干线在途',
-  },
-  {
-    key: 'IN_TRANSIT',
-    stageNum: 4,
-    label: '4. 干线在途',
-    desc: '开船航运中，记录船期与订舱成本',
-    actionText: '🛃 抵港清关 ➔ 阶段5海关放行',
-  },
-  {
-    key: 'DISPATCHING', // Note: DISPATCHING/CUSTOMS
-    stageNum: 5,
-    label: '5. 清关放行',
-    desc: '目的港清关，上传税单与THC',
-    actionText: '🚚 海外派送 ➔ 阶段6送达签收',
-  },
-  {
-    key: 'DELIVERED',
-    stageNum: 6,
-    label: '6. 签收完结',
-    desc: '回传签收单照片，锁定纯毛利',
-  },
-];
+const getStagesByOrderType = (orderType?: string): StageMeta[] => {
+  if (orderType === 'AIR') {
+    return [
+      {
+        key: 'DRAFT',
+        stageNum: 1,
+        label: '1. 客户预报',
+        desc: '录入品名、件数、国内快递单号',
+        actionText: '📦 包裹到仓 ➔ 阶段2到仓实测',
+      },
+      {
+        key: 'INBOUND',
+        stageNum: 2,
+        label: '2. 到仓实测',
+        desc: '过磅称重(kg)、录入车费、核算计费',
+        actionText: '✈️ 打包出库 ➔ 阶段3仓库发货',
+      },
+      {
+        key: 'LOADED',
+        stageNum: 3,
+        label: '3. 仓库发货',
+        desc: '打包出库，交接空运专线并出具运单号',
+        actionText: '🛬 运抵海外 ➔ 阶段4到海外仓',
+      },
+      {
+        key: 'IN_TRANSIT',
+        stageNum: 4,
+        label: '4. 到海外仓',
+        desc: '专线干线空运双清，到达海外分拨中心',
+        actionText: '🚚 安排派送 ➔ 阶段5海外派送',
+      },
+      {
+        key: 'DISPATCHING',
+        stageNum: 5,
+        label: '5. 海外派送',
+        desc: '海外仓出库派送，末端配送中',
+        actionText: '✅ 客户签收 ➔ 阶段6签收完结',
+      },
+      {
+        key: 'DELIVERED',
+        stageNum: 6,
+        label: '6. 签收完结',
+        desc: '上传签收单照片，锁定纯毛利',
+      },
+    ];
+  }
+
+  return [
+    {
+      key: 'DRAFT',
+      stageNum: 1,
+      label: '1. 客户预报',
+      desc: '客户提交品名、件数、单号',
+      actionText: '📦 包裹到仓 ➔ 阶段2实测核量',
+    },
+    {
+      key: 'INBOUND',
+      stageNum: 2,
+      label: '2. 到仓实测',
+      desc: '实测长宽高、单重、算方计费',
+      actionText: '🚢 安排装柜 ➔ 阶段3装箱配载',
+    },
+    {
+      key: 'LOADED',
+      stageNum: 3,
+      label: '3. 装柜配载',
+      desc: '绑定集装箱柜号与装箱日期',
+      actionText: '🌊 船舶启运 ➔ 阶段4干线在途',
+    },
+    {
+      key: 'IN_TRANSIT',
+      stageNum: 4,
+      label: '4. 干线在途',
+      desc: '开船航运中，记录船期与订舱成本',
+      actionText: '🛃 抵港清关 ➔ 阶段5海关放行',
+    },
+    {
+      key: 'DISPATCHING', // Note: DISPATCHING/CUSTOMS
+      stageNum: 5,
+      label: '5. 清关放行',
+      desc: '目的港清关，上传税单与THC',
+      actionText: '🚚 海外派送 ➔ 阶段6送达签收',
+    },
+    {
+      key: 'DELIVERED',
+      stageNum: 6,
+      label: '6. 签收完结',
+      desc: '回传签收单照片，锁定纯毛利',
+    },
+  ];
+};
 
 export default function WaybillDetailView() {
   const { id } = useParams<{ id: string }>();
@@ -108,6 +163,19 @@ export default function WaybillDetailView() {
   // Stage Modal States
   const [activeStageModal, setActiveStageModal] = useState<number | null>(null);
 
+  // Origin Warehouses Master Data
+  const [originWarehouses, setOriginWarehouses] = useState<OriginWarehouse[]>([]);
+
+  // Route & Consignee Card (形态2) States
+  const [isRouteCardExpanded, setIsRouteCardExpanded] = useState(false);
+  const [showOverseasEditModal, setShowOverseasEditModal] = useState(false);
+  const [editOverseasName, setEditOverseasName] = useState('');
+  const [editOverseasPhone, setEditOverseasPhone] = useState('');
+  const [editOverseasCompany, setEditOverseasCompany] = useState('');
+  const [editOverseasRegion, setEditOverseasRegion] = useState('');
+  const [editOverseasAddress, setEditOverseasAddress] = useState('');
+  const [savingOverseas, setSavingOverseas] = useState(false);
+
   // Stage 1 (预报修改) State
   const [userMark, setUserMark] = useState('');
   const [originWarehouse, setOriginWarehouse] = useState('');
@@ -117,6 +185,12 @@ export default function WaybillDetailView() {
   const [channels, setChannels] = useState<ShippingChannel[]>([]);
   const [note, setNote] = useState('');
 
+  // Stage 1 Overseas Consignee
+  const [stage1OverseasName, setStage1OverseasName] = useState('');
+  const [stage1OverseasPhone, setStage1OverseasPhone] = useState('');
+  const [stage1OverseasCompany, setStage1OverseasCompany] = useState('');
+  const [stage1OverseasRegion, setStage1OverseasRegion] = useState('');
+  const [stage1OverseasAddress, setStage1OverseasAddress] = useState('');
 
   // Stage 2 (实测尺寸) State
   const [inboundDate, setInboundDate] = useState('');
@@ -165,14 +239,19 @@ export default function WaybillDetailView() {
     if (!id) return;
     setLoading(true);
     try {
-      const [wbRes, contRes, chanRes] = await Promise.all([
+      const [wbRes, contRes, chanRes, whRes] = await Promise.all([
         waybillV2Api.getById(id),
         containerV2Api.list({ limit: 100 }),
         channelV2Api.list({ isActive: true }),
+        originWarehouseV2Api.list({ isActive: true }),
       ]);
 
       if (chanRes.data.success && chanRes.data.data) {
         setChannels(chanRes.data.data);
+      }
+
+      if (whRes.data.success && whRes.data.data) {
+        setOriginWarehouses(whRes.data.data);
       }
 
       if (wbRes.data.success) {
@@ -184,6 +263,12 @@ export default function WaybillDetailView() {
         setDestinationPort(wb.destinationPort || '');
         setForwarderChannel(wb.forwarderChannel || '');
         setNote(wb.note || '');
+
+        setStage1OverseasName(wb.overseasName || '');
+        setStage1OverseasPhone(wb.overseasPhone || '');
+        setStage1OverseasCompany(wb.overseasCompany || '');
+        setStage1OverseasRegion(wb.overseasRegion || wb.destinationCountry || '');
+        setStage1OverseasAddress(wb.overseasAddress || '');
 
         setExpressNo(wb.expressNo || '');
         const rawItems = wb.items || [];
@@ -292,21 +377,68 @@ export default function WaybillDetailView() {
     loadData();
   }, [id]);
 
+  // 一键复制派件指令 (格式化文本)
+  const handleCopyDispatchInstruction = () => {
+    if (!waybill) return;
+    const pcs = waybill.totalPieces || waybill.items?.reduce((s, i) => s + (i.quantity || 1), 0) || 0;
+    const cbm = (Number(waybill.totalPayableCbm) || 0).toFixed(3);
+    const originHub = originWarehouses.find(
+      (w) => w.code === waybill.originWarehouse || w.shortName === waybill.originWarehouse || w.name === waybill.originWarehouse
+    );
+    const text = `【派件单】运单号: ${waybill.waybillNo} | 唛头: ${waybill.userMark || '无'}
+始发仓: ${originHub?.name || waybill.originWarehouse || '广州集运仓'}
+目的港: ${waybill.destinationCountry || ''} ${waybill.destinationPort ? `(${waybill.destinationPort})` : ''}
+海外收件人: ${waybill.overseasName || '未填写'}
+联系电话: ${waybill.overseasPhone || '未填写'}
+收件公司: ${waybill.overseasCompany || '无'}
+派送地址: ${waybill.overseasAddress || '目的港自提/未填'}
+货物概况: 共 ${pcs} 件 / 计费体积 ${cbm} m³ / 渠道: ${waybill.forwarderChannel || '专线'}`;
+
+    navigator.clipboard.writeText(text);
+    toast.success('已复制派件指令至剪贴板！');
+  };
+
+  // 独立保存/修改海外收件人 (随时在途变更)
+  const handleSaveOverseasConsignee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!waybill) return;
+    setSavingOverseas(true);
+    try {
+      await waybillV2Api.update(waybill.id, {
+        overseasName: editOverseasName.trim() || undefined,
+        overseasPhone: editOverseasPhone.trim() || undefined,
+        overseasCompany: editOverseasCompany.trim() || undefined,
+        overseasRegion: editOverseasRegion.trim() || undefined,
+        overseasAddress: editOverseasAddress.trim() || undefined,
+      });
+      toast.success('海外收件人与派送信息已成功更新！');
+      setShowOverseasEditModal(false);
+      loadData();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || '修改海外收件人失败');
+    } finally {
+      setSavingOverseas(false);
+    }
+  };
+
   // Stage 1 Save (修改预报信息与货物快照)
   const handleStage1Save = async () => {
     if (!waybill) return;
     try {
       const isInitialStage = waybill.status === 'DRAFT';
       await waybillV2Api.update(waybill.id, {
-
         userMark: userMark.trim(),
         originWarehouse,
         destinationCountry,
         destinationPort: destinationPort.trim() || undefined,
         forwarderChannel: forwarderChannel.trim() || undefined,
         note: note.trim() || undefined,
+        overseasName: stage1OverseasName.trim() || undefined,
+        overseasPhone: stage1OverseasPhone.trim() || undefined,
+        overseasCompany: stage1OverseasCompany.trim() || undefined,
+        overseasRegion: stage1OverseasRegion.trim() || destinationCountry || undefined,
+        overseasAddress: stage1OverseasAddress.trim() || undefined,
         items: stage1Items.map((it, idx) => {
-
           const orig = waybill.items?.find((i) => i.id === it.id) || (waybill.items ? waybill.items[idx] : undefined);
           const estQty = it.estimatedQuantity !== undefined && it.estimatedQuantity !== null && String(it.estimatedQuantity).trim() !== ''
             ? Number(it.estimatedQuantity)
@@ -367,12 +499,13 @@ export default function WaybillDetailView() {
     }
   };
 
+
   // Stage 2 Save & Advance: 到仓实测尺寸与入库
   const handleStage2Submit = async (advanceStatus: boolean = true) => {
     if (!waybill) return;
     try {
       const payload: any = {
-        inboundDate,
+        inboundDate: (inboundDate && String(inboundDate).trim()) ? inboundDate : (advanceStatus ? new Date().toISOString() : undefined),
         expressNo: expressNo.trim() || undefined,
         items: editableItems.map((item, idx) => {
           const orig = waybill.items?.find((i) => i.id === item.id) || (waybill.items ? waybill.items[idx] : undefined);
@@ -413,9 +546,40 @@ export default function WaybillDetailView() {
     }
   };
 
-  // Stage 3 Save & Advance: 人工排柜
+  // Stage 3 Save & Advance: 人工排柜 (海运) / 仓库发货 (空运)
   const handleStage3Submit = async (advanceStatus: boolean = true) => {
     if (!waybill) return;
+
+    // 空运专用分支
+    if (waybill.orderType === 'AIR') {
+      if (!expressNo || !expressNo.trim()) {
+        toast.error('【发货运单号】为必填项！仓库发货必须提供专线运单号或转运单号。');
+        return;
+      }
+
+      try {
+        const payload: any = {
+          expressNo: expressNo.trim(),
+          forwarderChannel: forwarderChannel?.trim() || undefined,
+          loadingDate: loadingDate ? new Date(loadingDate).toISOString() : (advanceStatus ? new Date().toISOString() : undefined),
+          note: note?.trim() || undefined,
+        };
+
+        if (advanceStatus) {
+          payload.status = 'LOADED';
+        }
+
+        await waybillV2Api.update(waybill.id, payload);
+        toast.success(advanceStatus ? '阶段 3 仓库发货完成，运单流转至【已发货 (LOADED)】！' : '发货运单信息已成功更新！');
+        setActiveStageModal(null);
+        loadData();
+      } catch (err: any) {
+        toast.error(err.response?.data?.error || '阶段 3 发货保存失败');
+      }
+      return;
+    }
+
+    // 海运分支
     try {
       let targetContainerId = selectedContainerId;
 
@@ -455,9 +619,32 @@ export default function WaybillDetailView() {
     }
   };
 
-  // Stage 4 Save & Advance: 干线启运在途
+  // Stage 4 Save & Advance: 干线启运在途 (海运) / 到海外仓 (空运)
   const handleStage4Submit = async (advanceStatus: boolean = true) => {
     if (!waybill) return;
+
+    // 空运专用分支
+    if (waybill.orderType === 'AIR') {
+      try {
+        const payload: any = {
+          clearanceDate: clearanceDate ? new Date(clearanceDate).toISOString() : (advanceStatus ? new Date().toISOString() : undefined),
+        };
+
+        if (advanceStatus) {
+          payload.status = 'IN_TRANSIT';
+        }
+
+        await waybillV2Api.update(waybill.id, payload);
+        toast.success(advanceStatus ? '阶段 4 到海外仓节点已记录，运单流转至【到海外仓 (IN_TRANSIT)】！' : '到达海外仓信息已更新！');
+        setActiveStageModal(null);
+        loadData();
+      } catch (err: any) {
+        toast.error(err.response?.data?.error || '阶段 4 保存失败');
+      }
+      return;
+    }
+
+    // 海运分支
     if (!vesselVoyage.trim()) {
       toast.error('请填写船名/航次 (Vessel/Voyage)，该字段为必填项！');
       return;
@@ -495,9 +682,32 @@ export default function WaybillDetailView() {
     }
   };
 
-  // Stage 5 Save & Advance: 清关放行
+  // Stage 5 Save & Advance: 清关放行 (海运) / 海外派送 (空运)
   const handleStage5Submit = async (advanceStatus: boolean = true) => {
     if (!waybill) return;
+
+    // 空运专用分支
+    if (waybill.orderType === 'AIR') {
+      try {
+        const payload: any = {};
+        if (advanceStatus) {
+          payload.status = 'DISPATCHING' as any;
+        }
+        if (note?.trim()) {
+          payload.note = note.trim();
+        }
+
+        await waybillV2Api.update(waybill.id, payload);
+        toast.success(advanceStatus ? '阶段 5 海外派送中已记录，运单流转至【海外派送 (DISPATCHING)】！' : '派送信息已更新！');
+        setActiveStageModal(null);
+        loadData();
+      } catch (err: any) {
+        toast.error(err.response?.data?.error || '阶段 5 更新失败');
+      }
+      return;
+    }
+
+    // 海运分支
     try {
       if (advanceStatus) {
         await waybillV2Api.update(waybill.id, {
@@ -654,17 +864,18 @@ export default function WaybillDetailView() {
     );
   }
 
-  // Calculate current stage index
-  let currentStageIdx = STAGES.findIndex((s) => s.key === waybill.status);
+  // Calculate current stage index based on dynamic orderType stages
+  const stages = getStagesByOrderType(waybill.orderType);
+  let currentStageIdx = stages.findIndex((s) => s.key === waybill.status);
   if (currentStageIdx === -1) {
     if (waybill.status === 'CUSTOMS') currentStageIdx = 4;
     else currentStageIdx = 0;
   }
-  const currentStage = STAGES[currentStageIdx] || STAGES[0];
+  const currentStage = stages[currentStageIdx] || stages[0];
 
   // Rollback Stage Handler
   const handleRollback = async (targetStageIdx: number) => {
-    const targetStage = STAGES[targetStageIdx];
+    const targetStage = stages[targetStageIdx];
     if (!targetStage) return;
 
     if (!confirm(`确认将运单状态回退至【${targetStage.label}】？\n已录入的尺寸、货柜或费用信息将予以保留。`)) {
@@ -688,7 +899,7 @@ export default function WaybillDetailView() {
     // Check if target is a future locked stage (beyond current + 1)
     if (targetIdx > currentStageIdx + 1) {
       toast.warning(
-        `流程不可跨越！当前处于【${currentStage.label}】，请先按顺序推进至【${STAGES[currentStageIdx + 1]?.label}】。`
+        `流程不可跨越！当前处于【${currentStage.label}】，请先按顺序推进至【${stages[currentStageIdx + 1]?.label}】。`
       );
       return;
     }
@@ -750,7 +961,7 @@ export default function WaybillDetailView() {
               title="回退到前一个阶段状态"
             >
               <RotateCcw className="w-4 h-4" />
-              回退至【{STAGES[currentStageIdx - 1]?.label}】
+              回退至【{stages[currentStageIdx - 1]?.label}】
             </button>
           )}
 
@@ -771,6 +982,196 @@ export default function WaybillDetailView() {
         </div>
       </div>
 
+      {/* 形态 2: 紧凑路线与收发档案看板 (Collapsible / Expandable) */}
+      {(() => {
+        const originHubInfo = originWarehouses.find(
+          (w) =>
+            w.code === waybill.originWarehouse ||
+            w.shortName === waybill.originWarehouse ||
+            w.name === waybill.originWarehouse
+        );
+
+        return (
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-all">
+            {/* 紧凑摘要栏 (常驻单行) */}
+            <div className="px-5 py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-gradient-to-r from-slate-50/90 via-white to-blue-50/30">
+              <div className="flex items-center gap-3 flex-wrap text-xs">
+                {/* 起运仓标签 */}
+                <div className="flex items-center gap-1.5 font-medium text-slate-700 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-xs">
+                  <Building className="w-4 h-4 text-blue-600 shrink-0" />
+                  <span className="text-slate-400">始发起运仓:</span>
+                  <span className="font-bold text-slate-900">
+                    {originHubInfo?.name || waybill.originWarehouse || '广州集运总仓'}
+                  </span>
+                  {originHubInfo?.contactPhone && (
+                    <span className="text-slate-500 font-mono text-[11px]">
+                      ({originHubInfo.contactName} · {originHubInfo.contactPhone})
+                    </span>
+                  )}
+                </div>
+
+                <span className="text-slate-400 font-bold">➔</span>
+
+                {/* 海外收件人标签 */}
+                <div className="flex items-center gap-1.5 font-medium text-slate-700 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-xs">
+                  <MapPin className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span className="text-slate-400">海外收件人:</span>
+                  {waybill.overseasName ? (
+                    <>
+                      <span className="font-bold text-slate-900">{waybill.overseasName}</span>
+                      {waybill.overseasPhone && (
+                        <span className="text-slate-500 font-mono text-[11px]">
+                          ({waybill.overseasPhone})
+                        </span>
+                      )}
+                      <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold rounded-md border border-emerald-200/60">
+                        {waybill.destinationCountry} · {waybill.destinationPort || '目的港'}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-slate-400 italic">未填海外收件人</span>
+                  )}
+                </div>
+              </div>
+
+              {/* 快捷操作区 */}
+              <div className="flex items-center gap-2 self-end md:self-auto shrink-0">
+                <button
+                  onClick={handleCopyDispatchInstruction}
+                  className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all"
+                  title="复制标准格式派件单"
+                >
+                  <Copy className="w-3.5 h-3.5 text-blue-600" />
+                  复制派件指令
+                </button>
+
+                <button
+                  onClick={() => {
+                    setEditOverseasName(waybill.overseasName || '');
+                    setEditOverseasPhone(waybill.overseasPhone || '');
+                    setEditOverseasCompany(waybill.overseasCompany || '');
+                    setEditOverseasRegion(waybill.overseasRegion || waybill.destinationCountry || '');
+                    setEditOverseasAddress(waybill.overseasAddress || '');
+                    setShowOverseasEditModal(true);
+                  }}
+                  className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                  修改海外收件人
+                </button>
+
+                <button
+                  onClick={() => setIsRouteCardExpanded(!isRouteCardExpanded)}
+                  className="px-2.5 py-1.5 text-slate-500 hover:text-slate-800 text-xs font-bold flex items-center gap-1 transition-all rounded-lg hover:bg-slate-100"
+                >
+                  {isRouteCardExpanded ? (
+                    <>
+                      收起 <ChevronUp className="w-3.5 h-3.5" />
+                    </>
+                  ) : (
+                    <>
+                      展开档案 <ChevronDown className="w-3.5 h-3.5" />
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* 展开后的结构化详情档案 */}
+            {isRouteCardExpanded && (
+              <div className="p-5 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-5 bg-white animate-in fade-in duration-150">
+                {/* 左侧：国内起运集运仓 */}
+                <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80 space-y-2 text-xs">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-200/60">
+                    <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                      <Building className="w-4 h-4 text-blue-600" />
+                      国内起运集运仓 (Origin Hub)
+                    </span>
+                    {originHubInfo?.code && (
+                      <span className="font-mono text-[11px] font-bold px-2 py-0.5 bg-blue-100 text-blue-800 rounded">
+                        {originHubInfo.code}
+                      </span>
+                    )}
+                  </div>
+                  <div className="space-y-1.5 text-slate-600">
+                    <p>
+                      <span className="text-slate-400">仓库全称:</span>{' '}
+                      <span className="font-bold text-slate-900">
+                        {originHubInfo?.name || waybill.originWarehouse || '广州集运总仓'}
+                      </span>
+                    </p>
+                    <p>
+                      <span className="text-slate-400">负责人/电话:</span>{' '}
+                      <span className="font-medium text-slate-800">
+                        {originHubInfo?.contactName || '收货组'} ({originHubInfo?.contactPhone || '暂无电话'})
+                      </span>
+                    </p>
+                    <p>
+                      <span className="text-slate-400">详细仓址:</span>{' '}
+                      <span className="text-slate-700">
+                        {originHubInfo?.province || ''}
+                        {originHubInfo?.city || ''}
+                        {originHubInfo?.address || '广东省广州市白云区集运仓'}
+                      </span>
+                    </p>
+                    {originHubInfo?.receivingHours && (
+                      <p>
+                        <span className="text-slate-400">营业收货:</span>{' '}
+                        <span className="text-slate-600">{originHubInfo.receivingHours}</span>
+                      </p>
+                    )}
+                    {originHubInfo?.note && (
+                      <p className="text-[11px] text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200/60">
+                        💡 {originHubInfo.note}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* 右侧：海外收货与派送档案 */}
+                <div className="p-4 bg-emerald-50/40 rounded-xl border border-emerald-200/60 space-y-2 text-xs">
+                  <div className="flex items-center justify-between pb-2 border-b border-emerald-200/60">
+                    <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                      <MapPin className="w-4 h-4 text-emerald-600" />
+                      海外收货与派送地址 (Consignee)
+                    </span>
+                    <span className="text-[11px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded">
+                      {waybill.destinationCountry} · {waybill.destinationPort || '目的港'}
+                    </span>
+                  </div>
+                  <div className="space-y-1.5 text-slate-600">
+                    <p>
+                      <span className="text-slate-400">收件联系人:</span>{' '}
+                      <span className="font-bold text-slate-900">
+                        {waybill.overseasName || '未填写'}
+                      </span>
+                    </p>
+                    <p>
+                      <span className="text-slate-400">联系电话:</span>{' '}
+                      <span className="font-mono font-bold text-emerald-800">
+                        {waybill.overseasPhone || '未填写'}
+                      </span>
+                    </p>
+                    {waybill.overseasCompany && (
+                      <p>
+                        <span className="text-slate-400">收件公司:</span>{' '}
+                        <span className="text-slate-800">{waybill.overseasCompany}</span>
+                      </p>
+                    )}
+                    <p>
+                      <span className="text-slate-400">派送详细地址:</span>{' '}
+                      <span className="font-medium text-slate-900 leading-relaxed">
+                        {waybill.overseasAddress || '目的港自提 / 派送地址待补充'}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* 6-Stage Progressive Stepper Visualizer with Lock Protection & Backward Edit */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 space-y-4">
         <div className="flex items-center justify-between">
@@ -789,7 +1190,7 @@ export default function WaybillDetailView() {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-          {STAGES.map((st, idx) => {
+          {stages.map((st, idx) => {
             const isCompleted = currentStageIdx > idx || waybill.status === 'DELIVERED';
             const isCurrent = currentStageIdx === idx && waybill.status !== 'DELIVERED';
             const isNext = currentStageIdx + 1 === idx && waybill.status !== 'DELIVERED';
@@ -872,7 +1273,7 @@ export default function WaybillDetailView() {
                 按流程顺序推进下一阶段
               </span>
               <h3 className="text-sm font-bold text-white mt-0.5">
-                {STAGES[currentStageIdx + 1]?.label}：{STAGES[currentStageIdx + 1]?.desc}
+                {stages[currentStageIdx + 1]?.label}：{stages[currentStageIdx + 1]?.desc}
               </h3>
             </div>
           </div>
@@ -881,7 +1282,7 @@ export default function WaybillDetailView() {
             onClick={() => setActiveStageModal(currentStageIdx + 2)}
             className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/30 flex items-center gap-2 transition-all shrink-0"
           >
-            {STAGES[currentStageIdx]?.actionText || '推进至下一阶段'}
+            {stages[currentStageIdx]?.actionText || '推进至下一阶段'}
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
@@ -1078,23 +1479,102 @@ export default function WaybillDetailView() {
             </div>
           </div>
 
-          {/* Container & Vessel Info */}
+          {/* Container & Logistics Info (Dynamic: Air vs Sea) */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Ship className="w-5 h-5 text-blue-600" />
-                集装箱与干线航运数据
+                {waybill.orderType === 'AIR' ? (
+                  <>
+                    <Truck className="w-5 h-5 text-purple-600" />
+                    空运专线与发货出库数据
+                  </>
+                ) : (
+                  <>
+                    <Ship className="w-5 h-5 text-blue-600" />
+                    集装箱与干线航运数据
+                  </>
+                )}
               </h2>
               <button
                 onClick={() => setActiveStageModal(3)}
                 className="text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1"
               >
                 <Edit3 className="w-3.5 h-3.5" />
-                {waybill.containerMaster ? '修改配载货柜' : '进行装柜配载'}
+                {waybill.orderType === 'AIR'
+                  ? waybill.expressNo ? '修改发货物流' : '安排仓库发货'
+                  : waybill.containerMaster ? '修改配载货柜' : '进行装柜配载'}
               </button>
             </div>
 
-            {waybill.containerMaster ? (
+            {waybill.orderType === 'AIR' ? (
+              waybill.expressNo || waybill.loadingDate ? (
+                <div className="p-4 bg-purple-50/70 border border-purple-200 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center text-purple-700 font-bold">
+                        ✈️
+                      </div>
+                      <div>
+                        <h3 className="text-base font-bold font-mono text-purple-950 flex items-center gap-2">
+                          {waybill.expressNo || '专线发货单号待补'}
+                          <span className="px-2 py-0.5 bg-purple-200 text-purple-800 rounded text-[10px] font-sans font-bold">
+                            空运专线
+                          </span>
+                        </h3>
+                        <p className="text-xs text-purple-700">
+                          承运服务商: {waybill.forwarderChannel || '未指定专线渠道'} | 状态: {waybill.status}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-2 border-t border-purple-200/60">
+                    <div>
+                      <span className="text-purple-500">起运/目的地</span>
+                      <p className="font-semibold text-purple-900">
+                        {waybill.originWarehouse || '广州仓'} ➔ {waybill.destinationCountry}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-purple-500">发货运单号</span>
+                      <p className="font-mono font-bold text-purple-950">
+                        {waybill.expressNo || '-'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-purple-500">发货出库日期</span>
+                      <p className="font-semibold text-purple-900">
+                        {waybill.loadingDate
+                          ? new Date(waybill.loadingDate).toISOString().slice(0, 10)
+                          : <span className="text-slate-400 font-normal italic">待出库</span>}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-purple-500">到达海外仓日期</span>
+                      <p className="font-semibold text-purple-900">
+                        {waybill.clearanceDate
+                          ? new Date(waybill.clearanceDate).toISOString().slice(0, 10)
+                          : <span className="text-slate-400 font-normal italic">在途中</span>}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-8 border border-dashed border-slate-200 rounded-xl text-center space-y-2">
+                  <p className="text-xs text-slate-500">
+                    该空运单尚未打包发货。等国内集拼仓打包交接给专线后即可录入发货运单号。
+                  </p>
+                  {currentStageIdx >= 1 && (
+                    <button
+                      onClick={() => setActiveStageModal(3)}
+                      className="px-3.5 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-xs font-semibold hover:bg-purple-100"
+                    >
+                      安排仓库发货 ➔
+                    </button>
+                  )}
+                </div>
+              )
+            ) : waybill.containerMaster ? (
               <div className="p-4 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -1377,11 +1857,24 @@ export default function WaybillDetailView() {
                       className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium"
                     >
                       <option value="">-- 请选择起运仓 --</option>
-                      {ORIGIN_WAREHOUSES.map((w) => (
-                        <option key={w.value} value={w.value}>
-                          {w.label}
-                        </option>
-                      ))}
+                      {originWarehouses.length > 0 ? (
+                        originWarehouses.map((w) => (
+                          <option key={w.id} value={w.shortName || w.name}>
+                            {w.name} {w.isDefault ? '⭐ [默认]' : ''}
+                          </option>
+                        ))
+                      ) : (
+                        ORIGIN_WAREHOUSES.map((w) => (
+                          <option key={w.value} value={w.value}>
+                            {w.label}
+                          </option>
+                        ))
+                      )}
+                      {originWarehouse &&
+                        !originWarehouses.some((w) => w.shortName === originWarehouse || w.name === originWarehouse) &&
+                        !ORIGIN_WAREHOUSES.some((w) => w.value === originWarehouse) && (
+                          <option value={originWarehouse}>{originWarehouse} (自定义起运点)</option>
+                        )}
                     </select>
                   </div>
 
@@ -1466,7 +1959,99 @@ export default function WaybillDetailView() {
                     />
                   </div>
                 </div>
+              </div>
 
+              {/* 海外收件人与派送信息 (预报快照维护) */}
+              <div className="p-4 bg-emerald-50/40 border border-emerald-200/70 rounded-xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                    海外收件人与目的港派送档案 (预报快照)
+                  </h3>
+                  <span className="text-[11px] text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-md font-semibold">
+                    末端派件核对凭证
+                  </span>
+                </div>
+
+                {/* 客户地址簿快捷选择 */}
+                {waybill.customer?.addresses && waybill.customer.addresses.length > 0 && (
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 bg-white p-2 rounded-lg border border-emerald-200 text-xs">
+                    <span className="font-bold text-emerald-800 shrink-0">
+                      从【{waybill.customer.clientCode}】地址簿带入:
+                    </span>
+                    <select
+                      onChange={(e) => {
+                        const addrId = e.target.value;
+                        const target = waybill.customer?.addresses?.find((a) => a.id === addrId);
+                        if (target) {
+                          setStage1OverseasName(target.name || '');
+                          setStage1OverseasPhone(target.phone || '');
+                          setStage1OverseasCompany(target.company || '');
+                          setStage1OverseasAddress(target.address || '');
+                          toast.success(`已带入【${target.name}】的收件档案`);
+                        }
+                      }}
+                      className="flex-1 px-2.5 py-1.5 bg-emerald-50/50 border border-emerald-300 rounded-md font-medium text-slate-800"
+                    >
+                      <option value="">-- 点击选择客户名下的已登记收件人 ({waybill.customer.addresses.length}个) --</option>
+                      {waybill.customer.addresses.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.name} ({a.phone}) - {a.address ? a.address.slice(0, 35) : ''}... {a.isDefault ? '⭐[默认]' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      海外收件人姓名
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="如 Alex Johnson / 目的港联系人"
+                      value={stage1OverseasName}
+                      onChange={(e) => setStage1OverseasName(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      海外联系电话 / WhatsApp
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="如 +63 917 123 4567"
+                      value={stage1OverseasPhone}
+                      onChange={(e) => setStage1OverseasPhone(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      海外收件公司 (选填)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="如 Manila Trade Logistics"
+                      value={stage1OverseasCompany}
+                      onChange={(e) => setStage1OverseasCompany(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    目的港详细派送 / 送货地址
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="如 Unit 802, BGC Tower, Taguig City, Metro Manila"
+                    value={stage1OverseasAddress}
+                    onChange={(e) => setStage1OverseasAddress(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium"
+                  />
+                </div>
               </div>
 
               {/* 货物预报清单编辑 */}
@@ -1695,7 +2280,7 @@ export default function WaybillDetailView() {
             </div>
 
             <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className={waybill.orderType === 'AIR' ? 'max-w-xs' : 'grid grid-cols-1 sm:grid-cols-2 gap-4'}>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     实测入库日期
@@ -1708,18 +2293,20 @@ export default function WaybillDetailView() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    运递单号 / 仓库运单号 (仓库收货提供)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="如 FLY100002162 或 AWB91041985"
-                    value={expressNo}
-                    onChange={(e) => setExpressNo(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono font-bold text-blue-900 focus:bg-white"
-                  />
-                </div>
+                {waybill.orderType !== 'AIR' && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      运递单号 / 仓库运单号 (仓库收货提供)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="如 FLY100002162 或 AWB91041985"
+                      value={expressNo}
+                      onChange={(e) => setExpressNo(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono font-bold text-blue-900 focus:bg-white"
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -1935,7 +2522,7 @@ export default function WaybillDetailView() {
       )}
 
       {/* ========================================================= */}
-      {/* 阶段 3 模态框：人工排柜装箱 */}
+      {/* 阶段 3 模态框：人工排柜装箱 (海运) / 仓库发货 (空运) */}
       {/* ========================================================= */}
       {activeStageModal === 3 && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -1946,8 +2533,15 @@ export default function WaybillDetailView() {
                   阶段 3 操作
                 </span>
                 <h2 className="text-lg font-bold text-slate-900 mt-1">
-                  人工排柜：指定装载集装箱货柜
+                  {waybill.orderType === 'AIR'
+                    ? '仓库发货：打包出库并交接专线渠道'
+                    : '人工排柜：指定装载集装箱货柜'}
                 </h2>
+                {waybill.orderType === 'AIR' && (
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    录入发货出库日期、专线渠道及发货运单号（必填）。无需录入航班号。
+                  </p>
+                )}
               </div>
               <button
                 onClick={() => setActiveStageModal(null)}
@@ -1957,76 +2551,146 @@ export default function WaybillDetailView() {
               </button>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  从现有集装箱中选择
-                </label>
-                <select
-                  value={selectedContainerId}
-                  onChange={(e) => {
-                    setSelectedContainerId(e.target.value);
-                    if (e.target.value) setNewContainerNo('');
-                  }}
-                  className="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg text-xs font-medium focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">-- 选择现有集装箱 --</option>
-                  {containers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.containerNo} ({c.originPort || '起运港'} ➔ {c.destinationPort || '目的港'}) - {c.status}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="relative flex py-1 items-center">
-                <div className="flex-grow border-t border-slate-200"></div>
-                <span className="flex-shrink mx-4 text-[11px] text-slate-400 font-semibold">或者直接输入新柜号</span>
-                <div className="flex-grow border-t border-slate-200"></div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
+            {waybill.orderType === 'AIR' ? (
+              <div className="space-y-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    新建货柜柜号 (如 广62柜, MILU6019768)
+                    发货出库日期
+                  </label>
+                  <input
+                    type="date"
+                    value={loadingDate}
+                    onChange={(e) => setLoadingDate(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    承运专线渠道 / 合作服务商
+                  </label>
+                  <select
+                    value={forwarderChannel}
+                    onChange={(e) => setForwarderChannel(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">-- 选择或输入空运专线渠道 --</option>
+                    {channels
+                      .filter((c) => c.category === 'AIR' || !c.category)
+                      .map((c) => (
+                        <option key={c.id} value={c.name}>
+                          {c.name} {c.code ? `(${c.code})` : ''}
+                        </option>
+                      ))}
+                    <option value="菲通货运">菲通货运</option>
+                    <option value="天帆专线">天帆专线</option>
+                    <option value="中外运空运">中外运空运</option>
+                    <option value="自营空运专线">自营空运专线</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    发货运单号 / 专线转运单号 <span className="text-red-500 font-bold">* (必填)</span>
                   </label>
                   <input
                     type="text"
-                    placeholder="输入新柜号"
-                    value={newContainerNo}
+                    placeholder="如 FLY100002162 或 AWB91041985"
+                    value={expressNo}
+                    onChange={(e) => setExpressNo(e.target.value)}
+                    required
+                    className="w-full px-3 py-2.5 bg-blue-50/50 border border-blue-300 rounded-lg text-xs font-mono font-bold text-blue-950 focus:bg-white focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    💡 仓库打包发货交接给专线后出具的运单号/提单号，用于海外到货与客户查询。
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    发货出库备注 (选填)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="如：已打包交接专线夜班车发往机场"
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    从现有集装箱中选择
+                  </label>
+                  <select
+                    value={selectedContainerId}
                     onChange={(e) => {
-                      setNewContainerNo(e.target.value);
-                      if (e.target.value) setSelectedContainerId('');
+                      setSelectedContainerId(e.target.value);
+                      if (e.target.value) setNewContainerNo('');
                     }}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-900 focus:bg-white"
-                  />
+                    className="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg text-xs font-medium focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">-- 选择现有集装箱 --</option>
+                    {containers.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.containerNo} ({c.originPort || '起运港'} ➔ {c.destinationPort || '目的港'}) - {c.status}
+                      </option>
+                    ))}
+                  </select>
                 </div>
+
+                <div className="relative flex py-1 items-center">
+                  <div className="flex-grow border-t border-slate-200"></div>
+                  <span className="flex-shrink mx-4 text-[11px] text-slate-400 font-semibold">或者直接输入新柜号</span>
+                  <div className="flex-grow border-t border-slate-200"></div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      新建货柜柜号 (如 广62柜, MILU6019768)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="输入新柜号"
+                      value={newContainerNo}
+                      onChange={(e) => {
+                        setNewContainerNo(e.target.value);
+                        if (e.target.value) setSelectedContainerId('');
+                      }}
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-900 focus:bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      海运提单号 (选填)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="如 MCLPXMN082208"
+                      value={newBlNumber}
+                      onChange={(e) => setNewBlNumber(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono"
+                    />
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    海运提单号 (选填)
+                    装柜配载日期
                   </label>
                   <input
-                    type="text"
-                    placeholder="如 MCLPXMN082208"
-                    value={newBlNumber}
-                    onChange={(e) => setNewBlNumber(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono"
+                    type="date"
+                    value={loadingDate}
+                    onChange={(e) => setLoadingDate(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium"
                   />
                 </div>
               </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  装柜配载日期
-                </label>
-                <input
-                  type="date"
-                  value={loadingDate}
-                  onChange={(e) => setLoadingDate(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium"
-                />
-              </div>
-            </div>
+            )}
 
             <div className="flex items-center justify-between pt-3 border-t">
               {currentStageIdx > 2 ? (
@@ -2036,7 +2700,7 @@ export default function WaybillDetailView() {
                   className="px-3.5 py-2 text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-semibold flex items-center gap-1"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  回退状态至【已装柜 (LOADED)】
+                  回退状态至【{stages[2]?.label}】
                 </button>
               ) : <div />}
 
@@ -2063,7 +2727,9 @@ export default function WaybillDetailView() {
                     onClick={() => handleStage3Submit(true)}
                     className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold shadow-md"
                   >
-                    确认装柜并流转为【已装柜 (LOADED)】
+                    {waybill.orderType === 'AIR'
+                      ? '确认发货并流转为【已发货 (LOADED)】'
+                      : '确认装柜并流转为【已装柜 (LOADED)】'}
                   </button>
                 )}
               </div>
@@ -2073,7 +2739,7 @@ export default function WaybillDetailView() {
       )}
 
       {/* ========================================================= */}
-      {/* 阶段 4 模态框：干线启运在途 */}
+      {/* 阶段 4 模态框：干线启运在途 (海运) / 到海外仓 (空运) */}
       {/* ========================================================= */}
       {activeStageModal === 4 && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -2084,7 +2750,9 @@ export default function WaybillDetailView() {
                   阶段 4 操作
                 </span>
                 <h2 className="text-lg font-bold text-slate-900 mt-1">
-                  干线启运：记录开船/起飞与海运提单
+                  {waybill.orderType === 'AIR'
+                    ? '到海外仓：专线空运与双清到港入库'
+                    : '干线启运：记录开船/起飞与海运提单'}
                 </h2>
               </div>
               <button
@@ -2095,61 +2763,90 @@ export default function WaybillDetailView() {
               </button>
             </div>
 
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+            {waybill.orderType === 'AIR' ? (
+              <div className="space-y-4">
+                <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl space-y-1 text-xs">
+                  <div className="flex items-center justify-between text-purple-900 font-bold">
+                    <span>✈️ 专线空运干线发运状态</span>
+                    <span className="font-mono">{waybill.forwarderChannel || '空运专线'}</span>
+                  </div>
+                  <p className="text-purple-700">
+                    发货运单号: <span className="font-mono font-bold">{waybill.expressNo || expressNo || '未录入'}</span>
+                  </p>
+                </div>
+
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    实际开船日 (ETD) <span className="text-red-500">*</span>
+                    到达海外仓日期 (到港清关入库)
                   </label>
                   <input
                     type="date"
-                    value={sailingDate}
-                    onChange={(e) => setSailingDate(e.target.value)}
-                    required
+                    value={clearanceDate}
+                    onChange={(e) => setClearanceDate(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium"
                   />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    预计到港日 (ETA)
-                  </label>
-                  <input
-                    type="date"
-                    value={etaDate}
-                    onChange={(e) => setEtaDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs"
-                  />
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    💡 专线完成空运航程与口岸双清放行，货物进入目的国海外中转分拨仓的日期。
+                  </p>
                 </div>
               </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      实际开船日 (ETD) <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={sailingDate}
+                      onChange={(e) => setSailingDate(e.target.value)}
+                      required
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      预计到港日 (ETA)
+                    </label>
+                    <input
+                      type="date"
+                      value={etaDate}
+                      onChange={(e) => setEtaDate(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs"
+                    />
+                  </div>
+                </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    船名 / 航次 (Vessel/Voyage) <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="如 WAN HAI 312 / V.S012"
-                    value={vesselVoyage}
-                    onChange={(e) => setVesselVoyage(e.target.value)}
-                    required
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 focus:bg-white focus:ring-2 focus:ring-cyan-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    海运提单号 (B/L No.)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="如 MCLPXMN082208"
-                    value={blNumber}
-                    onChange={(e) => setBlNumber(e.target.value)}
-                    className="w-full px-3 py-2 bg-cyan-50/50 border border-cyan-300 rounded-lg text-xs font-mono font-bold text-cyan-950 focus:bg-white focus:ring-2 focus:ring-cyan-500"
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      船名 / 航次 (Vessel/Voyage) <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="如 WAN HAI 312 / V.S012"
+                      value={vesselVoyage}
+                      onChange={(e) => setVesselVoyage(e.target.value)}
+                      required
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 focus:bg-white focus:ring-2 focus:ring-cyan-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      海运提单号 (B/L No.)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="如 MCLPXMN082208"
+                      value={blNumber}
+                      onChange={(e) => setBlNumber(e.target.value)}
+                      className="w-full px-3 py-2 bg-cyan-50/50 border border-cyan-300 rounded-lg text-xs font-mono font-bold text-cyan-950 focus:bg-white focus:ring-2 focus:ring-cyan-500"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             <div className="flex items-center justify-between pt-3 border-t">
               {currentStageIdx > 3 ? (
@@ -2159,7 +2856,7 @@ export default function WaybillDetailView() {
                   className="px-3.5 py-2 text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-semibold flex items-center gap-1"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  回退状态至【在途中 (IN_TRANSIT)】
+                  回退状态至【{stages[3]?.label}】
                 </button>
               ) : <div />}
 
@@ -2186,7 +2883,9 @@ export default function WaybillDetailView() {
                     onClick={() => handleStage4Submit(true)}
                     className="px-6 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold shadow-md"
                   >
-                    确认启运并流转为【在途中 (IN_TRANSIT)】
+                    {waybill.orderType === 'AIR'
+                      ? '确认到仓并流转为【到海外仓 (IN_TRANSIT)】'
+                      : '确认启运并流转为【在途中 (IN_TRANSIT)】'}
                   </button>
                 )}
               </div>
@@ -2196,7 +2895,7 @@ export default function WaybillDetailView() {
       )}
 
       {/* ========================================================= */}
-      {/* 阶段 5 模态框：目的港清关放行 */}
+      {/* 阶段 5 模态框：目的港清关放行 (海运) / 海外派送 (空运) */}
       {/* ========================================================= */}
       {activeStageModal === 5 && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -2207,7 +2906,9 @@ export default function WaybillDetailView() {
                   阶段 5 操作
                 </span>
                 <h2 className="text-lg font-bold text-slate-900 mt-1">
-                  目的港清关：海关放行与上传税单水单
+                  {waybill.orderType === 'AIR'
+                    ? '海外派送：海外仓出库安排末端配送'
+                    : '目的港清关：海关放行与上传税单水单'}
                 </h2>
               </div>
               <button
@@ -2219,41 +2920,82 @@ export default function WaybillDetailView() {
             </div>
 
             <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  清关完成放行日期
-                </label>
-                <input
-                  type="date"
-                  value={clearanceDate}
-                  onChange={(e) => setClearanceDate(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs"
-                />
+              {/* 核对海外收件人与派送地址 */}
+              <div className="p-3.5 bg-emerald-50/70 border border-emerald-200/80 rounded-xl space-y-1.5 text-xs">
+                <div className="flex items-center justify-between text-emerald-900 font-bold">
+                  <span className="flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                    核对末端海外收件人与派送指引
+                  </span>
+                  <span className="text-[10px] text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded font-bold">
+                    {waybill.destinationCountry} · {waybill.destinationPort || '目的港'}
+                  </span>
+                </div>
+                <p className="text-slate-700">
+                  <span className="text-slate-400">收件人:</span>{' '}
+                  <span className="font-bold text-slate-900">{waybill.overseasName || '未填写'}</span>
+                  {waybill.overseasPhone && (
+                    <span className="font-mono text-emerald-800 ml-2 font-bold">({waybill.overseasPhone})</span>
+                  )}
+                </p>
+                <p className="text-slate-600 leading-relaxed">
+                  <span className="text-slate-400">派送地址:</span>{' '}
+                  <span className="font-medium text-slate-800">{waybill.overseasAddress || '目的港自提 / 派件地址待补充'}</span>
+                </p>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  海关查验放行状态
-                </label>
-                <select
-                  value={inspectStatus}
-                  onChange={(e) => setInspectStatus(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium"
-                >
-                  <option value="">-- 请选择查验状态 --</option>
-                  <option value="正常放行">正常放行 (No Inspection)</option>
-                  <option value="海关查验后正常放行">海关查验后正常放行 (Inspected & Cleared)</option>
-                  <option value="扣关补税已放行">扣关补税已放行 (Duty Paid & Released)</option>
-                </select>
-              </div>
+              {waybill.orderType === 'AIR' ? (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    末端派送备注 / 司机联系方式 / 本地快递单号 (选填)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="如：已安排本地司机 Juan 派送 (0912-3456789) 或 J&T 派送"
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs"
+                  />
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      清关完成放行日期
+                    </label>
+                    <input
+                      type="date"
+                      value={clearanceDate}
+                      onChange={(e) => setClearanceDate(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs"
+                    />
+                  </div>
 
-              <LocalFileUpload
-                label="海关缴税水单 / 放行凭证"
-                value={customsSlipUrl}
-                onChange={(url) => setCustomsSlipUrl(url)}
-                accept="image/*,application/pdf"
-                helperText="支持从电脑上传海关税单图片、PDF 或扣关放行证明"
-              />
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      海关查验放行状态
+                    </label>
+                    <select
+                      value={inspectStatus}
+                      onChange={(e) => setInspectStatus(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium"
+                    >
+                      <option value="">-- 请选择查验状态 --</option>
+                      <option value="正常放行">正常放行 (No Inspection)</option>
+                      <option value="海关查验后正常放行">海关查验后正常放行 (Inspected & Cleared)</option>
+                      <option value="扣关补税已放行">扣关补税已放行 (Duty Paid & Released)</option>
+                    </select>
+                  </div>
+
+                  <LocalFileUpload
+                    label="海关缴税水单 / 放行凭证"
+                    value={customsSlipUrl}
+                    onChange={(url) => setCustomsSlipUrl(url)}
+                    accept="image/*,application/pdf"
+                    helperText="支持从电脑上传海关税单图片、PDF 或扣关放行证明"
+                  />
+                </>
+              )}
             </div>
 
             <div className="flex items-center justify-between pt-3 border-t">
@@ -2264,7 +3006,7 @@ export default function WaybillDetailView() {
                   className="px-3.5 py-2 text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-semibold flex items-center gap-1"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  回退状态至【海外拆派中】
+                  回退状态至【{stages[4]?.label}】
                 </button>
               ) : <div />}
 
@@ -2291,7 +3033,9 @@ export default function WaybillDetailView() {
                     onClick={() => handleStage5Submit(true)}
                     className="px-6 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow-md"
                   >
-                    确认放行并流转为【海外拆派中】
+                    {waybill.orderType === 'AIR'
+                      ? '确认安排派送并流转为【海外派送中 (DISPATCHING)】'
+                      : '确认放行并流转为【海外拆派中】'}
                   </button>
                 )}
               </div>
@@ -2533,6 +3277,157 @@ export default function WaybillDetailView() {
                   className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-md"
                 >
                   确认上传
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 独立修改海外收件人与派件信息模态框 (随时在途更新) */}
+      {/* ========================================================= */}
+      {showOverseasEditModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-emerald-600" />
+                <h2 className="text-base font-bold text-slate-900">
+                  修改海外收货人与目的港派送档案
+                </h2>
+              </div>
+              <button
+                onClick={() => setShowOverseasEditModal(false)}
+                className="text-slate-400 hover:text-slate-700 text-xl font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500">
+              运单在全生命周期流转期间均支持纠偏与变更收件人或派送地址，保存后将即时更新并作为末端派件指引。
+            </p>
+
+            <form onSubmit={handleSaveOverseasConsignee} className="space-y-3.5 text-xs">
+              {/* 从客户地址簿快捷选择 */}
+              {waybill.customer?.addresses && waybill.customer.addresses.length > 0 && (
+                <div className="p-2.5 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-1 text-xs">
+                  <label className="block font-bold text-emerald-800">
+                    从【{waybill.customer.clientCode}】的海外收件人地址簿快捷带入:
+                  </label>
+                  <select
+                    onChange={(e) => {
+                      const addrId = e.target.value;
+                      const target = waybill.customer?.addresses?.find((a) => a.id === addrId);
+                      if (target) {
+                        setEditOverseasName(target.name || '');
+                        setEditOverseasPhone(target.phone || '');
+                        setEditOverseasCompany(target.company || '');
+                        setEditOverseasRegion(target.country || target.region || '');
+                        setEditOverseasAddress(target.address || '');
+                        toast.success(`已快速切换为【${target.name}】的收件地址`);
+                      }
+                    }}
+                    className="w-full px-2.5 py-1.5 bg-white border border-emerald-300 rounded-lg font-medium text-slate-800"
+                  >
+                    <option value="">-- 点击快速选取历史收件人档案 ({waybill.customer.addresses.length}个) --</option>
+                    {waybill.customer.addresses.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name} ({a.phone}) - {a.address ? a.address.slice(0, 35) : ''}... {a.isDefault ? '⭐[默认]' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    海外收件人姓名 <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="如 Alex Johnson"
+                    value={editOverseasName}
+                    onChange={(e) => setEditOverseasName(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg font-medium"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    海外联系电话 / WhatsApp <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="如 +63 917 123 4567"
+                    value={editOverseasPhone}
+                    onChange={(e) => setEditOverseasPhone(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg font-mono font-medium"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    海外收件公司 (选填)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="如 Manila Import & Trading"
+                    value={editOverseasCompany}
+                    onChange={(e) => setEditOverseasCompany(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    目的国家 / 城市地区
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="如 菲律宾 · 马尼拉"
+                    value={editOverseasRegion}
+                    onChange={(e) => setEditOverseasRegion(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg font-medium"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  目的港详细派送送货地址 <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="如 Unit 802, BGC High Street, Bonifacio Global City, Taguig, Metro Manila"
+                  value={editOverseasAddress}
+                  onChange={(e) => setEditOverseasAddress(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg font-medium leading-relaxed"
+                  required
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t">
+                <button
+                  type="button"
+                  onClick={() => setShowOverseasEditModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold"
+                >
+                  取消
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingOverseas}
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-md shadow-emerald-600/20 disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  {savingOverseas ? '正在保存...' : '确认更新海外收件人'}
                 </button>
               </div>
             </form>

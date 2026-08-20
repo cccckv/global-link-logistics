@@ -60,3 +60,4 @@ erDiagram
 - 🔄 [07_LIFECYCLE_AND_TABLES.md](./07_LIFECYCLE_AND_TABLES.md) — **订单全生命周期 6 阶段与数据表使用指南**
 - 🛠️ [08_BUSINESS_PRACTICE_AND_PITFALLS.md](./08_BUSINESS_PRACTICE_AND_PITFALLS.md) — **业务实战沉淀、调度工作台与工程避坑指南**
 - 📊 [09_BATCH_IMPORT_STANDARDS.md](./09_BATCH_IMPORT_STANDARDS.md) — **批量导入业务与技术规范标准**（客户档案独立导入、专线独立模板、多行聚合与容错跳过）
+- 🏢 [10_CONSIGNEE_AND_ORIGIN_WAREHOUSE.md](./10_CONSIGNEE_AND_ORIGIN_WAREHOUSE.md) — **收发件人体系与国内起运仓主数据架构**（认唛头不认发货人、起运仓主数据管理、形态2紧凑摘要与在途修改、一键复制派件指令）

@@ -131,3 +131,19 @@ sequenceDiagram
 | **4. 干线在途** | `IN_TRANSIT` (在途中) | `SAILING` (航运中) | `ContainerMaster`, `ContainerFee`, `Waybill` | 填开船日(ETD)、ETA、提单号(`blNumber`)、船名航次、订舱费 |
 | **5. 目的港清关** | `DISPATCHING` (拆派中) | `CUSTOMS` ➔ `DISPATCHING` | `ContainerMaster`, `ContainerFee`, `WaybillAttachment` | 清关时间、航运天数、清关费/THC(PHP)、本地传海关税单 |
 | **6. 签收完结** | `DELIVERED` (已完结) | `COMPLETED` (已完结) | `Waybill`, `WaybillAttachment` | 填签收时间、本地传签收照片、锁定最终财务毛利 |
+
+---
+
+## ✈️ 4. 空运业务专属生命周期流转对照表 (方案 A：零迁移规范)
+
+针对 `orderType === 'AIR'` 的空运业务，全景调度工作台将自动切换为专用的空运阶段视图：
+
+| 空运阶段名称 | 状态代码 (`Waybill.status`) | 核心操作与表单控件 | 关键字段映射 (零迁移) | 业务规则与必填约束 |
+| :--- | :--- | :--- | :--- | :--- |
+| **1. 客户预报** | `DRAFT` | 录入唛头、品名、国内送仓单号、预报件数、收件人 | `Waybill`, `WaybillItem` | 生成 `waybillNo` (如 `AWB2608170001`) |
+| **2. 到仓实测** | `INBOUND` | 录入到仓日期、**实测重量 (`totalWeightKg`)**、单价、车费 | `Waybill.totalWeightKg`, `WaybillItem`, `WaybillFee` | 纯按 **kg** 算费，隐藏海运立方算方，自动计算应收/干线成本 |
+| **3. 仓库发货** | `LOADED` | 录入发货日期、承运专线、**【发货运单号】**、发货备注 | `Waybill.loadingDate`, `forwarderChannel`, `expressNo` | **【发货运单号】强制必填**，彻底去除柜号、航班号等海运项 |
+| **4. 到海外仓** | `IN_TRANSIT` | 录入到达海外仓时间、海外中转仓点备注 | `Waybill.clearanceDate` | 记录干线空运与双清完毕入海外分拨仓节点 |
+| **5. 海外派送** | `DISPATCHING` | 录入派送方式（专车/本地快递/自提）、派送单号/司机信息 | `Waybill.status = DISPATCHING`, `Waybill.note` | 海外仓出库末端配送 |
+| **6. 签收完结** | `DELIVERED` | 录入客户签收日期、上传签收单照片 (`SIGN_IMAGE`) | `Waybill.signedDate`, `WaybillAttachment` | 客户签收归档，锁定财务毛利 |
+

@@ -54,19 +54,20 @@ export async function waybillV2Routes(fastify: FastifyInstance) {
     }
   });
 
-  // Update waybill
-  fastify.patch<{
-    Params: { id: string };
-    Body: any;
-  }>('/:id', async (request, reply) => {
+  // Update waybill (Support PATCH, PUT and POST for proxy compatibility)
+  const updateWaybillHandler = async (request: any, reply: any) => {
     try {
       const updated = await waybillService.updateWaybill(request.params.id, request.body as any);
-
       return reply.send({ success: true, data: updated });
     } catch (err: any) {
       return reply.code(500).send({ success: false, error: err.message });
     }
-  });
+  };
+
+  fastify.patch('/:id', updateWaybillHandler);
+  fastify.put('/:id', updateWaybillHandler);
+  fastify.post('/:id/update', updateWaybillHandler);
+  fastify.post('/:id', updateWaybillHandler);
 
   // Batch assign container
   fastify.post<{

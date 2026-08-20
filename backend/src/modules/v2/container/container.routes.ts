@@ -54,19 +54,23 @@ export async function containerV2Routes(fastify: FastifyInstance) {
     }
   });
 
-  // Update container
-  fastify.patch<{
-    Params: { id: string };
-    Body: any;
-  }>('/:id', async (request, reply) => {
+  // Update container (Support PATCH, PUT and POST for proxy compatibility)
+  const updateContainerHandler = async (request: any, reply: any) => {
     try {
       const updated = await containerService.updateContainer(request.params.id, request.body as any);
-
       return reply.send({ success: true, data: updated });
     } catch (err: any) {
-      return reply.code(500).send({ success: false, error: err.message });
+      if (err.code === 'P2002') {
+        return reply.code(400).send({ success: false, error: '集装箱柜号已存在，请勿重复' });
+      }
+      return reply.code(400).send({ success: false, error: err.message });
     }
-  });
+  };
+
+  fastify.patch('/:id', updateContainerHandler);
+  fastify.put('/:id', updateContainerHandler);
+  fastify.post('/:id/update', updateContainerHandler);
+  fastify.post('/:id', updateContainerHandler);
 
   // Add container fee
   fastify.post<{

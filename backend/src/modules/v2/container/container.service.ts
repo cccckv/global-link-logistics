@@ -1,4 +1,5 @@
 import { PrismaClient, ContainerStatus, ContainerFeeSubject, FeeDirection, CurrencyType } from '@prisma/client';
+import { parseNullableDate } from '../waybill/waybill.service';
 
 const prisma = new PrismaClient();
 
@@ -27,10 +28,10 @@ export interface CreateContainerInput {
 export class ContainerV2Service {
   async createContainer(data: CreateContainerInput) {
     const createData: any = { ...data };
-    if (data.loadingDate) createData.loadingDate = new Date(data.loadingDate);
-    if (data.sailingDate) createData.sailingDate = new Date(data.sailingDate);
-    if (data.eta) createData.eta = new Date(data.eta);
-    if (data.clearanceDate) createData.clearanceDate = new Date(data.clearanceDate);
+    if ('loadingDate' in data) createData.loadingDate = parseNullableDate(data.loadingDate) || undefined;
+    if ('sailingDate' in data) createData.sailingDate = parseNullableDate(data.sailingDate) || undefined;
+    if ('eta' in data) createData.eta = parseNullableDate(data.eta) || undefined;
+    if ('clearanceDate' in data) createData.clearanceDate = parseNullableDate(data.clearanceDate) || undefined;
 
     return prisma.containerMaster.create({
       data: createData,
@@ -135,10 +136,10 @@ export class ContainerV2Service {
     status?: ContainerStatus;
   }) {
     const updateData: any = { ...data };
-    if (data.loadingDate) updateData.loadingDate = new Date(data.loadingDate);
-    if (data.sailingDate) updateData.sailingDate = new Date(data.sailingDate);
-    if (data.eta) updateData.eta = new Date(data.eta);
-    if (data.clearanceDate) updateData.clearanceDate = new Date(data.clearanceDate);
+    if ('loadingDate' in data) updateData.loadingDate = parseNullableDate(data.loadingDate);
+    if ('sailingDate' in data) updateData.sailingDate = parseNullableDate(data.sailingDate);
+    if ('eta' in data) updateData.eta = parseNullableDate(data.eta);
+    if ('clearanceDate' in data) updateData.clearanceDate = parseNullableDate(data.clearanceDate);
 
     // Compute totalShippingDays if both dates exist
     const current = await prisma.containerMaster.findUnique({ where: { id } });

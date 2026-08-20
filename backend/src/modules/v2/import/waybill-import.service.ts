@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { PrismaClient, ShipmentType, WaybillStatus, CurrencyType, FeeDirection, AttachmentType } from '@prisma/client';
+import { PrismaClient, ShipmentType, WaybillStatus, CurrencyType, FeeDirection, AttachmentType, AddressType } from '@prisma/client';
 import { calculateWaybillFinancials } from '../waybill/waybill.service';
 import { ImageExtractorService } from './image-extractor.service';
 import { ImportErrorDetail } from './customer-import.service';
@@ -33,6 +33,11 @@ interface ParsedItemRow {
   airWaybillNo?: string;
   forwarderChannel?: string;
   customsType?: string;
+  overseasName?: string;
+  overseasPhone?: string;
+  overseasCompany?: string;
+  overseasAddress?: string;
+  overseasRegion?: string;
   note?: string;
 
   // Item details
@@ -90,6 +95,11 @@ interface GroupedWaybill {
   airWaybillNo?: string;
   forwarderChannel?: string;
   customsType?: string;
+  overseasName?: string;
+  overseasPhone?: string;
+  overseasCompany?: string;
+  overseasAddress?: string;
+  overseasRegion?: string;
   note?: string;
   receivableAmount?: number;
 
@@ -230,6 +240,11 @@ export class WaybillImportService {
           airWaybillNo: r.airWaybillNo,
           forwarderChannel: r.forwarderChannel,
           customsType: r.customsType,
+          overseasName: r.overseasName,
+          overseasPhone: r.overseasPhone,
+          overseasCompany: r.overseasCompany,
+          overseasAddress: r.overseasAddress,
+          overseasRegion: r.overseasRegion,
           note: r.note,
           receivableAmount: r.receivableAmount,
           containerNo: r.containerNo,
@@ -259,6 +274,11 @@ export class WaybillImportService {
         if (!g.destinationCountry && r.destinationCountry) g.destinationCountry = r.destinationCountry;
         if (!g.forwarderChannel && r.forwarderChannel) g.forwarderChannel = r.forwarderChannel;
         if (!g.customsType && r.customsType) g.customsType = r.customsType;
+        if (!g.overseasName && r.overseasName) g.overseasName = r.overseasName;
+        if (!g.overseasPhone && r.overseasPhone) g.overseasPhone = r.overseasPhone;
+        if (!g.overseasCompany && r.overseasCompany) g.overseasCompany = r.overseasCompany;
+        if (!g.overseasAddress && r.overseasAddress) g.overseasAddress = r.overseasAddress;
+        if (!g.overseasRegion && r.overseasRegion) g.overseasRegion = r.overseasRegion;
       }
 
       // 添加货物明细
@@ -301,11 +321,21 @@ export class WaybillImportService {
       }
     }
 
-    // 6. 批量预查所有客户唛头
+    // 6. 批量预查所有客户唛头 (包含默认海外收件人)
     const allUserMarks = Array.from(new Set(Array.from(groupedMap.values()).map((g) => g.userMark).filter(Boolean)));
     const existingCustomers = await prisma.customer.findMany({
       where: { clientCode: { in: allUserMarks } },
-      select: { id: true, clientCode: true, destinationCountry: true, defaultWarehouse: true, destinationPort: true },
+      select: {
+        id: true,
+        clientCode: true,
+        destinationCountry: true,
+        defaultWarehouse: true,
+        destinationPort: true,
+        addresses: {
+          where: { addressType: AddressType.OVERSEAS_RECIPIENT },
+          orderBy: { isDefault: 'desc' },
+        },
+      },
     });
     const customerMap = new Map(existingCustomers.map((c) => [c.clientCode, c]));
 
@@ -381,10 +411,33 @@ export class WaybillImportService {
   private async saveSingleWaybill(
     g: GroupedWaybill,
     orderType: ShipmentType,
-    customer: { id: string; clientCode: string; defaultWarehouse?: string | null; destinationCountry?: string | null; destinationPort?: string | null },
+    customer: {
+      id: string;
+      clientCode: string;
+      defaultWarehouse?: string | null;
+      destinationCountry?: string | null;
+      destinationPort?: string | null;
+      addresses?: Array<{
+        name: string;
+        phone: string;
+        company?: string | null;
+        region?: string | null;
+        address: string;
+        isDefault: boolean;
+      }>;
+    },
     operatorId?: string
   ): Promise<string> {
     const waybillNo = generateWaybillNo(orderType);
+
+    // 智能提取海外收件人：Excel 填录则优先覆盖，留空则从客户地址簿继承默认收件人
+    const defaultConsignee = customer.addresses?.find((a) => a.isDefault) || customer.addresses?.[0];
+    const finalOverseasName = g.overseasName || defaultConsignee?.name || undefined;
+    const finalOverseasPhone = g.overseasPhone || defaultConsignee?.phone || undefined;
+    const finalOverseasCompany = g.overseasCompany || defaultConsignee?.company || undefined;
+    const finalOverseasAddress = g.overseasAddress || defaultConsignee?.address || undefined;
+    const finalOverseasRegion =
+      g.overseasRegion || defaultConsignee?.region || g.destinationPort || customer.destinationPort || undefined;
 
     // 计算汇总指标
     let totalPieces = 0;
@@ -476,6 +529,11 @@ export class WaybillImportService {
           airWaybillNo: g.airWaybillNo,
           forwarderChannel: g.forwarderChannel,
           customsType: g.customsType,
+          overseasName: finalOverseasName,
+          overseasPhone: finalOverseasPhone,
+          overseasCompany: finalOverseasCompany,
+          overseasAddress: finalOverseasAddress,
+          overseasRegion: finalOverseasRegion,
           voyageNumber: g.vesselVoyage,
           note: g.note,
           containerId: containerMasterId,
@@ -574,6 +632,10 @@ export class WaybillImportService {
       airWaybillNo: String(getVal(colMap.airWaybillNo) || '').trim() || undefined,
       forwarderChannel: String(getVal(colMap.forwarderChannel) || '').trim() || undefined,
       customsType: String(getVal(colMap.customsType) || '').trim() || undefined,
+      overseasName: String(getVal(colMap.overseasName) || '').trim() || undefined,
+      overseasPhone: String(getVal(colMap.overseasPhone) || '').trim() || undefined,
+      overseasCompany: String(getVal(colMap.overseasCompany) || '').trim() || undefined,
+      overseasAddress: String(getVal(colMap.overseasAddress) || '').trim() || undefined,
       note: String(getVal(colMap.note) || '').trim() || undefined,
       productName,
       quantity,
@@ -707,6 +769,16 @@ export class WaybillImportService {
         map.customsChannel = colNumber;
       } else if (text.includes('清关渠道')) {
         map.clearanceChannel = colNumber;
+      } else if (text.includes('海外') || text.includes('收件') || text.includes('收货')) {
+        if (text.includes('电话') || text.includes('手机') || text.includes('WhatsApp')) {
+          map.overseasPhone = colNumber;
+        } else if (text.includes('公司')) {
+          map.overseasCompany = colNumber;
+        } else if (text.includes('地址') || text.includes('派送') || text.includes('门牌')) {
+          map.overseasAddress = colNumber;
+        } else if (text.includes('人') || text.includes('姓名') || text.includes('联系')) {
+          map.overseasName = colNumber;
+        }
       } else if (text.includes('报关/通道') || text.includes('通道类型') || text.includes('报关类型') || text.includes('货品通道')) {
         map.customsType = colNumber;
       } else if (text.includes('承运') || text.includes('服务商') || text.includes('渠道') || text.includes('专线渠道')) {

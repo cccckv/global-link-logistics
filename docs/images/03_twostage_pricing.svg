@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 400" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#1e293b" />
+    </linearGradient>
+    <filter id="shadow3" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#000000" flood-opacity="0.3" />
+    </filter>
+  </defs>
+
+  <rect width="960" height="400" rx="16" fill="url(#bg3)" />
+
+  <text x="480" y="38" fill="#38bdf8" font-size="20" font-family="system-ui, sans-serif" font-weight="bold" text-anchor="middle">两段式计费与双轨数据模型对比指引</text>
+  <text x="480" y="62" fill="#94a3b8" font-size="12" font-family="system-ui, sans-serif" text-anchor="middle">阶段 1 客户预估仅作为参考快照 ➔ 阶段 2 仓库实测核量自动覆盖主表法定结算金额</text>
+
+  <!-- Left: Stage 1 Track -->
+  <g transform="translate(40, 85)" filter="url(#shadow3)">
+    <rect width="390" height="280" rx="12" fill="#1e293b" stroke="#3b82f6" stroke-width="1.5" />
+    <rect x="0" y="0" width="390" height="40" rx="12" fill="#1e3a8a" />
+    <text x="20" y="25" fill="#ffffff" font-size="14" font-family="system-ui, sans-serif" font-weight="bold">第一轨：阶段 1 客户委托预报 (预估快照)</text>
+
+    <text x="20" y="68" fill="#93c5fd" font-size="12" font-family="system-ui, sans-serif">• 客户告知尺寸：<tspan fill="#ffffff" font-family="monospace">50 × 40 × 30 cm</tspan> (10件)</text>
+    <text x="20" y="94" fill="#93c5fd" font-size="12" font-family="system-ui, sans-serif">• 系统计算预估体积：<tspan fill="#38bdf8" font-weight="bold">0.600 m³ (CBM)</tspan></text>
+    <text x="20" y="120" fill="#93c5fd" font-size="12" font-family="system-ui, sans-serif">• 应收单价：<tspan fill="#ffffff">¥ 950 / m³</tspan></text>
+
+    <rect x="20" y="145" width="350" height="55" rx="8" fill="#0f172a" stroke="#334155" stroke-width="1" />
+    <text x="35" y="168" fill="#94a3b8" font-size="11" font-family="system-ui, sans-serif">预估总应收 (仅作为参考基准):</text>
+    <text x="35" y="190" fill="#38bdf8" font-size="16" font-family="monospace" font-weight="bold">¥ 570.00 <tspan font-size="11" fill="#94a3b8">(0.600 m³ × ¥950)</tspan></text>
+
+    <text x="20" y="230" fill="#64748b" font-size="11" font-family="system-ui, sans-serif">📌 数据存放在 estimatedLength / estimatedVolume 字段</text>
+    <text x="20" y="252" fill="#64748b" font-size="11" font-family="system-ui, sans-serif">📌 永远完整留存为历史快照，用于日后核对与争议溯源</text>
+  </g>
+
+  <!-- Middle Transition Indicator -->
+  <g transform="translate(445, 195)">
+    <circle cx="35" cy="15" r="22" fill="#3b82f6" />
+    <text x="35" y="20" fill="#ffffff" font-size="16" font-family="system-ui, sans-serif" font-weight="bold" text-anchor="middle">➔</text>
+    <text x="35" y="52" fill="#38bdf8" font-size="10" font-family="system-ui, sans-serif" font-weight="bold" text-anchor="middle">包裹到仓</text>
+    <text x="35" y="66" fill="#94a3b8" font-size="9" font-family="system-ui, sans-serif" text-anchor="middle">实测核量</text>
+  </g>
+
+  <!-- Right: Stage 2 Track -->
+  <g transform="translate(530, 85)" filter="url(#shadow3)">
+    <rect width="390" height="280" rx="12" fill="#1e293b" stroke="#10b981" stroke-width="1.5" />
+    <rect x="0" y="0" width="390" height="40" rx="12" fill="#065f46" />
+    <text x="20" y="25" fill="#ffffff" font-size="14" font-family="system-ui, sans-serif" font-weight="bold">第二轨：阶段 2 仓库到货实测 (法定结算)</text>
+
+    <text x="20" y="68" fill="#a7f3d0" font-size="12" font-family="system-ui, sans-serif">• 仓库实测尺寸：<tspan fill="#ffffff" font-family="monospace">52 × 42 × 32 cm</tspan> (10件)</text>
+    <text x="20" y="94" fill="#a7f3d0" font-size="12" font-family="system-ui, sans-serif">• 实际核算方数：<tspan fill="#34d399" font-weight="bold">0.699 m³ (CBM)</tspan></text>
+    <text x="20" y="120" fill="#fef08a" font-size="12" font-family="system-ui, sans-serif" font-weight="bold">• 实测偏差比：<tspan fill="#ef4444" font-weight="bold">+16.50% ⚠️ (超体提醒)</tspan></text>
+
+    <rect x="20" y="145" width="350" height="55" rx="8" fill="#0f172a" stroke="#059669" stroke-width="1" />
+    <text x="35" y="168" fill="#a7f3d0" font-size="11" font-family="system-ui, sans-serif">🌟 自动覆盖持久化主表最终结算账单:</text>
+    <text x="35" y="190" fill="#34d399" font-size="16" font-family="monospace" font-weight="bold">¥ 664.05 <tspan font-size="11" fill="#a7f3d0">(0.699 m³ × ¥950)</tspan></text>
+
+    <text x="20" y="230" fill="#34d399" font-size="11" font-family="system-ui, sans-serif">✓ 自动覆盖 Waybill.receivableAmount / netProfit</text>
+    <text x="20" y="252" fill="#34d399" font-size="11" font-family="system-ui, sans-serif">✓ 提供「一键带入预报尺寸」按钮，无需二次录入</text>
+  </g>
+</svg>

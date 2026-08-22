@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 440" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg5" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#1e293b" />
+    </linearGradient>
+    <filter id="shadow5" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#000000" flood-opacity="0.3" />
+    </filter>
+  </defs>
+
+  <rect width="980" height="440" rx="16" fill="url(#bg5)" />
+
+  <text x="490" y="38" fill="#38bdf8" font-size="20" font-family="system-ui, sans-serif" font-weight="bold" text-anchor="middle">运单 6 阶段可视化流转、防跳级上锁与安全回退机制</text>
+  <text x="490" y="62" fill="#94a3b8" font-size="12" font-family="system-ui, sans-serif" text-anchor="middle">绿色为已完成（支持回退） ➔ 蓝色为当前进行中 ➔ 灰色带锁为未来阶段（禁止越级操作）</text>
+
+  <!-- 6 Stages Horizontal Stepper -->
+  <g transform="translate(25, 85)">
+    <!-- Stage 1 (Done) -->
+    <g transform="translate(0, 0)">
+      <rect width="145" height="110" rx="10" fill="#064e3b" stroke="#10b981" stroke-width="1.5" />
+      <circle cx="25" cy="24" r="12" fill="#10b981" />
+      <text x="25" y="29" fill="#ffffff" font-size="12" font-weight="bold" text-anchor="middle">✓</text>
+      <text x="45" y="29" fill="#ffffff" font-size="12" font-weight="bold">1. 客户预报</text>
+      <text x="12" y="55" fill="#a7f3d0" font-size="10">• 唛头与常用路线</text>
+      <text x="12" y="72" fill="#a7f3d0" font-size="10">• 预估货物与单价</text>
+      <text x="12" y="95" fill="#34d399" font-size="9" font-weight="bold">状态: DRAFT (已完成)</text>
+    </g>
+
+    <!-- Line 1 -> 2 -->
+    <line x1="148" y1="55" x2="157" y2="55" stroke="#10b981" stroke-width="2" />
+
+    <!-- Stage 2 (Done) -->
+    <g transform="translate(160, 0)">
+      <rect width="145" height="110" rx="10" fill="#064e3b" stroke="#10b981" stroke-width="1.5" />
+      <circle cx="25" cy="24" r="12" fill="#10b981" />
+      <text x="25" y="29" fill="#ffffff" font-size="12" font-weight="bold" text-anchor="middle">✓</text>
+      <text x="45" y="29" fill="#ffffff" font-size="12" font-weight="bold">2. 到仓实测</text>
+      <text x="12" y="55" fill="#a7f3d0" font-size="10">• 实测长宽高/重量</text>
+      <text x="12" y="72" fill="#fef08a" font-size="10" font-weight="bold">• 覆盖重算应收主账</text>
+      <text x="12" y="95" fill="#34d399" font-size="9" font-weight="bold">状态: INBOUND (已完成)</text>
+    </g>
+
+    <!-- Line 2 -> 3 -->
+    <line x1="308" y1="55" x2="317" y2="55" stroke="#10b981" stroke-width="2" />
+
+    <!-- Stage 3 (Done) -->
+    <g transform="translate(320, 0)">
+      <rect width="145" height="110" rx="10" fill="#064e3b" stroke="#10b981" stroke-width="1.5" />
+      <circle cx="25" cy="24" r="12" fill="#10b981" />
+      <text x="25" y="29" fill="#ffffff" font-size="12" font-weight="bold" text-anchor="middle">✓</text>
+      <text x="45" y="29" fill="#ffffff" font-size="12" font-weight="bold">3. 装柜配载</text>
+      <text x="12" y="55" fill="#a7f3d0" font-size="10">• 绑定40HQ集装箱</text>
+      <text x="12" y="72" fill="#a7f3d0" font-size="10">• 录入装柜日期</text>
+      <text x="12" y="95" fill="#34d399" font-size="9" font-weight="bold">状态: LOADED (已完成)</text>
+    </g>
+
+    <!-- Line 3 -> 4 -->
+    <line x1="468" y1="55" x2="477" y2="55" stroke="#3b82f6" stroke-width="2" />
+
+    <!-- Stage 4 (Active Current) -->
+    <g transform="translate(480, 0)">
+      <rect width="145" height="110" rx="10" fill="#1e3a8a" stroke="#3b82f6" stroke-width="2" />
+      <circle cx="25" cy="24" r="12" fill="#3b82f6" />
+      <text x="25" y="29" fill="#ffffff" font-size="12" font-weight="bold" text-anchor="middle">4</text>
+      <text x="45" y="29" fill="#ffffff" font-size="12" font-weight="bold">4. 干线在途</text>
+      <text x="12" y="55" fill="#93c5fd" font-size="10">• 填船名/航次(必填)</text>
+      <text x="12" y="72" fill="#93c5fd" font-size="10">• 录实际开船ETD/ETA</text>
+      <text x="12" y="95" fill="#60a5fa" font-size="9" font-weight="bold">▶ 当前操作中 (IN_TRANSIT)</text>
+    </g>
+
+    <!-- Line 4 -> 5 -->
+    <line x1="628" y1="55" x2="637" y2="55" stroke="#475569" stroke-width="2" stroke-dasharray="3,3" />
+
+    <!-- Stage 5 (Locked Future) -->
+    <g transform="translate(640, 0)">
+      <rect width="140" height="110" rx="10" fill="#1e293b" stroke="#475569" stroke-width="1" />
+      <circle cx="23" cy="24" r="11" fill="#475569" />
+      <text x="23" y="28" fill="#cbd5e1" font-size="11" text-anchor="middle">🔒</text>
+      <text x="40" y="28" fill="#94a3b8" font-size="11" font-weight="bold">5. 清关放行</text>
+      <text x="10" y="55" fill="#64748b" font-size="10">• 海关查验与水单</text>
+      <text x="10" y="72" fill="#64748b" font-size="10">• 核对海外收件人</text>
+      <text x="10" y="95" fill="#f59e0b" font-size="9">🔒 尚未解锁 (禁止跳级)</text>
+    </g>
+
+    <!-- Line 5 -> 6 -->
+    <line x1="783" y1="55" x2="792" y2="55" stroke="#475569" stroke-width="2" stroke-dasharray="3,3" />
+
+    <!-- Stage 6 (Locked Future) -->
+    <g transform="translate(795, 0)">
+      <rect width="135" height="110" rx="10" fill="#1e293b" stroke="#475569" stroke-width="1" />
+      <circle cx="23" cy="24" r="11" fill="#475569" />
+      <text x="23" y="28" fill="#cbd5e1" font-size="11" text-anchor="middle">🔒</text>
+      <text x="40" y="28" fill="#94a3b8" font-size="11" font-weight="bold">6. 签收完结</text>
+      <text x="10" y="55" fill="#64748b" font-size="10">• 传签字回执单照片</text>
+      <text x="10" y="72" fill="#64748b" font-size="10">• 锁定单票最终毛利</text>
+      <text x="10" y="95" fill="#f59e0b" font-size="9">🔒 终态完结锁</text>
+    </g>
+  </g>
+
+  <!-- Bottom Explanatory Panels -->
+  <!-- Left Panel: Rollback Mechanism -->
+  <g transform="translate(30, 220)" filter="url(#shadow5)">
+    <rect width="440" height="190" rx="12" fill="#1e293b" stroke="#f59e0b" stroke-width="1" />
+    <rect x="0" y="0" width="440" height="36" rx="12" fill="#78350f" />
+    <text x="16" y="23" fill="#ffffff" font-size="13" font-weight="bold">🔄 状态安全回退机制 (Rollback Guide)</text>
+    
+    <text x="16" y="58" fill="#fef3c7" font-size="11" font-weight="bold">• 业务场景：点快了 / 海关查验退回 / 临时甩柜重新排箱</text>
+    <text x="16" y="80" fill="#fde68a" font-size="11">• 操作方式：直接点击任意已完成的绿色卡片（如点击阶段 2 已入库）</text>
+    <text x="16" y="102" fill="#fde68a" font-size="11">• 确认弹窗：系统弹出二次确认，点击确认后状态安全回退</text>
+    <text x="16" y="124" fill="#34d399" font-size="11" font-weight="bold">• 数据零丢失：已录入的历史实测尺寸、集装箱号与费用明细全额保留！</text>
+    <text x="16" y="146" fill="#94a3b8" font-size="10">• 掏箱作业：回退至阶段 1 或 2 时单票自动解绑货柜，不影响同柜其他单据</text>
+  </g>
+
+  <!-- Right Panel: Strict Step Gate -->
+  <g transform="translate(500, 220)" filter="url(#shadow5)">
+    <rect width="450" height="190" rx="12" fill="#1e293b" stroke="#3b82f6" stroke-width="1" />
+    <rect x="0" y="0" width="450" height="36" rx="12" fill="#1e3a8a" />
+    <text x="16" y="23" fill="#ffffff" font-size="13" font-weight="bold">🔒 单向阶梯刚性门禁 (Step Gate Rules)</text>
+    
+    <text x="16" y="58" fill="#dbeafe" font-size="11" font-weight="bold">• 防跳级机制：严禁未实测直接排柜、严禁未排柜直接录入开船</text>
+    <text x="16" y="80" fill="#bfdbfe" font-size="11">• 强校验 1（阶段 3 前）：拼箱必须有实测方数、空运必须有实测重量</text>
+    <text x="16" y="102" fill="#bfdbfe" font-size="11">• 强校验 2（阶段 4 前）：必须绑定集装箱柜号并填写船名航次</text>
+    <text x="16" y="124" fill="#bfdbfe" font-size="11">• 强校验 3（阶段 6 完结）：必须录入签收日期并回传签收单照片</text>
+    <text x="16" y="146" fill="#38bdf8" font-size="10">✓ 从根源杜绝数据悬空与虚假流转，保障财务核算 100% 真实可靠</text>
+  </g>
+</svg>

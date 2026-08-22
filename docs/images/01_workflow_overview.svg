@@ -1,0 +1,158 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 380" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#1e293b" />
+    </linearGradient>
+    <linearGradient id="cardGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e3a8a" />
+      <stop offset="100%" stop-color="#2563eb" />
+    </linearGradient>
+    <linearGradient id="cardGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#065f46" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+    <linearGradient id="cardGrad3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4c1d95" />
+      <stop offset="100%" stop-color="#7c3aed" />
+    </linearGradient>
+    <linearGradient id="cardGrad4" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#78350f" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+    <linearGradient id="cardGrad5" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#831843" />
+      <stop offset="100%" stop-color="#db2777" />
+    </linearGradient>
+    <filter id="dropShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.35" />
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1000" height="380" rx="16" fill="url(#bgGrad)" />
+
+  <!-- Title Header -->
+  <text x="500" y="42" fill="#38bdf8" font-size="22" font-family="system-ui, -apple-system, sans-serif" font-weight="bold" text-anchor="middle">Global Link Logistics V2 中台 · 全链路端到端操作流向图</text>
+  <text x="500" y="68" fill="#94a3b8" font-size="13" font-family="system-ui, -apple-system, sans-serif" text-anchor="middle">认唛头不认发件人 ➔ 两段式实测计费 ➔ 多票批量排柜 ➔ 航运干线 ➔ 清关核对 ➔ 签收完结</text>
+
+  <!-- Step 1 Card -->
+  <g transform="translate(30, 95)" filter="url(#dropShadow)">
+    <rect width="165" height="240" rx="12" fill="url(#cardGrad1)" stroke="#60a5fa" stroke-width="1.5" />
+    <rect x="12" y="14" width="28" height="28" rx="6" fill="#ffffff" fill-opacity="0.2" />
+    <text x="26" y="33" fill="#ffffff" font-size="14" font-family="system-ui, sans-serif" font-weight="bold" text-anchor="middle">1</text>
+    <text x="48" y="33" fill="#ffffff" font-size="15" font-family="system-ui, sans-serif" font-weight="bold">阶段 1 预报</text>
+    
+    <rect x="12" y="52" width="141" height="1" fill="#ffffff" fill-opacity="0.25" />
+    
+    <text x="14" y="75" fill="#e0f2fe" font-size="12" font-family="system-ui, sans-serif" font-weight="bold">📝 工作台极速录单</text>
+    <text x="14" y="98" fill="#bae6fd" font-size="11" font-family="system-ui, sans-serif">• 输唛头自动带出档案</text>
+    <text x="14" y="118" fill="#bae6fd" font-size="11" font-family="system-ui, sans-serif">• 预填预估长宽高/重量</text>
+    <text x="14" y="138" fill="#bae6fd" font-size="11" font-family="system-ui, sans-serif">• 自动算得预估参考价</text>
+    <text x="14" y="158" fill="#bae6fd" font-size="11" font-family="system-ui, sans-serif">• 生成单号一键复制</text>
+
+    <rect x="12" y="185" width="141" height="42" rx="6" fill="#0f172a" fill-opacity="0.4" />
+    <text x="82" y="202" fill="#38bdf8" font-size="11" font-family="system-ui, sans-serif" font-weight="bold" text-anchor="middle">状态: DRAFT</text>
+    <text x="82" y="218" fill="#93c5fd" font-size="10" font-family="system-ui, sans-serif" text-anchor="middle">已预报 / 待到仓</text>
+  </g>
+
+  <!-- Arrow 1 -> 2 -->
+  <path d="M 205 215 L 222 215" stroke="#38bdf8" stroke-width="3" stroke-dasharray="4,3" />
+  <polygon points="222,210 230,215 222,220" fill="#38bdf8" />
+
+  <!-- Step 2 Card -->
+  <g transform="translate(235, 95)" filter="url(#dropShadow)">
+    <rect width="165" height="240" rx="12" fill="url(#cardGrad2)" stroke="#34d399" stroke-width="1.5" />
+    <rect x="12" y="14" width="28" height="28" rx="6" fill="#ffffff" fill-opacity="0.2" />
+    <text x="26" y="33" fill="#ffffff" font-size="14" font-family="system-ui, sans-serif" font-weight="bold" text-anchor="middle">2</text>
+    <text x="48" y="33" fill="#ffffff" font-size="15" font-family="system-ui, sans-serif" font-weight="bold">阶段 2 实测</text>
+    
+    <rect x="12" y="52" width="141" height="1" fill="#ffffff" fill-opacity="0.25" />
+    
+    <text x="14" y="75" fill="#d1fae5" font-size="12" font-family="system-ui, sans-serif" font-weight="bold">📏 仓库实测核量</text>
+    <text x="14" y="98" fill="#a7f3d0" font-size="11" font-family="system-ui, sans-serif">• 录入实测长宽高</text>
+    <text x="14" y="118" fill="#a7f3d0" font-size="11" font-family="system-ui, sans-serif">• 自动重算实测方数</text>
+    <text x="14" y="138" fill="#fef08a" font-size="11" font-family="system-ui, sans-serif" font-weight="bold">• 覆盖主账应收/利润</text>
+    <text x="14" y="158" fill="#a7f3d0" font-size="11" font-family="system-ui, sans-serif">• 高亮预估偏差比</text>
+
+    <rect x="12" y="185" width="141" height="42" rx="6" fill="#0f172a" fill-opacity="0.4" />
+    <text x="82" y="202" fill="#34d399" font-size="11" font-family="system-ui, sans-serif" font-weight="bold" text-anchor="middle">状态: INBOUND</text>
+    <text x="82" y="218" fill="#6ee7b7" font-size="10" font-family="system-ui, sans-serif" text-anchor="middle">已入库 / 实测核定</text>
+  </g>
+
+  <!-- Arrow 2 -> 3 -->
+  <path d="M 410 215 L 427 215" stroke="#38bdf8" stroke-width="3" stroke-dasharray="4,3" />
+  <polygon points="427,210 435,215 427,220" fill="#38bdf8" />
+
+  <!-- Step 3 Card -->
+  <g transform="translate(440, 95)" filter="url(#dropShadow)">
+    <rect width="165" height="240" rx="12" fill="url(#cardGrad3)" stroke="#c084fc" stroke-width="1.5" />
+    <rect x="12" y="14" width="28" height="28" rx="6" fill="#ffffff" fill-opacity="0.2" />
+    <text x="26" y="33" fill="#ffffff" font-size="14" font-family="system-ui, sans-serif" font-weight="bold" text-anchor="middle">3</text>
+    <text x="48" y="33" fill="#ffffff" font-size="15" font-family="system-ui, sans-serif" font-weight="bold">阶段 3 排柜</text>
+    
+    <rect x="12" y="52" width="141" height="1" fill="#ffffff" fill-opacity="0.25" />
+    
+    <text x="14" y="75" fill="#f3e8ff" font-size="12" font-family="system-ui, sans-serif" font-weight="bold">📦 批量排箱装柜</text>
+    <text x="14" y="98" fill="#e9d5ff" font-size="11" font-family="system-ui, sans-serif">• 运单看板多选散货</text>
+    <text x="14" y="118" fill="#e9d5ff" font-size="11" font-family="system-ui, sans-serif">• 批量指派目标集装箱</text>
+    <text x="14" y="138" fill="#e9d5ff" font-size="11" font-family="system-ui, sans-serif">• 关联40HQ货柜号</text>
+    <text x="14" y="158" fill="#e9d5ff" font-size="11" font-family="system-ui, sans-serif">• 货柜实时统计方数</text>
+
+    <rect x="12" y="185" width="141" height="42" rx="6" fill="#0f172a" fill-opacity="0.4" />
+    <text x="82" y="202" fill="#c084fc" font-size="11" font-family="system-ui, sans-serif" font-weight="bold" text-anchor="middle">状态: LOADED</text>
+    <text x="82" y="218" fill="#d8b4fe" font-size="10" font-family="system-ui, sans-serif" text-anchor="middle">已装柜 / 已配载</text>
+  </g>
+
+  <!-- Arrow 3 -> 4 -->
+  <path d="M 615 215 L 632 215" stroke="#38bdf8" stroke-width="3" stroke-dasharray="4,3" />
+  <polygon points="632,210 640,215 632,220" fill="#38bdf8" />
+
+  <!-- Step 4 Card -->
+  <g transform="translate(645, 95)" filter="url(#dropShadow)">
+    <rect width="165" height="240" rx="12" fill="url(#cardGrad4)" stroke="#fbbf24" stroke-width="1.5" />
+    <rect x="12" y="14" width="28" height="28" rx="6" fill="#ffffff" fill-opacity="0.2" />
+    <text x="26" y="33" fill="#ffffff" font-size="14" font-family="system-ui, sans-serif" font-weight="bold" text-anchor="middle">4</text>
+    <text x="48" y="33" fill="#ffffff" font-size="15" font-family="system-ui, sans-serif" font-weight="bold">阶段 4 干线</text>
+    
+    <rect x="12" y="52" width="141" height="1" fill="#ffffff" fill-opacity="0.25" />
+    
+    <text x="14" y="75" fill="#fef3c7" font-size="12" font-family="system-ui, sans-serif" font-weight="bold">🚢 班轮启运在途</text>
+    <text x="14" y="98" fill="#fde68a" font-size="11" font-family="system-ui, sans-serif">• 填船名/航次(必填)</text>
+    <text x="14" y="118" fill="#fde68a" font-size="11" font-family="system-ui, sans-serif">• 录开船ETD / 到港ETA</text>
+    <text x="14" y="138" fill="#fde68a" font-size="11" font-family="system-ui, sans-serif">• 补录海运提单号B/L</text>
+    <text x="14" y="158" fill="#fde68a" font-size="11" font-family="system-ui, sans-serif">• 录入订舱USD等硬成本</text>
+
+    <rect x="12" y="185" width="141" height="42" rx="6" fill="#0f172a" fill-opacity="0.4" />
+    <text x="82" y="202" fill="#fbbf24" font-size="11" font-family="system-ui, sans-serif" font-weight="bold" text-anchor="middle">状态: IN_TRANSIT</text>
+    <text x="82" y="218" fill="#fcd34d" font-size="10" font-family="system-ui, sans-serif" text-anchor="middle">海上在途航运中</text>
+  </g>
+
+  <!-- Arrow 4 -> 5 & 6 -->
+  <path d="M 820 215 L 837 215" stroke="#38bdf8" stroke-width="3" stroke-dasharray="4,3" />
+  <polygon points="837,210 845,215 837,220" fill="#38bdf8" />
+
+  <!-- Step 5 & 6 Card -->
+  <g transform="translate(850, 95)" filter="url(#dropShadow)">
+    <rect width="125" height="240" rx="12" fill="url(#cardGrad5)" stroke="#f472b6" stroke-width="1.5" />
+    <rect x="10" y="14" width="24" height="24" rx="6" fill="#ffffff" fill-opacity="0.2" />
+    <text x="22" y="31" fill="#ffffff" font-size="12" font-family="system-ui, sans-serif" font-weight="bold" text-anchor="middle">5-6</text>
+    <text x="40" y="31" fill="#ffffff" font-size="14" font-family="system-ui, sans-serif" font-weight="bold">清关与签收</text>
+    
+    <rect x="10" y="52" width="105" height="1" fill="#ffffff" fill-opacity="0.25" />
+    
+    <text x="10" y="73" fill="#fce7f3" font-size="11" font-family="system-ui, sans-serif" font-weight="bold">5. 目的港清关</text>
+    <text x="10" y="90" fill="#fbcfe8" font-size="10" font-family="system-ui, sans-serif">• 核对海外收件人</text>
+    <text x="10" y="106" fill="#fbcfe8" font-size="10" font-family="system-ui, sans-serif">• 传海关水单/THC</text>
+
+    <rect x="10" y="120" width="105" height="1" fill="#ffffff" fill-opacity="0.25" />
+
+    <text x="10" y="140" fill="#fce7f3" font-size="11" font-family="system-ui, sans-serif" font-weight="bold">6. 签收完结</text>
+    <text x="10" y="157" fill="#fbcfe8" font-size="10" font-family="system-ui, sans-serif">• 上传回执照片</text>
+    <text x="10" y="173" fill="#fef08a" font-size="10" font-family="system-ui, sans-serif" font-weight="bold">• 锁定单票纯毛利</text>
+
+    <rect x="10" y="185" width="105" height="42" rx="6" fill="#0f172a" fill-opacity="0.4" />
+    <text x="62" y="202" fill="#f472b6" font-size="10" font-family="system-ui, sans-serif" font-weight="bold" text-anchor="middle">DELIVERED</text>
+    <text x="62" y="218" fill="#f9a8d4" font-size="9" font-family="system-ui, sans-serif" text-anchor="middle">流程圆满结束</text>
+  </g>
+</svg>

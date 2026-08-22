@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 420" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg6" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#1e293b" />
+    </linearGradient>
+    <filter id="shadow6" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#000000" flood-opacity="0.3" />
+    </filter>
+  </defs>
+
+  <rect width="960" height="420" rx="16" fill="url(#bg6)" />
+
+  <text x="480" y="38" fill="#38bdf8" font-size="20" font-family="system-ui, sans-serif" font-weight="bold" text-anchor="middle">集装箱整柜跟踪与全链路多币种干线成本链指引</text>
+  <text x="480" y="62" fill="#94a3b8" font-size="12" font-family="system-ui, sans-serif" text-anchor="middle">穿透查看柜内拼箱散货 ➔ 录入订舱/拖车/清关/THC成本 ➔ 未全部签收严厉拦截</text>
+
+  <!-- Container Master Card -->
+  <g transform="translate(30, 85)" filter="url(#shadow6)">
+    <rect width="900" height="135" rx="12" fill="#1e293b" stroke="#6366f1" stroke-width="1.5" />
+    <rect x="0" y="0" width="900" height="42" rx="12" fill="#312e81" />
+    <text x="20" y="27" fill="#ffffff" font-size="15" font-family="system-ui, sans-serif" font-weight="bold">🚢 货柜主数据：MILU6019768 (40HQ 高柜)</text>
+    <rect x="740" y="8" width="140" height="26" rx="6" fill="#3b82f6" />
+    <text x="810" y="25" fill="#ffffff" font-size="11" font-weight="bold" text-anchor="middle">状态: SAILING (在途)</text>
+
+    <!-- Info Grid -->
+    <text x="20" y="68" fill="#94a3b8" font-size="11">航线路线: <tspan fill="#ffffff" font-weight="bold">广州南沙港 ➔ 菲律宾马尼拉南港</tspan></text>
+    <text x="320" y="68" fill="#94a3b8" font-size="11">提单号 (B/L): <tspan fill="#ffffff" font-family="monospace">MCLPXMN082208</tspan></text>
+    <text x="600" y="68" fill="#94a3b8" font-size="11">船司/航次: <tspan fill="#ffffff">万海航运 / WAN HAI 315</tspan></text>
+
+    <text x="20" y="94" fill="#94a3b8" font-size="11">装载拼箱散货: <tspan fill="#38bdf8" font-weight="bold">8 票 / 120 件 (总计 56.400 m³)</tspan></text>
+    <text x="320" y="94" fill="#94a3b8" font-size="11">开船日 (ETD): <tspan fill="#ffffff">2026-08-18</tspan></text>
+    <text x="600" y="94" fill="#94a3b8" font-size="11">预计到港 (ETA): <tspan fill="#ffffff">2026-08-23</tspan></text>
+
+    <text x="20" y="118" fill="#34d399" font-size="11">▼ 点击卡片右侧箭头，可一键展开并穿透查看该柜内所有 8 票散货的单号、唛头、方数与每票应收金额</text>
+  </g>
+
+  <!-- Left: Multi-currency Cost Chain -->
+  <g transform="translate(30, 235)" filter="url(#shadow6)">
+    <rect width="520" height="165" rx="12" fill="#1e293b" stroke="#10b981" stroke-width="1.5" />
+    <rect x="0" y="0" width="520" height="34" rx="12" fill="#064e3b" />
+    <text x="16" y="22" fill="#ffffff" font-size="12" font-weight="bold">💰 整柜全链路干线成本账本 (点击「+ 录入整柜成本」)</text>
+
+    <!-- 4 Cost Cards -->
+    <g transform="translate(15, 45)">
+      <rect width="115" height="50" rx="6" fill="#0f172a" stroke="#334155" />
+      <text x="10" y="18" fill="#94a3b8" font-size="9" font-weight="bold">订舱海运费 (USD)</text>
+      <text x="10" y="38" fill="#38bdf8" font-size="12" font-family="monospace" font-weight="bold">$ 1,850.00</text>
+    </g>
+
+    <g transform="translate(140, 45)">
+      <rect width="115" height="50" rx="6" fill="#0f172a" stroke="#334155" />
+      <text x="10" y="18" fill="#94a3b8" font-size="9" font-weight="bold">国内拖车港杂 (CNY)</text>
+      <text x="10" y="38" fill="#ffffff" font-size="12" font-family="monospace" font-weight="bold">¥ 2,400.00</text>
+    </g>
+
+    <g transform="translate(265, 45)">
+      <rect width="115" height="50" rx="6" fill="#0f172a" stroke="#334155" />
+      <text x="10" y="18" fill="#94a3b8" font-size="9" font-weight="bold">目的港清关税费 (PHP)</text>
+      <text x="10" y="38" fill="#fbbf24" font-size="12" font-family="monospace" font-weight="bold">₱ 45,000</text>
+    </g>
+
+    <g transform="translate(390, 45)">
+      <rect width="115" height="50" rx="6" fill="#0f172a" stroke="#334155" />
+      <text x="10" y="18" fill="#94a3b8" font-size="9" font-weight="bold">码头堆存THC (PHP)</text>
+      <text x="10" y="38" fill="#fbbf24" font-size="12" font-family="monospace" font-weight="bold">₱ 18,500</text>
+    </g>
+
+    <text x="15" y="118" fill="#a7f3d0" font-size="11">✓ 系统自动按汇率实时换算为人民币 (CNY): <strong fill="#ffffff">¥ 23,652.50</strong></text>
+    <text x="15" y="142" fill="#34d399" font-size="11" font-weight="bold">整柜毛利 = 柜内散货应收总额 (¥ 53,580.00) - 干线硬成本 (¥ 23,652.50) = ¥ 29,927.50</text>
+  </g>
+
+  <!-- Right: Completion Rule & Warning -->
+  <g transform="translate(565, 235)" filter="url(#shadow6)">
+    <rect width="365" height="165" rx="12" fill="#1e293b" stroke="#ef4444" stroke-width="1.5" />
+    <rect x="0" y="0" width="365" height="34" rx="12" fill="#7f1d1d" />
+    <text x="16" y="22" fill="#ffffff" font-size="12" font-weight="bold">⚠️ 货柜完结强校验铁律 (COMPLETED 拦截)</text>
+
+    <text x="16" y="55" fill="#fca5a5" font-size="11" font-weight="bold">• 规则：柜内所有散货运单必须全部签收完结！</text>
+    
+    <rect x="16" y="65" width="333" height="60" rx="6" fill="#0f172a" stroke="#dc2626" stroke-dasharray="3,3" />
+    <text x="25" y="85" fill="#ef4444" font-size="10" font-weight="bold">🚫 错误拦截示例：</text>
+    <text x="25" y="102" fill="#fca5a5" font-size="9">“无法将货柜标记为全部完结：名下仍有 2 票运单未签收完结</text>
+    <text x="25" y="116" fill="#fca5a5" font-size="9">（WB26082001、WB26082005），请等待所有运单签收！”</text>
+
+    <text x="16" y="146" fill="#38bdf8" font-size="10">✓ 杜绝因疏忽提前结案，确保末端每一票件都能落实闭环。</text>
+  </g>
+</svg>

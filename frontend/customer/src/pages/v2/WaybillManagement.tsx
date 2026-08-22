@@ -39,6 +39,7 @@ import {
   DESTINATION_COUNTRIES,
   getPortsByCountry,
   ORIGIN_WAREHOUSES,
+  ORIGIN_PORTS,
   ALL_DESTINATION_PORTS,
 } from '../../lib/logistics-dictionary';
 import { Pagination } from '../../components/ui/Pagination';
@@ -520,9 +521,13 @@ export default function WaybillManagement() {
               </button>
             </form>
 
-            {/* 起运仓下拉 */}
+            {/* 起运地（起运仓/起运港口）动态下拉 */}
             <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 shadow-sm">
-              <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              {orderType === 'SEA_FCL' ? (
+                <Anchor className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              ) : (
+                <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              )}
               <select
                 value={originWarehouse}
                 onChange={(e) => {
@@ -531,12 +536,43 @@ export default function WaybillManagement() {
                 }}
                 className="bg-transparent text-xs text-slate-700 font-medium focus:outline-none cursor-pointer pr-1"
               >
-                <option value="">全部起运仓</option>
-                {ORIGIN_WAREHOUSES.map((wh) => (
-                  <option key={wh.value} value={wh.value}>
-                    {wh.value}仓
-                  </option>
-                ))}
+                {orderType === 'SEA_FCL' ? (
+                  <>
+                    <option value="">全部起运港口</option>
+                    {ORIGIN_PORTS.map((port) => (
+                      <option key={port} value={port}>
+                        {port}
+                      </option>
+                    ))}
+                  </>
+                ) : orderType === 'SEA_LCL' || orderType === 'AIR' ? (
+                  <>
+                    <option value="">全部起运仓</option>
+                    {ORIGIN_WAREHOUSES.map((wh) => (
+                      <option key={wh.value} value={wh.value}>
+                        {wh.value}仓
+                      </option>
+                    ))}
+                  </>
+                ) : (
+                  <>
+                    <option value="">全部起运地 (仓/港)</option>
+                    <optgroup label="国内起运仓 (散拼/空运)">
+                      {ORIGIN_WAREHOUSES.map((wh) => (
+                        <option key={wh.value} value={wh.value}>
+                          {wh.value}仓
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="国内起运港 (海运整柜)">
+                      {ORIGIN_PORTS.map((port) => (
+                        <option key={port} value={port}>
+                          {port}
+                        </option>
+                      ))}
+                    </optgroup>
+                  </>
+                )}
               </select>
             </div>
 

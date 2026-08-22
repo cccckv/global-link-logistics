@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 480" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b1329" />
+      <stop offset="100%" stop-color="#1e293b" />
+    </linearGradient>
+    <linearGradient id="cardHead" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#1d4ed8" />
+      <stop offset="50%" stop-color="#3b82f6" />
+      <stop offset="100%" stop-color="#06b6d4" />
+    </linearGradient>
+    <filter id="shadow2" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#000000" flood-opacity="0.3" />
+    </filter>
+  </defs>
+
+  <rect width="960" height="480" rx="16" fill="url(#bg2)" />
+
+  <!-- Header Banner -->
+  <rect x="25" y="20" width="910" height="70" rx="12" fill="url(#cardHead)" filter="url(#shadow2)" />
+  <text x="50" y="48" fill="#ffffff" font-size="20" font-family="system-ui, sans-serif" font-weight="bold">极速预报下单工作台 (/v2/inbound) 操作指引</text>
+  <text x="50" y="70" fill="#e0f2fe" font-size="12" font-family="system-ui, sans-serif">核心原则：认唛头不认发件人 · 输代码自动联动起运仓、目的港与海外收件人</text>
+
+  <!-- Step 1 Box: 选模式与输唛头 -->
+  <g transform="translate(25, 105)" filter="url(#shadow2)">
+    <rect width="280" height="350" rx="12" fill="#1e293b" stroke="#334155" stroke-width="1.5" />
+    <rect x="0" y="0" width="280" height="42" rx="12" fill="#0f172a" />
+    <text x="16" y="26" fill="#38bdf8" font-size="14" font-family="system-ui, sans-serif" font-weight="bold">步骤 1：模式选择与输入唛头</text>
+
+    <!-- Mode Buttons Mockup -->
+    <rect x="15" y="55" width="80" height="30" rx="6" fill="#2563eb" />
+    <text x="55" y="74" fill="#ffffff" font-size="11" font-family="system-ui, sans-serif" font-weight="bold" text-anchor="middle">海运拼柜</text>
+
+    <rect x="100" y="55" width="80" height="30" rx="6" fill="#334155" />
+    <text x="140" y="74" fill="#94a3b8" font-size="11" font-family="system-ui, sans-serif" text-anchor="middle">空运快递</text>
+
+    <rect x="185" y="55" width="80" height="30" rx="6" fill="#334155" />
+    <text x="225" y="74" fill="#94a3b8" font-size="11" font-family="system-ui, sans-serif" text-anchor="middle">海运整柜</text>
+
+    <!-- Input Mark -->
+    <text x="15" y="112" fill="#94a3b8" font-size="11" font-family="system-ui, sans-serif" font-weight="bold">客户编码 / 唛头 *</text>
+    <rect x="15" y="122" width="250" height="34" rx="6" fill="#0f172a" stroke="#38bdf8" stroke-width="1.5" />
+    <text x="25" y="144" fill="#38bdf8" font-size="13" font-family="monospace" font-weight="bold">WH-ZZY-FLB</text>
+
+    <!-- Auto Matched Box -->
+    <rect x="15" y="165" width="250" height="170" rx="8" fill="#064e3b" fill-opacity="0.3" stroke="#059669" stroke-width="1" stroke-dasharray="3,3" />
+    <text x="25" y="188" fill="#34d399" font-size="12" font-family="system-ui, sans-serif" font-weight="bold">✓ 客户档案毫秒级自动带出：</text>
+    <text x="25" y="212" fill="#a7f3d0" font-size="11" font-family="system-ui, sans-serif">• 客户全称：菲律宾百货商贸</text>
+    <text x="25" y="234" fill="#a7f3d0" font-size="11" font-family="system-ui, sans-serif">• 默认起运仓：广州白云总仓 (GZ)</text>
+    <text x="25" y="256" fill="#a7f3d0" font-size="11" font-family="system-ui, sans-serif">• 常用目的港：菲律宾 (马尼拉南港)</text>
+    <text x="25" y="278" fill="#a7f3d0" font-size="11" font-family="system-ui, sans-serif">• 默认收件人：Alex Johnson</text>
+    <text x="25" y="300" fill="#a7f3d0" font-size="11" font-family="system-ui, sans-serif">• 常用联系电话：+63 917 123 4567</text>
+    <text x="25" y="322" fill="#fef08a" font-size="10" font-family="system-ui, sans-serif">💡 免除手工重复填报，杜绝出错</text>
+  </g>
+
+  <!-- Step 2 Box: 货物明细与尺寸单价 -->
+  <g transform="translate(320, 105)" filter="url(#shadow2)">
+    <rect width="330" height="350" rx="12" fill="#1e293b" stroke="#334155" stroke-width="1.5" />
+    <rect x="0" y="0" width="330" height="42" rx="12" fill="#0f172a" />
+    <text x="16" y="26" fill="#38bdf8" font-size="14" font-family="system-ui, sans-serif" font-weight="bold">步骤 2：货物明细与计费填报</text>
+
+    <!-- Cargo Table Mockup -->
+    <rect x="15" y="55" width="300" height="26" rx="4" fill="#334155" />
+    <text x="25" y="72" fill="#cbd5e1" font-size="10" font-family="system-ui, sans-serif" font-weight="bold">品名</text>
+    <text x="95" y="72" fill="#cbd5e1" font-size="10" font-family="system-ui, sans-serif" font-weight="bold">件数</text>
+    <text x="145" y="72" fill="#cbd5e1" font-size="10" font-family="system-ui, sans-serif" font-weight="bold">预估长宽高(cm)</text>
+    <text x="250" y="72" fill="#cbd5e1" font-size="10" font-family="system-ui, sans-serif" font-weight="bold">单价(元/方)</text>
+
+    <!-- Row 1 -->
+    <rect x="15" y="86" width="300" height="30" rx="4" fill="#0f172a" />
+    <text x="25" y="105" fill="#f8fafc" font-size="11" font-family="system-ui, sans-serif">五金配件</text>
+    <text x="102" y="105" fill="#38bdf8" font-size="11" font-family="system-ui, sans-serif" font-weight="bold">10</text>
+    <text x="145" y="105" fill="#94a3b8" font-size="10" font-family="monospace">50×40×30</text>
+    <text x="260" y="105" fill="#34d399" font-size="11" font-family="monospace" font-weight="bold">¥950</text>
+
+    <!-- Row 2 -->
+    <rect x="15" y="122" width="300" height="30" rx="4" fill="#0f172a" />
+    <text x="25" y="141" fill="#f8fafc" font-size="11" font-family="system-ui, sans-serif">塑料外壳</text>
+    <text x="102" y="141" fill="#38bdf8" font-size="11" font-family="system-ui, sans-serif" font-weight="bold">5</text>
+    <text x="145" y="141" fill="#94a3b8" font-size="10" font-family="monospace">60×50×40</text>
+    <text x="260" y="141" fill="#34d399" font-size="11" font-family="monospace" font-weight="bold">¥950</text>
+
+    <!-- Extra Fee Box -->
+    <text x="15" y="175" fill="#94a3b8" font-size="11" font-family="system-ui, sans-serif" font-weight="bold">附加杂费录入（支持应收/应付）：</text>
+    <rect x="15" y="185" width="300" height="60" rx="6" fill="#0f172a" />
+    <text x="25" y="208" fill="#e2e8f0" font-size="11" font-family="system-ui, sans-serif">📌 报关费 (应收客户): ¥200</text>
+    <text x="25" y="230" fill="#e2e8f0" font-size="11" font-family="system-ui, sans-serif">📌 木架打托费 (应收客户): ¥150</text>
+
+    <rect x="15" y="255" width="300" height="80" rx="8" fill="#1e3a8a" fill-opacity="0.3" stroke="#3b82f6" stroke-width="1" />
+    <text x="25" y="278" fill="#93c5fd" font-size="11" font-family="system-ui, sans-serif">预估总体积: <strong fill="#ffffff">1.200 m³</strong> (共 15 件)</text>
+    <text x="25" y="298" fill="#93c5fd" font-size="11" font-family="system-ui, sans-serif">预估总应收: <strong fill="#34d399">¥ 1,490.00</strong></text>
+    <text x="25" y="318" fill="#fef08a" font-size="11" font-family="system-ui, sans-serif">预估单票利润: <strong fill="#fef08a">¥ 410.00</strong></text>
+  </g>
+
+  <!-- Step 3 Box: 生成单号与一键复制 -->
+  <g transform="translate(665, 105)" filter="url(#shadow2)">
+    <rect width="270" height="350" rx="12" fill="#1e293b" stroke="#334155" stroke-width="1.5" />
+    <rect x="0" y="0" width="270" height="42" rx="12" fill="#0f172a" />
+    <text x="16" y="26" fill="#38bdf8" font-size="14" font-family="system-ui, sans-serif" font-weight="bold">步骤 3：成单与单号复制</text>
+
+    <!-- Success Modal Card -->
+    <rect x="15" y="55" width="240" height="150" rx="10" fill="#065f46" fill-opacity="0.4" stroke="#10b981" stroke-width="1.5" />
+    <circle cx="135" cy="85" r="16" fill="#10b981" />
+    <text x="135" y="91" fill="#ffffff" font-size="16" font-family="system-ui, sans-serif" font-weight="bold" text-anchor="middle">✓</text>
+    <text x="135" y="118" fill="#ffffff" font-size="13" font-family="system-ui, sans-serif" font-weight="bold" text-anchor="middle">预报运单创建成功！</text>
+    
+    <rect x="30" y="130" width="210" height="32" rx="6" fill="#0f172a" />
+    <text x="135" y="151" fill="#38bdf8" font-size="13" font-family="monospace" font-weight="bold" text-anchor="middle">WB202608200001</text>
+    <text x="135" y="185" fill="#a7f3d0" font-size="10" font-family="system-ui, sans-serif" text-anchor="middle">点击「一键复制单号」发送给客户</text>
+
+    <!-- Action Buttons -->
+    <rect x="15" y="220" width="240" height="36" rx="8" fill="#2563eb" />
+    <text x="135" y="243" fill="#ffffff" font-size="12" font-family="system-ui, sans-serif" font-weight="bold" text-anchor="middle">📋 一键复制系统单号</text>
+
+    <rect x="15" y="265" width="240" height="36" rx="8" fill="#0f172a" stroke="#475569" stroke-width="1" />
+    <text x="135" y="288" fill="#cbd5e1" font-size="12" font-family="system-ui, sans-serif" text-anchor="middle">🔍 进入运单详情查看流转</text>
+
+    <rect x="15" y="310" width="240" height="30" rx="8" fill="#0f172a" stroke="#475569" stroke-width="1" />
+    <text x="135" y="330" fill="#94a3b8" font-size="11" font-family="system-ui, sans-serif" text-anchor="middle">+ 继续录入下一单</text>
+  </g>
+</svg>

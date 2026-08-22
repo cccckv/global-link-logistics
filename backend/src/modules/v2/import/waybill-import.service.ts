@@ -428,7 +428,7 @@ export class WaybillImportService {
         errors.push({
           row: g.mainRowNumber,
           userMark: g.userMark,
-          reason: `缺少目的国家：Excel 未填录，且客户档案 [${g.userMark}] 中未配置默认目的国家，整单跳过`,
+          reason: `缺少目的国家：Excel 未填录，且客户档案 [${g.userMark}] 中未配置默认目的国家，请在表格中补充填写或在客户档案中配置后再导入`,
         });
         continue;
       }
@@ -728,7 +728,7 @@ export class WaybillImportService {
           userMark: customer.clientCode,
           operatorId,
           originWarehouse: finalOriginWarehouse,
-          destinationCountry: g.destinationCountry || customer.destinationCountry || '菲律宾',
+          destinationCountry: (g.destinationCountry || customer.destinationCountry)!,
           destinationPort: g.destinationPort || customer.destinationPort || undefined,
           expressNo: g.expressNo,
           airWaybillNo: g.airWaybillNo,

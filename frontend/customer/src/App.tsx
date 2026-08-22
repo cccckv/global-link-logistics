@@ -1,20 +1,18 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import PublicLayout from './layouts/PublicLayout';
 import DashboardLayout from './layouts/DashboardLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
+import InternalRoute from './components/InternalRoute';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
-import QuickOrder from './pages/QuickOrder';
-import OrderList from './pages/OrderList';
 import OrderDetail from './pages/OrderDetail';
 import WaybillDetail from './pages/WaybillDetail';
 import ExternalTracking from './pages/ExternalTracking';
 import UserManagement from './pages/UserManagement';
-import AdminOrderManagement from './pages/AdminOrderManagement';
 import VesselPosition from './pages/VesselPosition';
 import InboundWorkbench from './pages/v2/InboundWorkbench';
 import WaybillManagement from './pages/v2/WaybillManagement';
@@ -23,7 +21,8 @@ import ContainerTracking from './pages/v2/ContainerTracking';
 import CustomerManagement from './pages/v2/CustomerManagement';
 import ChannelManagement from './pages/v2/ChannelManagement';
 import OriginWarehouseManagement from './pages/v2/OriginWarehouseManagement';
-
+import CustomerWaybillList from './pages/customer/CustomerWaybillList';
+import CustomerWaybillDetail from './pages/customer/CustomerWaybillDetail';
 
 export default function App() {
   return (
@@ -38,26 +37,25 @@ export default function App() {
         </Route>
 
         <Route element={<DashboardLayout />}>
+          {/* 客户专属查单中心 (普通用户与内部人员均可访问) */}
           <Route
-            path="/user-management"
+            path="/customer/waybills"
             element={
               <ProtectedRoute>
-                <AdminRoute>
-                  <UserManagement />
-                </AdminRoute>
+                <CustomerWaybillList />
               </ProtectedRoute>
             }
           />
           <Route
-            path="/admin/order-management"
+            path="/customer/waybills/:id"
             element={
               <ProtectedRoute>
-                <AdminRoute>
-                  <AdminOrderManagement />
-                </AdminRoute>
+                <CustomerWaybillDetail />
               </ProtectedRoute>
             }
           />
+
+          {/* 公共辅助工具 */}
           <Route
             path="/external-tracking"
             element={
@@ -75,32 +73,101 @@ export default function App() {
             }
           />
 
+          {/* 管理员专属用户系统管理 */}
           <Route
-            path="/order/quick"
+            path="/user-management"
             element={
               <ProtectedRoute>
-                <QuickOrder />
+                <AdminRoute>
+                  <UserManagement />
+                </AdminRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* 内部中台 (ADMIN / SALES / FINANCE 访问；普通用户被 InternalRoute 拦截重定向) */}
+          <Route
+            path="/v2/inbound"
+            element={
+              <ProtectedRoute>
+                <InternalRoute>
+                  <InboundWorkbench />
+                </InternalRoute>
               </ProtectedRoute>
             }
           />
           <Route
+            path="/v2/waybills"
+            element={
+              <ProtectedRoute>
+                <InternalRoute>
+                  <WaybillManagement />
+                </InternalRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/v2/waybills/:id"
+            element={
+              <ProtectedRoute>
+                <InternalRoute>
+                  <WaybillDetailView />
+                </InternalRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/v2/containers"
+            element={
+              <ProtectedRoute>
+                <InternalRoute>
+                  <ContainerTracking />
+                </InternalRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/v2/customers"
+            element={
+              <ProtectedRoute>
+                <InternalRoute>
+                  <CustomerManagement />
+                </InternalRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/v2/channels"
+            element={
+              <ProtectedRoute>
+                <InternalRoute>
+                  <ChannelManagement />
+                </InternalRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/v2/warehouses"
+            element={
+              <ProtectedRoute>
+                <InternalRoute>
+                  <OriginWarehouseManagement />
+                </InternalRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* 兼容历史旧路由 */}
+          <Route
             path="/order/list"
             element={
               <ProtectedRoute>
-                <OrderList />
+                <Navigate to="/customer/waybills" replace />
               </ProtectedRoute>
             }
           />
           <Route
             path="/order/:orderId"
-            element={
-              <ProtectedRoute>
-                <OrderDetail />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/order/detail/:orderId"
             element={
               <ProtectedRoute>
                 <OrderDetail />
@@ -115,66 +182,7 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-
-          {/* V2 REFACTORED WORKBENCH & DISPATCH ROUTES */}
-          <Route
-            path="/v2/inbound"
-            element={
-              <ProtectedRoute>
-                <InboundWorkbench />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/v2/waybills"
-            element={
-              <ProtectedRoute>
-                <WaybillManagement />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/v2/waybills/:id"
-            element={
-              <ProtectedRoute>
-                <WaybillDetailView />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/v2/containers"
-            element={
-              <ProtectedRoute>
-                <ContainerTracking />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/v2/customers"
-            element={
-              <ProtectedRoute>
-                <CustomerManagement />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/v2/channels"
-            element={
-              <ProtectedRoute>
-                <ChannelManagement />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/v2/warehouses"
-            element={
-              <ProtectedRoute>
-                <OriginWarehouseManagement />
-              </ProtectedRoute>
-            }
-          />
         </Route>
-
       </Routes>
     </BrowserRouter>
   );

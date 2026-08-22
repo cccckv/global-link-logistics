@@ -19,6 +19,37 @@ export function parseNullableDate(val: any): Date | null | undefined {
   return isNaN(d.getTime()) ? null : d;
 }
 
+/**
+ * 客户门户专属数据脱敏过滤器：
+ * 1. 隐藏内部同行渠道 (forwarderChannel)
+ * 2. 隐藏内部总应付成本与毛利 (payableAmount, profitAmount, basePayable)
+ * 3. 过滤费用子表：仅保留 RECEIVABLE (应收)，彻底移除 PAYABLE (应付成本)
+ * 4. 货物明细脱敏：移除单件应付成本单价与币种
+ */
+export function sanitizeWaybillForCustomer(waybill: any) {
+  if (!waybill) return null;
+  const {
+    forwarderChannel,
+    payableAmount,
+    profitAmount,
+    basePayable,
+    ...safeWb
+  } = waybill;
+
+  if (Array.isArray(safeWb.fees)) {
+    safeWb.fees = safeWb.fees.filter((f: any) => f.feeDirection === 'RECEIVABLE');
+  }
+
+  if (Array.isArray(safeWb.items)) {
+    safeWb.items = safeWb.items.map((item: any) => {
+      const { payableUnitPrice, payableCurrency, payableVolume, ...safeItem } = item;
+      return safeItem;
+    });
+  }
+
+  return safeWb;
+}
+
 export interface CreateWaybillItemInput {
   id?: string;
   trackingNumber?: string;
@@ -36,8 +67,10 @@ export interface CreateWaybillItemInput {
   estimatedVolume?: number;
   receivableCurrency?: CurrencyType;
   receivableUnitPrice?: number;
+  receivableVolume?: number;
   payableCurrency?: CurrencyType;
   payableUnitPrice?: number;
+  payableVolume?: number;
 }
 
 export interface CreateWaybillFeeInput {
@@ -127,41 +160,56 @@ export function calculateWaybillFinancials(params: CalculateFinancialsParams) {
   let baseReceivable = 0;
   let basePayable = 0;
 
-  for (const item of items) {
-    const qty = item.quantity && Number(item.quantity) > 0 ? Number(item.quantity) : 1;
-    const recvPrice = item.receivableUnitPrice ? Number(item.receivableUnitPrice) : 0;
-    const payPrice = item.payableUnitPrice ? Number(item.payableUnitPrice) : 0;
+  if (items && items.length > 0) {
+    for (const item of items) {
+      const qty = item.quantity && Number(item.quantity) > 0 ? Number(item.quantity) : 1;
+      const recvPrice = item.receivableUnitPrice ? Number(item.receivableUnitPrice) : 0;
+      const payPrice = item.payableUnitPrice ? Number(item.payableUnitPrice) : 0;
 
-    if (orderType === 'AIR') {
-      const wt = item.unitWeight !== undefined && item.unitWeight !== null
-        ? Number(item.unitWeight)
-        : (item.estimatedWeight !== undefined && item.estimatedWeight !== null ? Number(item.estimatedWeight) : 0);
-      baseReceivable += recvPrice * wt * qty;
-      basePayable += payPrice * wt * qty;
-    } else {
-      let vol = 0;
-      if (item.length && item.width && item.height) {
-        vol = (Number(item.length) * Number(item.width) * Number(item.height) * qty) / 1_000_000;
-      } else if (item.estimatedLength && item.estimatedWidth && item.estimatedHeight) {
-        const estQty = item.estimatedQuantity && Number(item.estimatedQuantity) > 0 ? Number(item.estimatedQuantity) : qty;
-        vol = (Number(item.estimatedLength) * Number(item.estimatedWidth) * Number(item.estimatedHeight) * estQty) / 1_000_000;
-      } else if (item.estimatedVolume) {
-        vol = Number(item.estimatedVolume);
+      if (orderType === 'AIR') {
+        const wt = item.unitWeight !== undefined && item.unitWeight !== null
+          ? Number(item.unitWeight)
+          : (item.estimatedWeight !== undefined && item.estimatedWeight !== null ? Number(item.estimatedWeight) : 0);
+        baseReceivable += recvPrice * wt * qty;
+        basePayable += payPrice * wt * qty;
+      } else {
+        let vol = 0;
+        if (item.length && item.width && item.height) {
+          vol = (Number(item.length) * Number(item.width) * Number(item.height) * qty) / 1_000_000;
+        } else if (item.estimatedLength && item.estimatedWidth && item.estimatedHeight) {
+          const estQty = item.estimatedQuantity && Number(item.estimatedQuantity) > 0 ? Number(item.estimatedQuantity) : qty;
+          vol = (Number(item.estimatedLength) * Number(item.estimatedWidth) * Number(item.estimatedHeight) * estQty) / 1_000_000;
+        } else if (item.estimatedVolume) {
+          vol = Number(item.estimatedVolume);
+        }
+        baseReceivable += recvPrice * vol;
+        basePayable += payPrice * vol;
       }
-      baseReceivable += recvPrice * vol;
-      basePayable += payPrice * vol;
     }
   }
 
-  let finalReceivable = baseReceivable;
+  // Determine final base receivable (isolated from surcharges)
+  let finalBaseReceivable = baseReceivable;
   if (isFixedPrice) {
     if (fixedPriceAmount !== undefined && fixedPriceAmount !== null && Number(fixedPriceAmount) > 0) {
-      finalReceivable = Number(fixedPriceAmount);
+      finalBaseReceivable = Number(fixedPriceAmount);
     } else if (currentReceivableAmount !== undefined && currentReceivableAmount !== null && Number(currentReceivableAmount) > 0) {
-      finalReceivable = Number(currentReceivableAmount);
+      let existingRecvFeesSum = 0;
+      if (fees && fees.length > 0) {
+        for (const fee of fees) {
+          if (fee.feeDirection === 'RECEIVABLE') {
+            const rate = fee.exchangeRate ? Number(fee.exchangeRate) : 1.0;
+            existingRecvFeesSum += fee.amountInCny !== undefined && fee.amountInCny !== null
+              ? Number(fee.amountInCny)
+              : (Number(fee.amount || 0) * rate);
+          }
+        }
+      }
+      finalBaseReceivable = Math.max(0, Number(currentReceivableAmount) - existingRecvFeesSum);
     }
   }
 
+  let finalReceivable = finalBaseReceivable;
   let finalPayable = basePayable;
 
   if (fees && fees.length > 0) {
@@ -179,7 +227,7 @@ export function calculateWaybillFinancials(params: CalculateFinancialsParams) {
   }
 
   return {
-    baseReceivable: Math.round(baseReceivable * 100) / 100,
+    baseReceivable: Math.round(finalBaseReceivable * 100) / 100,
     basePayable: Math.round(basePayable * 100) / 100,
     receivableAmount: Math.round(finalReceivable * 100) / 100,
     payableAmount: Math.round(finalPayable * 100) / 100,
@@ -357,6 +405,7 @@ export class WaybillV2Service {
     containerId?: string;
     containerNo?: string;
     userMark?: string;
+    userMarks?: string[];
     originWarehouse?: string;
     destinationCountry?: string;
     destinationPort?: string;
@@ -408,7 +457,13 @@ export class WaybillV2Service {
       if (containerId) where.containerId = containerId;
     }
 
-    if (userMark && userMark.trim()) {
+    if (params.userMarks && params.userMarks.length > 0) {
+      if (userMark && userMark.trim() && params.userMarks.includes(userMark.trim())) {
+        where.userMark = userMark.trim();
+      } else {
+        where.userMark = { in: params.userMarks };
+      }
+    } else if (userMark && userMark.trim()) {
       where.userMark = { contains: userMark.trim(), mode: 'insensitive' };
     }
 
@@ -512,6 +567,10 @@ export class WaybillV2Service {
     const limitNum = Math.max(1, Number(params.limit) || 20);
     const skip = (pageNum - 1) * limitNum;
 
+    // 构建不含 status 条件的基础 where，用于 groupBy 统计各状态数量
+    const countsWhere = { ...where };
+    delete countsWhere.status;
+
     const [total, waybills, counts] = await Promise.all([
       prisma.waybill.count({ where }),
       prisma.waybill.findMany({
@@ -528,6 +587,7 @@ export class WaybillV2Service {
       }),
       prisma.waybill.groupBy({
         by: ['status'],
+        where: countsWhere,
         _count: { id: true },
       }),
     ]);
@@ -613,54 +673,138 @@ export class WaybillV2Service {
     const effectiveFixedAmt = updateData.fixedPriceAmount !== undefined ? updateData.fixedPriceAmount : existingWb.fixedPriceAmount;
 
     if (items && items.length > 0) {
-      await prisma.waybillItem.deleteMany({ where: { waybillId: id } });
+      const existingItemMap = new Map<string, any>();
+      for (const it of existingWb.items) {
+        existingItemMap.set(it.id, it);
+      }
+
+      const keepIds = new Set<string>();
+      for (const it of items) {
+        if (it.id && existingItemMap.has(it.id)) {
+          keepIds.add(it.id);
+        }
+      }
+
+      // 1. 删除前端已主动移除的行 (存在于数据库但不在 keepIds 中)
+      const toDeleteIds = existingWb.items
+        .filter((it) => !keepIds.has(it.id))
+        .map((it) => it.id);
+      if (toDeleteIds.length > 0) {
+        await prisma.waybillItem.deleteMany({
+          where: { id: { in: toDeleteIds } },
+        });
+      }
 
       let totalPieces = 0;
       let totalPayableCbm = 0;
       let totalReceivableCbm = 0;
       let totalWeightKg = 0;
+      const finalItemsForFinancials: any[] = [];
 
-      const newItems = items.map((item: any, idx: number) => {
-        const qty = item.quantity && item.quantity > 0 ? Number(item.quantity) : 1;
-        const l = Number(item.length) || 0;
-        const w = Number(item.width) || 0;
-        const h = Number(item.height) || 0;
-        const calcCbm = (l * w * h * qty) / 1_000_000;
-        const payableCbm = (item.payableVolume !== undefined && item.payableVolume !== null && String(item.payableVolume).trim() !== '' && Number(item.payableVolume) > 0)
-          ? Number(item.payableVolume)
-          : calcCbm;
-        const recvCbm = (item.receivableVolume !== undefined && item.receivableVolume !== null && String(item.receivableVolume).trim() !== '' && Number(item.receivableVolume) > 0)
-          ? Number(item.receivableVolume)
-          : payableCbm;
-        const unitWt = item.unitWeight ? Number(item.unitWeight) : 0;
-        const totalWt = unitWt * qty;
+      // 2. 按行精准 Upsert (修改已有行或插入新增行)
+      for (let idx = 0; idx < items.length; idx++) {
+        const item = items[idx];
+        const existingItem = item.id ? existingItemMap.get(item.id) : undefined;
 
-        totalPieces += qty;
-        totalPayableCbm += payableCbm;
-        totalReceivableCbm += recvCbm;
-        totalWeightKg += totalWt;
+        // 件数
+        const qty = item.quantity && item.quantity > 0
+          ? Number(item.quantity)
+          : (existingItem?.quantity ? Number(existingItem.quantity) : 1);
 
-        const estQty = item.estimatedQuantity !== undefined && item.estimatedQuantity !== null ? Number(item.estimatedQuantity) : qty;
-        const estL = item.estimatedLength !== undefined && item.estimatedLength !== null ? Number(item.estimatedLength) : (item.length !== undefined && item.length !== null ? Number(item.length) : null);
-        const estW = item.estimatedWidth !== undefined && item.estimatedWidth !== null ? Number(item.estimatedWidth) : (item.width !== undefined && item.width !== null ? Number(item.width) : null);
-        const estH = item.estimatedHeight !== undefined && item.estimatedHeight !== null ? Number(item.estimatedHeight) : (item.height !== undefined && item.height !== null ? Number(item.height) : null);
-        const estWt = item.estimatedWeight !== undefined && item.estimatedWeight !== null ? Number(item.estimatedWeight) : (item.unitWeight !== undefined && item.unitWeight !== null ? Number(item.unitWeight) : null);
+        // 预报字段 (阶段 1 快照)
+        const estQty = item.estimatedQuantity !== undefined && item.estimatedQuantity !== null
+          ? Number(item.estimatedQuantity)
+          : (existingItem?.estimatedQuantity !== undefined && existingItem?.estimatedQuantity !== null
+              ? Number(existingItem.estimatedQuantity)
+              : qty);
+
+        const estL = item.estimatedLength !== undefined && item.estimatedLength !== null
+          ? Number(item.estimatedLength)
+          : (existingItem?.estimatedLength !== undefined && existingItem?.estimatedLength !== null
+              ? Number(existingItem.estimatedLength)
+              : (item.length !== undefined && item.length !== null ? Number(item.length) : null));
+
+        const estW = item.estimatedWidth !== undefined && item.estimatedWidth !== null
+          ? Number(item.estimatedWidth)
+          : (existingItem?.estimatedWidth !== undefined && existingItem?.estimatedWidth !== null
+              ? Number(existingItem.estimatedWidth)
+              : (item.width !== undefined && item.width !== null ? Number(item.width) : null));
+
+        const estH = item.estimatedHeight !== undefined && item.estimatedHeight !== null
+          ? Number(item.estimatedHeight)
+          : (existingItem?.estimatedHeight !== undefined && existingItem?.estimatedHeight !== null
+              ? Number(existingItem.estimatedHeight)
+              : (item.height !== undefined && item.height !== null ? Number(item.height) : null));
+
+        const estWt = item.estimatedWeight !== undefined && item.estimatedWeight !== null
+          ? Number(item.estimatedWeight)
+          : (existingItem?.estimatedWeight !== undefined && existingItem?.estimatedWeight !== null
+              ? Number(existingItem.estimatedWeight)
+              : (item.unitWeight !== undefined && item.unitWeight !== null ? Number(item.unitWeight) : null));
+
         const estVol = (item.estimatedVolume !== undefined && item.estimatedVolume !== null && String(item.estimatedVolume).trim() !== '' && Number(item.estimatedVolume) > 0)
           ? Number(item.estimatedVolume)
-          : (estL && estW && estH ? (estL * estW * estH * estQty) / 1_000_000 : null);
+          : (existingItem?.estimatedVolume !== undefined && existingItem?.estimatedVolume !== null && Number(existingItem.estimatedVolume) > 0
+              ? Number(existingItem.estimatedVolume)
+              : (estL && estW && estH ? (estL * estW * estH * estQty) / 1_000_000 : null));
 
-        return {
+        // 实测尺寸与长宽高 (阶段 2 实测)
+        const l = item.length !== undefined && item.length !== null
+          ? Number(item.length)
+          : (existingItem?.length !== undefined && existingItem?.length !== null ? Number(existingItem.length) : null);
+
+        const w = item.width !== undefined && item.width !== null
+          ? Number(item.width)
+          : (existingItem?.width !== undefined && existingItem?.width !== null ? Number(existingItem.width) : null);
+
+        const h = item.height !== undefined && item.height !== null
+          ? Number(item.height)
+          : (existingItem?.height !== undefined && existingItem?.height !== null ? Number(existingItem.height) : null);
+
+        const calcCbm = (l && w && h) ? (l * w * h * qty) / 1_000_000 : 0;
+
+        // 实装/计费方数：若传入则优先使用；若未传入但已有历史实测方数则严格保留；否则根据长宽高计算
+        let payableCbm = 0;
+        if (item.payableVolume !== undefined && item.payableVolume !== null && String(item.payableVolume).trim() !== '' && Number(item.payableVolume) > 0) {
+          payableCbm = Number(item.payableVolume);
+        } else if (existingItem?.payableVolume !== undefined && existingItem?.payableVolume !== null && Number(existingItem.payableVolume) > 0) {
+          payableCbm = Number(existingItem.payableVolume);
+        } else {
+          payableCbm = calcCbm;
+        }
+
+        let recvCbm = 0;
+        if (item.receivableVolume !== undefined && item.receivableVolume !== null && String(item.receivableVolume).trim() !== '' && Number(item.receivableVolume) > 0) {
+          recvCbm = Number(item.receivableVolume);
+        } else if (existingItem?.receivableVolume !== undefined && existingItem?.receivableVolume !== null && Number(existingItem.receivableVolume) > 0) {
+          recvCbm = Number(existingItem.receivableVolume);
+        } else {
+          recvCbm = payableCbm;
+        }
+
+        // 实测重量
+        const unitWt = item.unitWeight !== undefined && item.unitWeight !== null
+          ? Number(item.unitWeight)
+          : (existingItem?.unitWeight !== undefined && existingItem?.unitWeight !== null ? Number(existingItem.unitWeight) : null);
+
+        const totalWt = unitWt !== null ? unitWt * qty : (existingItem?.totalWeight ? Number(existingItem.totalWeight) : 0);
+
+        const itemPayload: any = {
           waybillId: id,
           itemIndex: idx + 1,
-          trackingNumber: item.trackingNumber ? String(item.trackingNumber).trim() : null,
-          productName: item.productName ? String(item.productName).trim() : '通用货物',
+          trackingNumber: item.trackingNumber !== undefined
+            ? (item.trackingNumber ? String(item.trackingNumber).trim() : null)
+            : (existingItem?.trackingNumber || null),
+          productName: item.productName !== undefined
+            ? (item.productName ? String(item.productName).trim() : '通用货物')
+            : (existingItem?.productName || '通用货物'),
           quantity: qty,
-          length: item.length !== undefined && item.length !== null ? Number(item.length) : null,
-          width: item.width !== undefined && item.width !== null ? Number(item.width) : null,
-          height: item.height !== undefined && item.height !== null ? Number(item.height) : null,
+          length: l,
+          width: w,
+          height: h,
           payableVolume: payableCbm > 0 ? payableCbm : null,
           receivableVolume: recvCbm > 0 ? recvCbm : null,
-          unitWeight: item.unitWeight !== undefined && item.unitWeight !== null ? Number(item.unitWeight) : null,
+          unitWeight: unitWt,
           totalWeight: totalWt > 0 ? totalWt : null,
           estimatedQuantity: estQty,
           estimatedLength: estL,
@@ -668,15 +812,34 @@ export class WaybillV2Service {
           estimatedHeight: estH,
           estimatedWeight: estWt,
           estimatedVolume: estVol,
-          receivableCurrency: item.receivableCurrency || 'CNY',
-          receivableUnitPrice: item.receivableUnitPrice !== undefined && item.receivableUnitPrice !== null ? Number(item.receivableUnitPrice) : null,
-          payableCurrency: item.payableCurrency || 'CNY',
-          payableUnitPrice: item.payableUnitPrice !== undefined && item.payableUnitPrice !== null ? Number(item.payableUnitPrice) : null,
+          receivableCurrency: item.receivableCurrency || existingItem?.receivableCurrency || 'CNY',
+          receivableUnitPrice: item.receivableUnitPrice !== undefined && item.receivableUnitPrice !== null
+            ? Number(item.receivableUnitPrice)
+            : (existingItem?.receivableUnitPrice ? Number(existingItem.receivableUnitPrice) : null),
+          payableCurrency: item.payableCurrency || existingItem?.payableCurrency || 'CNY',
+          payableUnitPrice: item.payableUnitPrice !== undefined && item.payableUnitPrice !== null
+            ? Number(item.payableUnitPrice)
+            : (existingItem?.payableUnitPrice ? Number(existingItem.payableUnitPrice) : null),
         };
-      });
 
-      await prisma.waybillItem.createMany({ data: newItems });
+        if (existingItem) {
+          const updatedItem = await prisma.waybillItem.update({
+            where: { id: existingItem.id },
+            data: itemPayload,
+          });
+          finalItemsForFinancials.push(updatedItem);
+        } else {
+          const createdItem = await prisma.waybillItem.create({
+            data: itemPayload,
+          });
+          finalItemsForFinancials.push(createdItem);
+        }
 
+        totalPieces += qty;
+        totalPayableCbm += payableCbm;
+        totalReceivableCbm += recvCbm;
+        totalWeightKg += totalWt;
+      }
 
       updateData.totalPieces = totalPieces;
       updateData.totalPayableCbm = totalPayableCbm;
@@ -688,7 +851,7 @@ export class WaybillV2Service {
         isFixedPrice: effectiveIsFixed,
         fixedPriceAmount: effectiveFixedAmt,
         currentReceivableAmount: existingWb.receivableAmount ? Number(existingWb.receivableAmount) : undefined,
-        items: newItems as any,
+        items: finalItemsForFinancials as any,
         fees: existingWb.fees as any,
       });
 
@@ -756,12 +919,29 @@ export class WaybillV2Service {
 
   async batchAssignContainer(waybillIds: string[], containerId: string, loadingDate?: Date | string) {
     const lDate = (loadingDate ? parseNullableDate(loadingDate) : undefined) || new Date();
-    return prisma.waybill.updateMany({
-      where: { id: { in: waybillIds } },
+
+    // 1. 对于待入库/草稿/已入库的初始运单，推进至 LOADED (进港报关)
+    await prisma.waybill.updateMany({
+      where: {
+        id: { in: waybillIds },
+        status: { in: [WaybillStatus.DRAFT, WaybillStatus.INBOUND] },
+      },
       data: {
         containerId,
         loadingDate: lDate,
-        status: 'LOADED',
+        status: WaybillStatus.LOADED,
+      },
+    });
+
+    // 2. 对于已处于在途、清关、签收等更高阶段的运单，仅更新集装箱归属与装箱日，严禁回退状态
+    return prisma.waybill.updateMany({
+      where: {
+        id: { in: waybillIds },
+        status: { notIn: [WaybillStatus.DRAFT, WaybillStatus.INBOUND] },
+      },
+      data: {
+        containerId,
+        loadingDate: lDate,
       },
     });
   }

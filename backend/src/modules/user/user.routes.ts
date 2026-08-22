@@ -3,6 +3,8 @@ import { userService } from './user.service';
 import { authorize } from '../../lib/auth';
 import { UserRoleEnum } from '@prisma/client';
 
+const ALLOWED_ROLES = ['ADMIN', 'SALES', 'FINANCE', 'USER'];
+
 export async function userRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/',
@@ -11,16 +13,21 @@ export async function userRoutes(fastify: FastifyInstance) {
     },
     async (request, reply) => {
       try {
-        const { search, page, limit } = request.query as {
+        const query = (request.query || {}) as {
           search?: string;
-          page?: string;
-          limit?: string;
+          userRole?: UserRoleEnum;
+          page?: string | number;
+          limit?: string | number;
         };
 
+        const page = Math.max(1, Number(query.page) || 1);
+        const limit = Math.max(1, Math.min(100, Number(query.limit) || 20));
+
         const result = await userService.listUsers({
-          search,
-          page: page ? parseInt(page) : undefined,
-          limit: limit ? parseInt(limit) : undefined,
+          search: query.search,
+          userRole: query.userRole,
+          page,
+          limit,
         });
 
         return reply.send({
@@ -44,26 +51,25 @@ export async function userRoutes(fastify: FastifyInstance) {
     },
     async (request, reply) => {
       try {
-        const { name, phone, password, userRole, email, company } = request.body as {
+        const { name, phone, password, userRole, shippingMarks } = request.body as {
           name: string;
           phone: string;
           password: string;
           userRole: UserRoleEnum;
-          email?: string;
-          company?: string;
+          shippingMarks?: string[];
         };
 
         if (!name || !phone || !password || !userRole) {
           return reply.code(400).send({
             success: false,
-            error: '缺少必填字段：name, phone, password, userRole',
+            error: '缺少必填字段：姓名(name), 手机号(phone), 密码(password), 角色(userRole)',
           });
         }
 
-        if (!['ADMIN', 'USER'].includes(userRole)) {
+        if (!ALLOWED_ROLES.includes(userRole)) {
           return reply.code(400).send({
             success: false,
-            error: 'userRole 必须是 ADMIN 或 USER',
+            error: `userRole 必须是 ${ALLOWED_ROLES.join(' / ')} 之一`,
           });
         }
 
@@ -72,8 +78,7 @@ export async function userRoutes(fastify: FastifyInstance) {
           phone,
           password,
           userRole,
-          email,
-          company,
+          shippingMarks,
         });
 
         return reply.code(201).send({
@@ -98,19 +103,18 @@ export async function userRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       try {
         const { id } = request.params as { id: string };
-        const { name, phone, password, userRole, email, company } = request.body as {
+        const { name, phone, password, userRole, shippingMarks } = request.body as {
           name?: string;
           phone?: string;
           password?: string;
           userRole?: UserRoleEnum;
-          email?: string;
-          company?: string;
+          shippingMarks?: string[];
         };
 
-        if (userRole && !['ADMIN', 'USER'].includes(userRole)) {
+        if (userRole && !ALLOWED_ROLES.includes(userRole)) {
           return reply.code(400).send({
             success: false,
-            error: 'userRole 必须是 ADMIN 或 USER',
+            error: `userRole 必须是 ${ALLOWED_ROLES.join(' / ')} 之一`,
           });
         }
 
@@ -119,8 +123,7 @@ export async function userRoutes(fastify: FastifyInstance) {
           phone,
           password,
           userRole,
-          email,
-          company,
+          shippingMarks,
         });
 
         return reply.send({

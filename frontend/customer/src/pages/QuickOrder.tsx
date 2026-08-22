@@ -21,7 +21,7 @@ interface User {
   id: string;
   name: string;
   phone: string;
-  userRole: 'ADMIN' | 'USER';
+  userRole: string;
 }
 
 type ShipmentType = 'SEA_LCL' | 'AIR' | 'LAND' | 'BATCH' | 'SEA_FCL' | 'PARCEL';
@@ -174,7 +174,7 @@ const initialFormData: FormData = {
   containers: [
     {
       id: 1,
-      containerType: 'GP_20',
+      containerType: '20GP',
       quantity: '0',
       weight: '0',
       products: '',
@@ -357,7 +357,7 @@ export default function QuickOrder() {
     const newId = Math.max(...currentData.containers.map(c => c.id), 0) + 1;
     updateFormData('containers', [...currentData.containers, {
       id: newId,
-      containerType: 'GP_20',
+      containerType: '20GP',
       quantity: '0',
       weight: '0',
       products: '',
@@ -1192,10 +1192,16 @@ export default function QuickOrder() {
                                 onChange={(e) => updateContainer(container.id, 'containerType', e.target.value)}
                                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
                               >
-                                <option value="GP_20">20GP</option>
-                                <option value="GP_40">40GP</option>
-                                <option value="HQ_40">40HQ</option>
-                                <option value="HQ_45">45HQ</option>
+                                <option value="20GP">20GP 小柜</option>
+                                <option value="40GP">40GP 平柜</option>
+                                <option value="40HQ">40HQ 高柜</option>
+                                <option value="45HQ">45HQ 超高柜</option>
+                                <option value="20OT">20OT 开顶柜</option>
+                                <option value="40OT">40OT 开顶柜</option>
+                                <option value="20FR">20FR 框架柜</option>
+                                <option value="40FR">40FR 框架柜</option>
+                                <option value="20RF">20RF 冷藏柜</option>
+                                <option value="40RF">40RF 冷藏柜</option>
                               </select>
                             </td>
                             

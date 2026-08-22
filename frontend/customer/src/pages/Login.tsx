@@ -17,15 +17,18 @@ export default function Login() {
 
     try {
       const response = await authApi.login({ phone, password });
-    localStorage.setItem('jwt_token', response.data.token);
-    localStorage.setItem('user', JSON.stringify(response.data.user));
-    
-    // 根据角色跳转
-    if (response.data.user.userRole === 'ADMIN') {
-      navigate('/order/quick');
-    } else {
-      navigate('/external-tracking');
-    }
+      const { token, user } = response.data;
+      localStorage.setItem('jwt_token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+
+      // 根据角色跳转
+      if (user.userRole === 'USER') {
+        navigate('/customer/waybills');
+      } else if (user.userRole === 'ADMIN') {
+        navigate('/v2/inbound');
+      } else {
+        navigate('/v2/waybills');
+      }
     } catch (err: any) {
       setError(err.response?.data?.error || '登录失败，请检查手机号和密码');
     } finally {

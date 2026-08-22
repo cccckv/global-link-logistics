@@ -1,6 +1,9 @@
 import { FastifyInstance } from 'fastify';
 import { ChannelV2Service, CreateShippingChannelInput } from './channel.service';
 import { ChannelCategory } from '@prisma/client';
+import { authorize } from '../../../lib/auth';
+
+const INTERNAL_ROLES = ['ADMIN', 'SALES', 'FINANCE'];
 
 export async function channelV2Routes(fastify: FastifyInstance) {
   const service = new ChannelV2Service();
@@ -8,7 +11,6 @@ export async function channelV2Routes(fastify: FastifyInstance) {
   // GET /api/v2/channels
   fastify.get('/', async (request) => {
     const query = request.query as {
-
       category?: ChannelCategory;
       isActive?: string;
       search?: string;
@@ -32,8 +34,10 @@ export async function channelV2Routes(fastify: FastifyInstance) {
     return { success: true, data: channel };
   });
 
-  // POST /api/v2/channels
-  fastify.post('/', async (request, reply) => {
+  const internalHandler = { preHandler: [fastify.authenticate, authorize(INTERNAL_ROLES)] };
+
+  // POST /api/v2/channels (Internal only)
+  fastify.post('/', internalHandler, async (request, reply) => {
     try {
       const body = request.body as CreateShippingChannelInput;
       if (!body.category || !body.name) {
@@ -46,7 +50,7 @@ export async function channelV2Routes(fastify: FastifyInstance) {
     }
   });
 
-  // PUT / POST /api/v2/channels/:id
+  // PUT / POST /api/v2/channels/:id (Internal only)
   const updateChannelHandler = async (request: any, reply: any) => {
     try {
       const { id } = request.params as { id: string };
@@ -57,10 +61,9 @@ export async function channelV2Routes(fastify: FastifyInstance) {
       return reply.status(400).send({ success: false, error: err.message });
     }
   };
-  fastify.put('/:id', updateChannelHandler);
-  fastify.patch('/:id', updateChannelHandler);
-  fastify.post('/:id/update', updateChannelHandler);
-  fastify.post('/:id', updateChannelHandler);
+  fastify.patch('/:id', internalHandler, updateChannelHandler);
+  fastify.post('/:id/update', internalHandler, updateChannelHandler);
+  fastify.post('/:id', internalHandler, updateChannelHandler);
 
   // PATCH / POST /api/v2/channels/:id/toggle
   const toggleHandler = async (request: any, reply: any) => {
@@ -72,11 +75,11 @@ export async function channelV2Routes(fastify: FastifyInstance) {
       return reply.status(400).send({ success: false, error: err.message });
     }
   };
-  fastify.patch('/:id/toggle', toggleHandler);
-  fastify.post('/:id/toggle', toggleHandler);
+  fastify.patch('/:id/toggle', internalHandler, toggleHandler);
+  fastify.post('/:id/toggle', internalHandler, toggleHandler);
 
   // DELETE /api/v2/channels/:id
-  fastify.delete('/:id', async (request, reply) => {
+  fastify.delete('/:id', internalHandler, async (request, reply) => {
     try {
       const { id } = request.params as { id: string };
       await service.deleteChannel(id);

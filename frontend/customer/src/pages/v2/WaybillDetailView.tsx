@@ -28,6 +28,7 @@ import {
   Building,
   MapPin,
   X,
+  Eye,
 } from 'lucide-react';
 import {
   waybillV2Api,
@@ -279,8 +280,8 @@ export default function WaybillDetailView() {
   // General Attachment Modal
   const [showAttachModal, setShowAttachModal] = useState(false);
   const [attachmentType, setAttachmentType] = useState<AttachmentType>('OTHER');
-  const [fileUrl, setFileUrl] = useState('');
-  const [fileName, setFileName] = useState('');
+  const [attachFiles, setAttachFiles] = useState<Array<{ url: string; name: string; size?: number }>>([]);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
 
   const loadData = async () => {
     if (!id) return;
@@ -607,6 +608,8 @@ export default function WaybillDetailView() {
             width: isInitialStage ? estW : (orig?.width ? Number(orig.width) : (estW || undefined)),
             height: isInitialStage ? estH : (orig?.height ? Number(orig.height) : (estH || undefined)),
             unitWeight: isInitialStage ? estWt : (orig?.unitWeight ? Number(orig.unitWeight) : (estWt || undefined)),
+            payableVolume: isInitialStage ? estVol : (orig?.payableVolume !== undefined && orig?.payableVolume !== null ? Number(orig.payableVolume) : undefined),
+            receivableVolume: isInitialStage ? estVol : (orig?.receivableVolume !== undefined && orig?.receivableVolume !== null ? Number(orig.receivableVolume) : undefined),
             receivableCurrency: it.receivableCurrency || 'CNY',
             receivableUnitPrice: it.receivableUnitPrice !== undefined && it.receivableUnitPrice !== null && String(it.receivableUnitPrice).trim() !== ''
               ? Number(it.receivableUnitPrice)
@@ -681,13 +684,6 @@ export default function WaybillDetailView() {
 
         if (advanceStatus) {
           payload.status = 'INBOUND';
-        }
-
-        if (targetContainerId) {
-          await waybillV2Api.batchAssignContainer({
-            waybillIds: [waybill.id],
-            containerId: targetContainerId,
-          });
         }
 
         await waybillV2Api.update(waybill.id, payload);
@@ -822,14 +818,6 @@ export default function WaybillDetailView() {
           targetContainerId = createCRes.data.data.id;
         }
 
-        if (targetContainerId && targetContainerId !== waybill.containerId) {
-          await waybillV2Api.batchAssignContainer({
-            waybillIds: [waybill.id],
-            containerId: targetContainerId,
-            loadingDate: validLoadingDate,
-          });
-        }
-
         // Update container loadingDate if container exists
         if (targetContainerId && validLoadingDate) {
           await containerV2Api.update(targetContainerId, {
@@ -838,6 +826,7 @@ export default function WaybillDetailView() {
         }
 
         const updatePayload: any = {
+          containerId: targetContainerId || undefined,
           loadingDate: validLoadingDate,
         };
 
@@ -1075,24 +1064,27 @@ export default function WaybillDetailView() {
     }
   };
 
-  // Add Attachment
+  // Add Attachment (Supports batch multi-file)
   const handleAddAttachment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!waybill) return;
-    if (!fileUrl.trim()) {
-      toast.error('请输入或上传附件链接');
+    if (attachFiles.length === 0) {
+      toast.error('请选择或上传至少一份单据文件/图片');
       return;
     }
     try {
-      await financeV2Api.addAttachment(waybill.id, {
-        attachmentType,
-        fileUrl: fileUrl.trim(),
-        fileName: fileName.trim() || '单证图片',
-      });
-      toast.success('附件凭证已追加');
+      await Promise.all(
+        attachFiles.map((file) =>
+          financeV2Api.addAttachment(waybill.id, {
+            attachmentType,
+            fileUrl: file.url,
+            fileName: file.name || '单证图片',
+          })
+        )
+      );
+      toast.success(`成功追加 ${attachFiles.length} 份单证附件凭据！`);
       setShowAttachModal(false);
-      setFileUrl('');
-      setFileName('');
+      setAttachFiles([]);
       loadData();
     } catch (err: any) {
       toast.error('上传附件失败');
@@ -2052,40 +2044,89 @@ export default function WaybillDetailView() {
                 暂无附件凭证。支持随时追加送仓叫车单、海关税单、签收单照片。
               </p>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {(waybill.attachments || []).map((att) => (
-                  <div
-                    key={att.id}
-                    className="p-3 bg-slate-50 border border-slate-200 rounded-xl relative group hover:border-blue-300 transition-all flex flex-col justify-between"
-                  >
-                    <div>
-                      <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-[10px] font-semibold">
-                        {att.attachmentType}
-                      </span>
-                      <p className="text-xs font-bold text-slate-800 mt-2 truncate" title={att.fileName || ''}>
-                        {att.fileName || '单证图片'}
-                      </p>
-                    </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5">
+                {(waybill.attachments || []).map((att, idx) => {
+                  const isImg = /\.(jpg|jpeg|png|webp|gif|bmp)(\?.*)?$/i.test(att.fileUrl) || att.fileUrl.startsWith('data:image');
+                  const isPdf = /\.pdf(\?.*)?$/i.test(att.fileUrl);
 
-                    <div className="flex items-center justify-between pt-3 border-t border-slate-200/60 mt-3">
-                      <a
-                        href={att.fileUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-[11px] text-blue-600 hover:underline flex items-center gap-1 font-medium"
+                  const typeLabelMap: Record<string, string> = {
+                    PICKUP_SCREENSHOT: '叫车/提货截图',
+                    WAREHOUSE_IMAGE: '到仓实物图',
+                    CUSTOMS_SLIP: '缴税放行水单',
+                    SIGN_IMAGE: '签字签收回执',
+                    OTHER: '其他单证',
+                  };
+
+                  return (
+                    <div
+                      key={att.id || idx}
+                      className="group relative bg-white border border-slate-200 hover:border-blue-400 rounded-xl overflow-hidden shadow-xs hover:shadow-md transition duration-200 flex flex-col"
+                    >
+                      {/* Image / Document Preview Thumbnail Area */}
+                      <div
+                        onClick={() => {
+                          if (isImg) {
+                            setPreviewImageUrl(att.fileUrl);
+                          } else {
+                            window.open(att.fileUrl, '_blank');
+                          }
+                        }}
+                        className="h-28 bg-slate-100 relative cursor-pointer overflow-hidden flex items-center justify-center"
                       >
-                        <ExternalLink className="w-3 h-3" />
-                        查看预览
-                      </a>
-                      <button
-                        onClick={() => handleDeleteAttachment(att.id)}
-                        className="text-slate-400 hover:text-red-600 p-1"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                        {isImg ? (
+                          <img
+                            src={att.fileUrl}
+                            alt={att.fileName || '凭证图片'}
+                            className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                            onError={(e: any) => {
+                              e.target.style.display = 'none';
+                            }}
+                          />
+                        ) : isPdf ? (
+                          <div className="flex flex-col items-center justify-center text-rose-600 gap-1">
+                            <span className="px-2 py-1 bg-rose-100 rounded font-bold text-xs">PDF</span>
+                            <span className="text-[10px] text-slate-500 font-medium">点击打开文档</span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center text-blue-600 gap-1">
+                            <Paperclip className="w-6 h-6" />
+                            <span className="text-[10px] text-slate-500 font-medium">点击打开文件</span>
+                          </div>
+                        )}
+
+                        {/* Hover Overlay */}
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs gap-1.5 font-semibold backdrop-blur-xs">
+                          <Eye className="w-4 h-4" />
+                          {isImg ? '查看大图' : '查看原件'}
+                        </div>
+                      </div>
+
+                      {/* Info & Action Footer */}
+                      <div className="p-2.5 bg-white flex flex-col justify-between flex-1 border-t border-slate-100">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200/60 rounded text-[10px] font-bold truncate max-w-[120px]">
+                            {typeLabelMap[att.attachmentType] || att.attachmentType}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteAttachment(att.id);
+                            }}
+                            className="text-slate-400 hover:text-rose-600 p-1 rounded transition"
+                            title="删除单证附件"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        <p className="text-xs font-semibold text-slate-800 mt-1.5 truncate" title={att.fileName || ''}>
+                          {att.fileName || '单据凭证'}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -3854,19 +3895,31 @@ export default function WaybillDetailView() {
       )}
 
       {/* ========================================================= */}
-      {/* 附加单据凭证模态框 */}
+      {/* 附加单据凭证模态框 (支持多图批量上传) */}
       {/* ========================================================= */}
       {showAttachModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Paperclip className="w-5 h-5 text-blue-600" />
-              追加单证附件
-            </h2>
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Paperclip className="w-5 h-5 text-blue-600" />
+                批量追加单证与凭证附件
+              </h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAttachModal(false);
+                  setAttachFiles([]);
+                }}
+                className="text-slate-400 hover:text-slate-700 font-bold text-lg"
+              >
+                ✕
+              </button>
+            </div>
 
             <form onSubmit={handleAddAttachment} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">凭证类型</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">凭证分类</label>
                 <select
                   value={attachmentType}
                   onChange={(e) => setAttachmentType(e.target.value as any)}
@@ -3881,46 +3934,35 @@ export default function WaybillDetailView() {
               </div>
 
               <LocalFileUpload
-                label="选择本地附件单据"
-                value={fileUrl}
-                fileName={fileName}
-                onChange={(url, name) => {
-                  setFileUrl(url);
-                  if (name) setFileName(name);
-                }}
+                label="选择本地附件单据（支持多选）"
+                multiple={true}
+                multipleFiles={attachFiles}
+                onMultipleChange={setAttachFiles}
                 accept="image/*,application/pdf,.xlsx,.xls,.docx,.doc"
-                helperText="直接从电脑上传各类凭证、水单、截图或表格文档"
-                required
+                helperText="支持按住 Ctrl / Shift 批量选择多张照片、PDF或直接批量拖拽至此"
               />
 
-              {fileUrl && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    文件显示名称 (已自动识别，可按需修改)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="如 叫车单截图.jpg"
-                    value={fileName}
-                    onChange={(e) => setFileName(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium"
-                  />
-                </div>
-              )}
-
-              <div className="flex items-center justify-end gap-3 pt-2">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setShowAttachModal(false)}
+                  onClick={() => {
+                    setShowAttachModal(false);
+                    setAttachFiles([]);
+                  }}
                   className="px-4 py-2 text-slate-600 hover:text-slate-900 text-xs font-semibold"
                 >
                   取消
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-md"
+                  disabled={attachFiles.length === 0}
+                  className={`px-5 py-2.5 text-white rounded-xl text-xs font-bold shadow-md transition ${
+                    attachFiles.length > 0
+                      ? 'bg-blue-600 hover:bg-blue-500 cursor-pointer'
+                      : 'bg-slate-400 cursor-not-allowed'
+                  }`}
                 >
-                  确认上传
+                  确认上传 {attachFiles.length > 0 && `(${attachFiles.length} 个)`}
                 </button>
               </div>
             </form>
@@ -4231,6 +4273,47 @@ export default function WaybillDetailView() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 全屏单证/凭证图片大图预览 Lightbox 模态框 */}
+      {/* ========================================================= */}
+      {previewImageUrl && (
+        <div
+          className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-all"
+          onClick={() => setPreviewImageUrl(null)}
+        >
+          <div
+            className="relative max-w-4xl max-h-[90vh] bg-transparent rounded-2xl overflow-hidden flex flex-col items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={previewImageUrl}
+              alt="单证大图预览"
+              className="max-w-full max-h-[80vh] object-contain rounded-xl shadow-2xl border border-white/10"
+            />
+
+            <div className="flex items-center gap-3 mt-3">
+              <a
+                href={previewImageUrl}
+                target="_blank"
+                rel="noreferrer"
+                download
+                className="px-3.5 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-lg text-xs font-medium backdrop-blur-md flex items-center gap-1.5 transition"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                新窗口查看原图
+              </a>
+              <button
+                type="button"
+                onClick={() => setPreviewImageUrl(null)}
+                className="px-4 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold transition shadow-md"
+              >
+                关闭预览
+              </button>
+            </div>
           </div>
         </div>
       )}

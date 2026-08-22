@@ -133,10 +133,11 @@ export async function authRoutes(fastify: FastifyInstance) {
 
     const token = fastify.jwt.sign({
       userId: user.id,
-      email: user.phone,
       phone: user.phone,
+      name: user.name,
       userType: user.userType,
       userRole: user.userRole,
+      shippingMarks: user.shippingMarks || [],
     } as JWTPayload);
 
     return {
@@ -147,6 +148,7 @@ export async function authRoutes(fastify: FastifyInstance) {
         name: user.name,
         userType: user.userType,
         userRole: user.userRole,
+        shippingMarks: user.shippingMarks || [],
       },
     };
   });
@@ -239,6 +241,7 @@ export async function authRoutes(fastify: FastifyInstance) {
         name: true,
         userType: true,
         userRole: true,
+        shippingMarks: true,
         createdAt: true,
       },
     });

@@ -1,5 +1,8 @@
 import { FastifyInstance } from 'fastify';
 import { OriginWarehouseV2Service, CreateOriginWarehouseInput } from './origin-warehouse.service';
+import { authorize } from '../../../lib/auth';
+
+const INTERNAL_ROLES = ['ADMIN', 'SALES', 'FINANCE'];
 
 export async function originWarehouseV2Routes(fastify: FastifyInstance) {
   const service = new OriginWarehouseV2Service();
@@ -28,8 +31,10 @@ export async function originWarehouseV2Routes(fastify: FastifyInstance) {
     return { success: true, data: warehouse };
   });
 
-  // POST /api/v2/origin-warehouses
-  fastify.post('/', async (request, reply) => {
+  const internalHandler = { preHandler: [fastify.authenticate, authorize(INTERNAL_ROLES)] };
+
+  // POST /api/v2/origin-warehouses (Internal only)
+  fastify.post('/', internalHandler, async (request, reply) => {
     try {
       const body = request.body as CreateOriginWarehouseInput;
       if (!body.name || !body.code || !body.contactName || !body.contactPhone || !body.address) {
@@ -48,8 +53,8 @@ export async function originWarehouseV2Routes(fastify: FastifyInstance) {
     }
   });
 
-  // PUT /api/v2/origin-warehouses/:id
-  fastify.put('/:id', async (request, reply) => {
+  // PUT /api/v2/origin-warehouses/:id (Internal only)
+  fastify.put('/:id', internalHandler, async (request, reply) => {
     try {
       const { id } = request.params as { id: string };
       const body = request.body as Partial<CreateOriginWarehouseInput>;
@@ -63,23 +68,23 @@ export async function originWarehouseV2Routes(fastify: FastifyInstance) {
     }
   });
 
-  // DELETE /api/v2/origin-warehouses/:id
-  fastify.delete('/:id', async (request, reply) => {
+  // PUT /api/v2/origin-warehouses/:id/set-default (Internal only)
+  fastify.put('/:id/set-default', internalHandler, async (request, reply) => {
     try {
       const { id } = request.params as { id: string };
-      await service.deleteWarehouse(id);
-      return { success: true, message: '起运仓已成功删除' };
+      const warehouse = await service.setDefaultWarehouse(id);
+      return { success: true, data: warehouse };
     } catch (err: any) {
       return reply.status(400).send({ success: false, error: err.message });
     }
   });
 
-  // PUT /api/v2/origin-warehouses/:id/set-default
-  fastify.put('/:id/set-default', async (request, reply) => {
+  // DELETE /api/v2/origin-warehouses/:id (Internal only)
+  fastify.delete('/:id', internalHandler, async (request, reply) => {
     try {
       const { id } = request.params as { id: string };
-      const warehouse = await service.setDefaultWarehouse(id);
-      return { success: true, data: warehouse };
+      await service.deleteWarehouse(id);
+      return { success: true, message: '起运仓已删除' };
     } catch (err: any) {
       return reply.status(400).send({ success: false, error: err.message });
     }

@@ -166,6 +166,9 @@ export interface Waybill {
   airWaybillNo?: string;
   note?: string;
   isFixedPrice?: boolean;
+  fixedPriceAmount?: number;
+  baseReceivable?: number;
+  basePayable?: number;
 
   recipientName?: string;
   recipientPhone?: string;

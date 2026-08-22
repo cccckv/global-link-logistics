@@ -19,6 +19,7 @@ model User {
   updatedAt          DateTime                @updatedAt
   deletedAt          DateTime?
   userRole           UserRoleEnum            @default(USER)
+  shippingMarks      String[]                @default([])
   batchImportTasks   BatchImportTask[]
   recipientAddresses OrderRecipientAddress[] @relation("UserRecipientAddresses")
   overseasAddresses  OrderOverseasAddress[]  @relation("UserOverseasAddresses")
@@ -175,7 +176,7 @@ model OrderDeclaration {
 model OrderContainer {
   id            String        @id @default(uuid())
   orderId       String
-  containerType ContainerType
+  containerType String
   quantity      Int
   weight        Decimal?      @db.Decimal(10, 2)
   productsJson  String?
@@ -327,13 +328,6 @@ enum QuickOrderStatus {
   DISPATCHING
 }
 
-enum ContainerType {
-  GP_20
-  GP_40
-  HQ_40
-  HQ_45
-}
-
 enum BatchImportStatus {
   UPLOADING
   PARSING
@@ -345,6 +339,8 @@ enum BatchImportStatus {
 enum UserRoleEnum {
   ADMIN
   USER
+  SALES
+  FINANCE
 }
 
 enum OrderVoucherType {

@@ -5,10 +5,12 @@ const prisma = new PrismaClient();
 
 export interface JWTPayload {
   userId: string;
-  email: string;
+  email?: string;
   phone: string;
+  name?: string;
   userType: string;
   userRole: string;
+  shippingMarks?: string[];
 }
 
 export async function authenticate(request: FastifyRequest) {

@@ -1,7 +1,9 @@
 import { FastifyInstance } from 'fastify';
 import { CustomerV2Service, CustomerAddressInput } from './customer.service';
+import { authorize } from '../../../lib/auth';
 
 const customerService = new CustomerV2Service();
+const INTERNAL_ROLES = ['ADMIN', 'SALES', 'FINANCE'];
 
 export async function customerV2Routes(fastify: FastifyInstance) {
   // Search or list all customers
@@ -28,7 +30,9 @@ export async function customerV2Routes(fastify: FastifyInstance) {
     return reply.send({ success: true, data: customer });
   });
 
-  // Create new customer
+  const internalHandler = { preHandler: [fastify.authenticate, authorize(INTERNAL_ROLES)] };
+
+  // Create new customer (Internal only)
   fastify.post<{
     Body: {
       clientCode: string;
@@ -41,7 +45,7 @@ export async function customerV2Routes(fastify: FastifyInstance) {
       note?: string;
       addresses?: Array<CustomerAddressInput>;
     };
-  }>('/', async (request, reply) => {
+  }>('/', internalHandler, async (request, reply) => {
     try {
       const created = await customerService.createCustomer(request.body);
       return reply.code(201).send({ success: true, data: created });
@@ -53,7 +57,7 @@ export async function customerV2Routes(fastify: FastifyInstance) {
     }
   });
 
-  // Update customer basic info
+  // Update customer basic info (Internal only)
   fastify.put<{
     Params: { id: string };
     Body: Partial<{
@@ -66,36 +70,33 @@ export async function customerV2Routes(fastify: FastifyInstance) {
       defaultWarehouse?: string;
       note?: string;
     }>;
-  }>('/:id', async (request, reply) => {
+  }>('/:id', internalHandler, async (request, reply) => {
     try {
       const updated = await customerService.updateCustomer(request.params.id, request.body);
       return reply.send({ success: true, data: updated });
     } catch (err: any) {
-      if (err.code === 'P2002') {
-        return reply.code(400).send({ success: false, error: '客户编码/唛头已存在，请使用唯一编码' });
-      }
       return reply.code(500).send({ success: false, error: err.message });
     }
   });
 
-  // Add address to customer
+  // Add address to customer (Internal only)
   fastify.post<{
     Params: { id: string };
     Body: CustomerAddressInput;
-  }>('/:id/addresses', async (request, reply) => {
+  }>('/:id/addresses', internalHandler, async (request, reply) => {
     try {
-      const created = await customerService.addCustomerAddress(request.params.id, request.body);
-      return reply.code(201).send({ success: true, data: created });
+      const address = await customerService.addCustomerAddress(request.params.id, request.body);
+      return reply.code(201).send({ success: true, data: address });
     } catch (err: any) {
       return reply.code(500).send({ success: false, error: err.message });
     }
   });
 
-  // Update customer address
+  // Update address (Internal only)
   fastify.put<{
     Params: { id: string; addressId: string };
     Body: Partial<CustomerAddressInput>;
-  }>('/:id/addresses/:addressId', async (request, reply) => {
+  }>('/:id/addresses/:addressId', internalHandler, async (request, reply) => {
     try {
       const updated = await customerService.updateCustomerAddress(request.params.addressId, {
         ...request.body,
@@ -107,22 +108,22 @@ export async function customerV2Routes(fastify: FastifyInstance) {
     }
   });
 
-  // Delete customer address
+  // Delete address (Internal only)
   fastify.delete<{
     Params: { id: string; addressId: string };
-  }>('/:id/addresses/:addressId', async (request, reply) => {
+  }>('/:id/addresses/:addressId', internalHandler, async (request, reply) => {
     try {
       await customerService.deleteCustomerAddress(request.params.addressId);
-      return reply.send({ success: true, message: '收件人地址已删除' });
+      return reply.send({ success: true, message: 'Address deleted' });
     } catch (err: any) {
       return reply.code(500).send({ success: false, error: err.message });
     }
   });
 
-  // Set default customer address
+  // Set address as default (Internal only)
   fastify.put<{
     Params: { id: string; addressId: string };
-  }>('/:id/addresses/:addressId/default', async (request, reply) => {
+  }>('/:id/addresses/:addressId/default', internalHandler, async (request, reply) => {
     try {
       const updated = await customerService.setDefaultCustomerAddress(request.params.id, request.params.addressId);
       return reply.send({ success: true, data: updated });
@@ -131,15 +132,15 @@ export async function customerV2Routes(fastify: FastifyInstance) {
     }
   });
 
-  // Delete customer
+  // Delete customer (Internal only)
   fastify.delete<{
     Params: { id: string };
-  }>('/:id', async (request, reply) => {
+  }>('/:id', internalHandler, async (request, reply) => {
     try {
       await customerService.deleteCustomer(request.params.id);
-      return reply.send({ success: true, message: '客户档案已删除' });
+      return reply.send({ success: true, message: 'Customer deleted' });
     } catch (err: any) {
-      return reply.code(400).send({ success: false, error: err.message || '删除客户失败' });
+      return reply.code(500).send({ success: false, error: err.message });
     }
   });
 }

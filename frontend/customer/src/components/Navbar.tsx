@@ -57,7 +57,7 @@ export default function Navbar() {
                     <span className="text-sm">{user.phone}</span>
                   </div>
                   <Link
-                    to="/order/quick"
+                    to="/v2/inbound"
                     className="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary-light transition font-semibold"
                   >
                     进入控制台

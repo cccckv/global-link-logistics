@@ -29,30 +29,27 @@ erDiagram
 
 ```prisma
 // ==========================================
-// 1. 用户与认证
+// 1. 用户与认证 (详见 11_USER_ROLES_AND_MARKS.md)
 // ==========================================
 model User {
-  id           String       @id @default(uuid())
-  phone        String       @unique
-  name         String
-  passwordHash String
-  userRole     UserRole     @default(USER)     // ADMIN | USER
-  userType     UserType     @default(EMPLOYEE) // EMPLOYEE | CUSTOMER
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  deletedAt    DateTime?
+  id            String       @id @default(uuid())
+  phone         String       @unique             // 登录手机号
+  name          String                           // 用户姓名 / 客户名称
+  passwordHash  String
+  userRole      UserRoleEnum @default(USER)       // ADMIN | SALES | FINANCE | USER
+  shippingMarks String[]     @default([])        // 普通用户关联的唛头列表 (如 ["WH-ZZY-FLB", "WH-10115"])
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  deletedAt     DateTime?
 
-  waybills     Waybill[]    @relation("UserWaybills")
+  waybills      Waybill[]    @relation("UserWaybills")
 }
 
-enum UserRole {
-  ADMIN
-  USER
-}
-
-enum UserType {
-  EMPLOYEE
-  CUSTOMER
+enum UserRoleEnum {
+  ADMIN       // 超级管理员
+  SALES       // 业务员/调度
+  FINANCE     // 财务会计
+  USER        // 普通客户
 }
 
 // ==========================================

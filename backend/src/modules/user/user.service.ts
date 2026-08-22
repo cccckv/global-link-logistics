@@ -5,6 +5,7 @@ const prisma = new PrismaClient();
 
 export interface ListUsersParams {
   search?: string;
+  userRole?: UserRoleEnum;
   page?: number;
   limit?: number;
 }
@@ -14,6 +15,7 @@ export interface CreateUserData {
   phone: string;
   password: string;
   userRole: UserRoleEnum;
+  shippingMarks?: string[];
   email?: string;
   company?: string;
 }
@@ -23,23 +25,29 @@ export interface UpdateUserData {
   phone?: string;
   password?: string;
   userRole?: UserRoleEnum;
+  shippingMarks?: string[];
   email?: string;
   company?: string;
 }
 
 export class UserService {
   async listUsers(params: ListUsersParams = {}) {
-    const { search, page = 1, limit = 20 } = params;
+    const { search, userRole, page = 1, limit = 20 } = params;
     const skip = (page - 1) * limit;
 
     const where: any = {
       deletedAt: null,
     };
 
+    if (userRole) {
+      where.userRole = userRole;
+    }
+
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
         { phone: { contains: search } },
+        { shippingMarks: { has: search.trim() } },
       ];
     }
 
@@ -50,9 +58,8 @@ export class UserService {
           id: true,
           name: true,
           phone: true,
-          email: true,
-          company: true,
           userRole: true,
+          shippingMarks: true,
           createdAt: true,
           updatedAt: true,
         },
@@ -83,43 +90,31 @@ export class UserService {
       throw new Error('该手机号已被使用');
     }
 
-    const existingName = await prisma.user.findFirst({
-      where: { name: data.name },
-    });
-
-    if (existingName) {
-      throw new Error('该用户唛头已被使用');
-    }
-
-    if (data.email) {
-      const existingEmail = await prisma.user.findUnique({
-        where: { email: data.email },
-      });
-
-      if (existingEmail) {
-        throw new Error('该邮箱已被使用');
-      }
-    }
-
     const passwordHash = await bcrypt.hash(data.password, 10);
+
+    // 只有普通用户允许关联唛头；内部人员强制为空数组
+    let sanitizedShippingMarks: string[] = [];
+    if (data.userRole === UserRoleEnum.USER && Array.isArray(data.shippingMarks)) {
+      sanitizedShippingMarks = Array.from(
+        new Set(data.shippingMarks.map((m) => m.trim()).filter(Boolean))
+      );
+    }
 
     const user = await prisma.user.create({
       data: {
-        name: data.name,
-        phone: data.phone,
-        email: data.email || null,
-        company: data.company,
+        name: data.name.trim(),
+        phone: data.phone.trim(),
         passwordHash,
         userRole: data.userRole,
-        userType: 'CUSTOMER',
+        shippingMarks: sanitizedShippingMarks,
+        userType: data.userRole === UserRoleEnum.USER ? 'CUSTOMER' : 'EMPLOYEE',
       },
       select: {
         id: true,
         name: true,
         phone: true,
-        email: true,
-        company: true,
         userRole: true,
+        shippingMarks: true,
         createdAt: true,
       },
     });
@@ -150,33 +145,28 @@ export class UserService {
       }
     }
 
-    if (data.name && data.name !== existingUser.name) {
-      const nameExists = await prisma.user.findFirst({
-        where: { name: data.name },
-      });
-
-      if (nameExists) {
-        throw new Error('该用户唛头已被使用');
-      }
-    }
-
-    if (data.email && data.email !== existingUser.email) {
-      const emailExists = await prisma.user.findUnique({
-        where: { email: data.email },
-      });
-
-      if (emailExists) {
-        throw new Error('该邮箱已被使用');
-      }
-    }
-
     const updateData: any = {};
 
-    if (data.name) updateData.name = data.name;
-    if (data.phone) updateData.phone = data.phone;
-    if (data.email !== undefined) updateData.email = data.email;
-    if (data.company !== undefined) updateData.company = data.company;
-    if (data.userRole) updateData.userRole = data.userRole;
+    if (data.name) updateData.name = data.name.trim();
+    if (data.phone) updateData.phone = data.phone.trim();
+    if (data.userRole) {
+      updateData.userRole = data.userRole;
+      updateData.userType = data.userRole === UserRoleEnum.USER ? 'CUSTOMER' : 'EMPLOYEE';
+    }
+
+    // 处理 shippingMarks
+    const targetRole = data.userRole || existingUser.userRole;
+    if (targetRole === UserRoleEnum.USER) {
+      if (data.shippingMarks !== undefined) {
+        updateData.shippingMarks = Array.from(
+          new Set(data.shippingMarks.map((m) => m.trim()).filter(Boolean))
+        );
+      }
+    } else {
+      // 内部角色清空唛头
+      updateData.shippingMarks = [];
+    }
+
     if (data.password) {
       updateData.passwordHash = await bcrypt.hash(data.password, 10);
     }
@@ -188,9 +178,8 @@ export class UserService {
         id: true,
         name: true,
         phone: true,
-        email: true,
-        company: true,
         userRole: true,
+        shippingMarks: true,
         updatedAt: true,
       },
     });

@@ -750,6 +750,7 @@ export class WaybillImportService {
           payableAmount: financials.payableAmount,
           profitAmount: financials.profitAmount,
           isFixedPrice: orderType === 'SEA_FCL' && !!g.receivableAmount,
+          fixedPriceAmount: (orderType === 'SEA_FCL' && !!g.receivableAmount) ? g.receivableAmount : undefined,
           inboundDate: new Date(),
         },
       });

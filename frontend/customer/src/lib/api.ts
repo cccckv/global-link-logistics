@@ -34,13 +34,16 @@ api.interceptors.response.use(
   }
 );
 
+export type UserRoleType = 'ADMIN' | 'SALES' | 'FINANCE' | 'USER';
+
 export interface User {
   id: string;
   phone: string;
   name: string;
   email?: string;
-  userType: 'CUSTOMER' | 'EMPLOYEE';
-  userRole: 'ADMIN' | 'USER';
+  userType?: 'CUSTOMER' | 'EMPLOYEE';
+  userRole: UserRoleType;
+  shippingMarks?: string[];
   deletedAt?: string;
   createdAt: string;
   updatedAt?: string;
@@ -153,7 +156,7 @@ export interface QuickOrderDeclaration {
 }
 
 export interface QuickOrderContainer {
-  containerType: 'GP_20' | 'GP_40' | 'HQ_40' | 'HQ_45';
+  containerType: string;
   quantity: number;
   weight?: number;
   productsJson?: string;
@@ -354,16 +357,16 @@ export interface CreateUserData {
   name: string;
   phone: string;
   password: string;
-  userRole: 'ADMIN' | 'USER';
-  email?: string;
+  userRole: UserRoleType;
+  shippingMarks?: string[];
 }
 
 export interface UpdateUserData {
   name?: string;
   phone?: string;
   password?: string;
-  userRole?: 'ADMIN' | 'USER';
-  email?: string;
+  userRole?: UserRoleType;
+  shippingMarks?: string[];
 }
 
 export const userApi = {

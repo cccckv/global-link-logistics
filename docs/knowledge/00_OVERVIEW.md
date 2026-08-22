@@ -61,3 +61,5 @@ erDiagram
 - 🛠️ [08_BUSINESS_PRACTICE_AND_PITFALLS.md](./08_BUSINESS_PRACTICE_AND_PITFALLS.md) — **业务实战沉淀、调度工作台与工程避坑指南**
 - 📊 [09_BATCH_IMPORT_STANDARDS.md](./09_BATCH_IMPORT_STANDARDS.md) — **批量导入业务与技术规范标准**（客户档案独立导入、专线独立模板、多行聚合与容错跳过）
 - 🏢 [10_CONSIGNEE_AND_ORIGIN_WAREHOUSE.md](./10_CONSIGNEE_AND_ORIGIN_WAREHOUSE.md) — **收发件人体系与国内起运仓主数据架构**（认唛头不认发货人、起运仓主数据管理、形态2紧凑摘要与在途修改、一键复制派件指令）
+- 👥 [11_USER_ROLES_AND_MARKS.md](./11_USER_ROLES_AND_MARKS.md) — **用户管理体系与多唛头关联业务规范**（四类角色定位、普通用户多唛头数组数据隔离、极简用户字段标准）
+- 🛡️ [12_CUSTOMER_PORTAL_AND_DATA_ISOLATION.md](./12_CUSTOMER_PORTAL_AND_DATA_ISOLATION.md) — **客户门户权限与内部数据隔离规范**（极简菜单矩阵、内部同行成本脱敏、全流程零写安全防护）

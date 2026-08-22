@@ -90,7 +90,7 @@ export default function Register() {
       
       // 根据角色跳转
       if (response.data.user.userRole === 'ADMIN') {
-        navigate('/order/quick');
+        navigate('/v2/inbound');
       } else {
         navigate('/external-tracking');
       }

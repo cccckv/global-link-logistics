@@ -1,11 +1,13 @@
 import { FastifyInstance } from 'fastify';
 import { FinanceV2Service } from './finance.service';
 import { FeeDirection, CurrencyType, AttachmentType } from '@prisma/client';
+import { authorize } from '../../../lib/auth';
 
 const financeService = new FinanceV2Service();
+const INTERNAL_ROLES = ['ADMIN', 'SALES', 'FINANCE'];
 
 export async function financeV2Routes(fastify: FastifyInstance) {
-  // Add fee item to waybill
+  // Add fee item to waybill (Internal only)
   fastify.post<{
     Params: { id: string };
     Body: {
@@ -16,28 +18,40 @@ export async function financeV2Routes(fastify: FastifyInstance) {
       exchangeRate?: number;
       note?: string;
     };
-  }>('/waybills/:id/fees', async (request, reply) => {
-    try {
-      const fee = await financeService.addWaybillFee(request.params.id, request.body);
-      return reply.code(201).send({ success: true, data: fee });
-    } catch (err: any) {
-      return reply.code(500).send({ success: false, error: err.message });
+  }>(
+    '/waybills/:id/fees',
+    {
+      preHandler: [fastify.authenticate, authorize(INTERNAL_ROLES)],
+    },
+    async (request, reply) => {
+      try {
+        const fee = await financeService.addWaybillFee(request.params.id, request.body);
+        return reply.code(201).send({ success: true, data: fee });
+      } catch (err: any) {
+        return reply.code(500).send({ success: false, error: err.message });
+      }
     }
-  });
+  );
 
-  // Delete fee item from waybill
+  // Delete fee item from waybill (Internal only)
   fastify.delete<{
     Params: { feeId: string };
-  }>('/fees/:feeId', async (request, reply) => {
-    try {
-      await financeService.deleteWaybillFee(request.params.feeId);
-      return reply.send({ success: true, message: 'Fee deleted' });
-    } catch (err: any) {
-      return reply.code(500).send({ success: false, error: err.message });
+  }>(
+    '/fees/:feeId',
+    {
+      preHandler: [fastify.authenticate, authorize(INTERNAL_ROLES)],
+    },
+    async (request, reply) => {
+      try {
+        await financeService.deleteWaybillFee(request.params.feeId);
+        return reply.send({ success: true, message: 'Fee deleted' });
+      } catch (err: any) {
+        return reply.code(500).send({ success: false, error: err.message });
+      }
     }
-  });
+  );
 
-  // Add attachment to waybill (Unified Attachment Pool)
+  // Add attachment to waybill (Internal only)
   fastify.post<{
     Params: { id: string };
     Body: {
@@ -47,24 +61,36 @@ export async function financeV2Routes(fastify: FastifyInstance) {
       fileSize?: number;
       fileType?: string;
     };
-  }>('/waybills/:id/attachments', async (request, reply) => {
-    try {
-      const att = await financeService.addWaybillAttachment(request.params.id, request.body);
-      return reply.code(201).send({ success: true, data: att });
-    } catch (err: any) {
-      return reply.code(500).send({ success: false, error: err.message });
+  }>(
+    '/waybills/:id/attachments',
+    {
+      preHandler: [fastify.authenticate, authorize(INTERNAL_ROLES)],
+    },
+    async (request, reply) => {
+      try {
+        const att = await financeService.addWaybillAttachment(request.params.id, request.body);
+        return reply.code(201).send({ success: true, data: att });
+      } catch (err: any) {
+        return reply.code(500).send({ success: false, error: err.message });
+      }
     }
-  });
+  );
 
-  // Delete attachment
+  // Delete attachment (Internal only)
   fastify.delete<{
     Params: { attachmentId: string };
-  }>('/attachments/:attachmentId', async (request, reply) => {
-    try {
-      await financeService.deleteWaybillAttachment(request.params.attachmentId);
-      return reply.send({ success: true, message: 'Attachment deleted' });
-    } catch (err: any) {
-      return reply.code(500).send({ success: false, error: err.message });
+  }>(
+    '/attachments/:attachmentId',
+    {
+      preHandler: [fastify.authenticate, authorize(INTERNAL_ROLES)],
+    },
+    async (request, reply) => {
+      try {
+        await financeService.deleteWaybillAttachment(request.params.attachmentId);
+        return reply.send({ success: true, message: 'Attachment deleted' });
+      } catch (err: any) {
+        return reply.code(500).send({ success: false, error: err.message });
+      }
     }
-  });
+  );
 }

@@ -17,9 +17,11 @@ import {
 } from 'lucide-react';
 import {
   containerV2Api,
+  channelV2Api,
   type ContainerMaster,
   type ContainerStatus,
   type CurrencyType,
+  type ShippingChannel,
 } from '../../lib/v2-api';
 import {
   ORIGIN_PORTS,
@@ -41,6 +43,7 @@ export default function ContainerTracking() {
   const urlSearch = searchParams.get('search') || searchParams.get('containerNo') || '';
 
   const [containers, setContainers] = useState<ContainerMaster[]>([]);
+  const [channels, setChannels] = useState<ShippingChannel[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState(urlSearch);
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
@@ -51,14 +54,16 @@ export default function ContainerTracking() {
   // New container modal
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [containerNo, setContainerNo] = useState('');
-  const [containerType, setContainerType] = useState('HQ_40');
+  const [containerType, setContainerType] = useState('40HQ');
   const [blNumber, setBlNumber] = useState('');
   const [carrier, setCarrier] = useState('');
   const [vesselVoyage, setVesselVoyage] = useState('');
   const [originPort, setOriginPort] = useState('');
   const [destinationPort, setDestinationPort] = useState('');
   const [bookingChannel, setBookingChannel] = useState('');
+  const [customsChannel, setCustomsChannel] = useState('');
   const [clearanceChannel, setClearanceChannel] = useState('');
+  const [truckingChannel, setTruckingChannel] = useState('');
 
   // Edit container modal (修改集装箱/货柜信息)
   const [editingContainer, setEditingContainer] = useState<ContainerMaster | null>(null);
@@ -120,6 +125,14 @@ export default function ContainerTracking() {
   };
 
   useEffect(() => {
+    channelV2Api.list({ isActive: true }).then((res) => {
+      if (res.data.success && res.data.data) {
+        setChannels(res.data.data);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
     const urlQ = searchParams.get('search') || searchParams.get('containerNo') || '';
     if (urlQ) {
       setSearchQuery(urlQ);
@@ -148,6 +161,19 @@ export default function ContainerTracking() {
     loadContainers('', 'ALL', 'ALL', 'ALL');
   };
 
+  const handleOpenCreateModal = () => {
+    const defaultBooking = channels.find((c) => c.category === 'FCL_BOOKING' && c.isDefault);
+    const defaultCustoms = channels.find((c) => c.category === 'FCL_CUSTOMS' && c.isDefault);
+    const defaultClearance = channels.find((c) => c.category === 'FCL_CLEARANCE' && c.isDefault);
+    const defaultTrucking = channels.find((c) => c.category === 'FCL_TRUCKING' && c.isDefault);
+
+    setBookingChannel(defaultBooking ? defaultBooking.name : '');
+    setCustomsChannel(defaultCustoms ? defaultCustoms.name : '');
+    setClearanceChannel(defaultClearance ? defaultClearance.name : '');
+    setTruckingChannel(defaultTrucking ? defaultTrucking.name : '');
+    setShowCreateModal(true);
+  };
+
   const handleCreateContainer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!containerNo.trim()) return;
@@ -161,7 +187,9 @@ export default function ContainerTracking() {
         originPort: originPort.trim() || undefined,
         destinationPort: destinationPort.trim() || undefined,
         bookingChannel: bookingChannel.trim() || undefined,
+        customsChannel: customsChannel.trim() || undefined,
         clearanceChannel: clearanceChannel.trim() || undefined,
+        truckingChannel: truckingChannel.trim() || undefined,
         loadingDate: new Date().toISOString(),
         status: 'LOADING',
       });
@@ -173,6 +201,10 @@ export default function ContainerTracking() {
       setVesselVoyage('');
       setOriginPort('');
       setDestinationPort('');
+      setBookingChannel('');
+      setCustomsChannel('');
+      setClearanceChannel('');
+      setTruckingChannel('');
       loadContainers();
     } catch (err: any) {
       toast.error(err.response?.data?.error || '创建失败');
@@ -182,7 +214,17 @@ export default function ContainerTracking() {
   const handleOpenEdit = (c: ContainerMaster) => {
     setEditingContainer(c);
     setEditContainerNo(c.containerNo || '');
-    setEditContainerType(c.containerType || 'HQ_40');
+    const normalizedType =
+      c.containerType === 'HQ_40'
+        ? '40HQ'
+        : c.containerType === 'GP_20'
+        ? '20GP'
+        : c.containerType === 'GP_40'
+        ? '40GP'
+        : c.containerType === 'HQ_45'
+        ? '45HQ'
+        : c.containerType || '';
+    setEditContainerType(normalizedType);
     setEditLoadingDate(c.loadingDate ? new Date(c.loadingDate).toISOString().slice(0, 10) : '');
     setEditBlNumber(c.blNumber || '');
     setEditCarrier(c.carrier || '');
@@ -319,7 +361,7 @@ export default function ContainerTracking() {
         </div>
 
         <button
-          onClick={() => setShowCreateModal(true)}
+          onClick={handleOpenCreateModal}
           className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/20 flex items-center gap-1.5 transition-all self-start md:self-auto"
         >
           <Plus className="w-4 h-4" />
@@ -510,7 +552,7 @@ export default function ContainerTracking() {
                           {container.containerNo}
                         </h2>
                         <span className="px-2.5 py-0.5 bg-slate-100 text-slate-700 rounded text-xs font-mono font-bold">
-                          {container.containerType || '40HQ'}
+                          {container.containerType || '--'}
                         </span>
                         <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${st.color}`}>
                           {st.label}
@@ -728,10 +770,16 @@ export default function ContainerTracking() {
                   onChange={(e) => setContainerType(e.target.value)}
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs"
                 >
-                  <option value="HQ_40">40HQ 高柜</option>
-                  <option value="GP_20">20GP 小柜</option>
-                  <option value="GP_40">40GP 普柜</option>
-                  <option value="HQ_45">45HQ 超高柜</option>
+                  <option value="40HQ">40HQ 高柜 (常用)</option>
+                  <option value="20GP">20GP 小柜</option>
+                  <option value="40GP">40GP 普柜</option>
+                  <option value="45HQ">45HQ 超高柜</option>
+                  <option value="20OT">20OT 开顶柜</option>
+                  <option value="40OT">40OT 开顶柜</option>
+                  <option value="20FR">20FR 框架柜</option>
+                  <option value="40FR">40FR 框架柜</option>
+                  <option value="20RF">20RF 冷藏柜</option>
+                  <option value="40RF">40RF 冷藏柜</option>
                 </select>
               </div>
               <div>
@@ -804,27 +852,91 @@ export default function ContainerTracking() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  订舱渠道
+                  订舱服务商 / 渠道
                 </label>
-                <input
-                  type="text"
-                  placeholder="如 优尼科"
+                <select
                   value={bookingChannel}
                   onChange={(e) => setBookingChannel(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
-                />
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">-- 请选择订舱渠道 --</option>
+                  {channels
+                    .filter((c) => c.category === 'FCL_BOOKING')
+                    .map((ch) => (
+                      <option key={ch.id} value={ch.name}>
+                        {ch.name} {ch.code ? `(${ch.code})` : ''} {ch.isDefault ? '⭐ [默认]' : ''}
+                      </option>
+                    ))}
+                  {bookingChannel && !channels.some((c) => c.name === bookingChannel) && (
+                    <option value={bookingChannel}>{bookingChannel} (自定义)</option>
+                  )}
+                </select>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  清关渠道
+                  国内报关渠道
                 </label>
-                <input
-                  type="text"
-                  placeholder="如 泉州万海-菲立亚-渠道5"
+                <select
+                  value={customsChannel}
+                  onChange={(e) => setCustomsChannel(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">-- 请选择国内报关行 --</option>
+                  {channels
+                    .filter((c) => c.category === 'FCL_CUSTOMS')
+                    .map((ch) => (
+                      <option key={ch.id} value={ch.name}>
+                        {ch.name} {ch.code ? `(${ch.code})` : ''} {ch.isDefault ? '⭐ [默认]' : ''}
+                      </option>
+                    ))}
+                  {customsChannel && !channels.some((c) => c.name === customsChannel) && (
+                    <option value={customsChannel}>{customsChannel} (自定义)</option>
+                  )}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  目的港清关渠道
+                </label>
+                <select
                   value={clearanceChannel}
                   onChange={(e) => setClearanceChannel(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
-                />
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">-- 请选择目的港清关代理 --</option>
+                  {channels
+                    .filter((c) => c.category === 'FCL_CLEARANCE')
+                    .map((ch) => (
+                      <option key={ch.id} value={ch.name}>
+                        {ch.name} {ch.code ? `(${ch.code})` : ''} {ch.isDefault ? '⭐ [默认]' : ''}
+                      </option>
+                    ))}
+                  {clearanceChannel && !channels.some((c) => c.name === clearanceChannel) && (
+                    <option value={clearanceChannel}>{clearanceChannel} (自定义)</option>
+                  )}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  目的港拖车渠道
+                </label>
+                <select
+                  value={truckingChannel}
+                  onChange={(e) => setTruckingChannel(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">-- 请选择港口内陆车队 --</option>
+                  {channels
+                    .filter((c) => c.category === 'FCL_TRUCKING')
+                    .map((ch) => (
+                      <option key={ch.id} value={ch.name}>
+                        {ch.name} {ch.code ? `(${ch.code})` : ''} {ch.isDefault ? '⭐ [默认]' : ''}
+                      </option>
+                    ))}
+                  {truckingChannel && !channels.some((c) => c.name === truckingChannel) && (
+                    <option value={truckingChannel}>{truckingChannel} (自定义)</option>
+                  )}
+                </select>
               </div>
             </div>
 
@@ -1021,10 +1133,16 @@ export default function ContainerTracking() {
                       onChange={(e) => setEditContainerType(e.target.value)}
                       className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-800 focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="HQ_40">40HQ 高柜</option>
-                      <option value="GP_20">20GP 小柜</option>
-                      <option value="GP_40">40GP 普柜</option>
-                      <option value="HQ_45">45HQ 超高柜</option>
+                      <option value="40HQ">40HQ 高柜 (常用)</option>
+                      <option value="20GP">20GP 小柜</option>
+                      <option value="40GP">40GP 普柜</option>
+                      <option value="45HQ">45HQ 超高柜</option>
+                      <option value="20OT">20OT 开顶柜</option>
+                      <option value="40OT">40OT 开顶柜</option>
+                      <option value="20FR">20FR 框架柜</option>
+                      <option value="40FR">40FR 框架柜</option>
+                      <option value="20RF">20RF 冷藏柜</option>
+                      <option value="40RF">40RF 冷藏柜</option>
                     </select>
                   </div>
                   <div>
@@ -1182,52 +1300,136 @@ export default function ContainerTracking() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      订舱渠道
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="如 优尼科 / 顺丰海运"
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-slate-700">
+                        订舱渠道
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => navigate('/v2/channels?category=FCL_BOOKING')}
+                        className="text-[10px] text-blue-600 hover:underline"
+                      >
+                        配置 →
+                      </button>
+                    </div>
+                    <select
                       value={editBookingChannel}
                       onChange={(e) => setEditBookingChannel(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800"
-                    />
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">-- 请选择订舱服务商/船司 --</option>
+                      {channels
+                        .filter((c) => c.category === 'FCL_BOOKING')
+                        .map((ch) => (
+                          <option key={ch.id} value={ch.name}>
+                            {ch.name} {ch.code ? `(${ch.code})` : ''} {ch.isDefault ? '⭐ [默认]' : ''}
+                          </option>
+                        ))}
+                      {editBookingChannel && !channels.some((c) => c.name === editBookingChannel) && (
+                        <option value={editBookingChannel}>
+                          {editBookingChannel} (自定义/历史渠道)
+                        </option>
+                      )}
+                    </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      国内报关渠道
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="如 厦门外代 / 深圳报关行"
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-slate-700">
+                        国内报关渠道
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => navigate('/v2/channels?category=FCL_CUSTOMS')}
+                        className="text-[10px] text-blue-600 hover:underline"
+                      >
+                        配置 →
+                      </button>
+                    </div>
+                    <select
                       value={editCustomsChannel}
                       onChange={(e) => setEditCustomsChannel(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800"
-                    />
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">-- 请选择国内报关行 --</option>
+                      {channels
+                        .filter((c) => c.category === 'FCL_CUSTOMS')
+                        .map((ch) => (
+                          <option key={ch.id} value={ch.name}>
+                            {ch.name} {ch.code ? `(${ch.code})` : ''} {ch.isDefault ? '⭐ [默认]' : ''}
+                          </option>
+                        ))}
+                      {editCustomsChannel && !channels.some((c) => c.name === editCustomsChannel) && (
+                        <option value={editCustomsChannel}>
+                          {editCustomsChannel} (自定义/历史渠道)
+                        </option>
+                      )}
+                    </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      目的港清关渠道
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="如 泉州万海-菲立亚-渠道5"
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-slate-700">
+                        目的港清关渠道
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => navigate('/v2/channels?category=FCL_CLEARANCE')}
+                        className="text-[10px] text-blue-600 hover:underline"
+                      >
+                        配置 →
+                      </button>
+                    </div>
+                    <select
                       value={editClearanceChannel}
                       onChange={(e) => setEditClearanceChannel(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800"
-                    />
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">-- 请选择目的港清关代理 --</option>
+                      {channels
+                        .filter((c) => c.category === 'FCL_CLEARANCE')
+                        .map((ch) => (
+                          <option key={ch.id} value={ch.name}>
+                            {ch.name} {ch.code ? `(${ch.code})` : ''} {ch.isDefault ? '⭐ [默认]' : ''}
+                          </option>
+                        ))}
+                      {editClearanceChannel && !channels.some((c) => c.name === editClearanceChannel) && (
+                        <option value={editClearanceChannel}>
+                          {editClearanceChannel} (自定义/历史渠道)
+                        </option>
+                      )}
+                    </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      目的港拖车渠道
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="如 马尼拉港口内陆车队"
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-slate-700">
+                        目的港拖车渠道
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => navigate('/v2/channels?category=FCL_TRUCKING')}
+                        className="text-[10px] text-blue-600 hover:underline"
+                      >
+                        配置 →
+                      </button>
+                    </div>
+                    <select
                       value={editTruckingChannel}
                       onChange={(e) => setEditTruckingChannel(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800"
-                    />
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">-- 请选择港口内陆车队 --</option>
+                      {channels
+                        .filter((c) => c.category === 'FCL_TRUCKING')
+                        .map((ch) => (
+                          <option key={ch.id} value={ch.name}>
+                            {ch.name} {ch.code ? `(${ch.code})` : ''} {ch.isDefault ? '⭐ [默认]' : ''}
+                          </option>
+                        ))}
+                      {editTruckingChannel && !channels.some((c) => c.name === editTruckingChannel) && (
+                        <option value={editTruckingChannel}>
+                          {editTruckingChannel} (自定义/历史渠道)
+                        </option>
+                      )}
+                    </select>
                   </div>
                   <div className="sm:col-span-2">
                     <label className="block text-xs font-semibold text-slate-700 mb-1">

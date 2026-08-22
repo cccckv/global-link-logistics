@@ -355,7 +355,16 @@ export class WaybillV2Service {
     status?: WaybillStatus;
     search?: string;
     containerId?: string;
+    containerNo?: string;
     userMark?: string;
+    originWarehouse?: string;
+    destinationCountry?: string;
+    destinationPort?: string;
+    forwarderChannel?: string;
+    customsType?: string;
+    unassignedOnly?: boolean | string;
+    overseasKeyword?: string;
+    dateType?: 'createdAt' | 'inboundDate' | 'loadingDate' | 'sailingDate' | 'eta' | 'signedDate';
     startDate?: string;
     endDate?: string;
     page?: number;
@@ -366,49 +375,141 @@ export class WaybillV2Service {
       status,
       search,
       containerId,
+      containerNo,
       userMark,
+      originWarehouse,
+      destinationCountry,
+      destinationPort,
+      forwarderChannel,
+      customsType,
+      unassignedOnly,
+      overseasKeyword,
+      dateType,
       startDate,
       endDate,
     } = params;
 
-
     const where: any = {};
+    const andConditions: any[] = [];
 
     if (orderType) where.orderType = orderType;
-    if (status) where.status = status;
-    if (containerId) where.containerId = containerId;
-    if (userMark) where.userMark = { contains: userMark, mode: 'insensitive' };
 
-    if (search) {
-      where.OR = [
-        { waybillNo: { contains: search, mode: 'insensitive' } },
-        { expressNo: { contains: search, mode: 'insensitive' } },
-        { userMark: { contains: search, mode: 'insensitive' } },
-        {
-          items: {
-            some: {
-              OR: [
-                { trackingNumber: { contains: search, mode: 'insensitive' } },
-                { productName: { contains: search, mode: 'insensitive' } },
-              ],
-            },
-          },
-        },
-      ];
+    // 待配载/待排柜/待发运筛选: 未挂载集装箱 (containerId is null) 且状态为已入库 INBOUND (若指定了 orderType 则精准限定对应类型)
+    const isUnassigned = unassignedOnly === true || unassignedOnly === 'true';
+    if (isUnassigned) {
+      where.containerId = null;
+      if (status) {
+        where.status = status;
+      } else {
+        where.status = 'INBOUND';
+      }
+    } else {
+      if (status) where.status = status;
+      if (containerId) where.containerId = containerId;
     }
 
+    if (userMark && userMark.trim()) {
+      where.userMark = { contains: userMark.trim(), mode: 'insensitive' };
+    }
+
+    if (originWarehouse && originWarehouse.trim()) {
+      where.originWarehouse = { contains: originWarehouse.trim(), mode: 'insensitive' };
+    }
+
+    if (destinationCountry && destinationCountry.trim()) {
+      where.destinationCountry = { contains: destinationCountry.trim(), mode: 'insensitive' };
+    }
+
+    if (destinationPort && destinationPort.trim()) {
+      where.destinationPort = { contains: destinationPort.trim(), mode: 'insensitive' };
+    }
+
+    if (forwarderChannel && forwarderChannel.trim()) {
+      where.forwarderChannel = { contains: forwarderChannel.trim(), mode: 'insensitive' };
+    }
+
+    if (customsType && customsType.trim()) {
+      where.customsType = { contains: customsType.trim(), mode: 'insensitive' };
+    }
+
+    // 柜号/提单号精确或模糊反查
+    if (containerNo && containerNo.trim()) {
+      const cNo = containerNo.trim();
+      where.containerMaster = {
+        OR: [
+          { containerNo: { contains: cNo, mode: 'insensitive' } },
+          { blNumber: { contains: cNo, mode: 'insensitive' } },
+          { vesselVoyage: { contains: cNo, mode: 'insensitive' } },
+        ],
+      };
+    }
+
+    // 海外收件人/电话/公司模糊搜索
+    if (overseasKeyword && overseasKeyword.trim()) {
+      const okw = overseasKeyword.trim();
+      andConditions.push({
+        OR: [
+          { overseasName: { contains: okw, mode: 'insensitive' } },
+          { overseasPhone: { contains: okw, mode: 'insensitive' } },
+          { overseasCompany: { contains: okw, mode: 'insensitive' } },
+          { overseasAddress: { contains: okw, mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    // 综合模糊搜索
+    if (search && search.trim()) {
+      const s = search.trim();
+      andConditions.push({
+        OR: [
+          { waybillNo: { contains: s, mode: 'insensitive' } },
+          { expressNo: { contains: s, mode: 'insensitive' } },
+          { userMark: { contains: s, mode: 'insensitive' } },
+          { airWaybillNo: { contains: s, mode: 'insensitive' } },
+          { voyageNumber: { contains: s, mode: 'insensitive' } },
+          { destinationCountry: { contains: s, mode: 'insensitive' } },
+          { destinationPort: { contains: s, mode: 'insensitive' } },
+          { forwarderChannel: { contains: s, mode: 'insensitive' } },
+          { overseasName: { contains: s, mode: 'insensitive' } },
+          { overseasPhone: { contains: s, mode: 'insensitive' } },
+          { containerMaster: { containerNo: { contains: s, mode: 'insensitive' } } },
+          { containerMaster: { blNumber: { contains: s, mode: 'insensitive' } } },
+          {
+            items: {
+              some: {
+                OR: [
+                  { trackingNumber: { contains: s, mode: 'insensitive' } },
+                  { productName: { contains: s, mode: 'insensitive' } },
+                ],
+              },
+            },
+          },
+        ],
+      });
+    }
+
+    // 业务时间范围筛选 (支持按录单时间、入库时间、装柜时间、开船时间、ETA、签收时间)
     if (startDate || endDate) {
-      where.createdAt = {};
-      if (startDate) where.createdAt.gte = new Date(startDate);
+      const validDateFields = ['createdAt', 'inboundDate', 'loadingDate', 'sailingDate', 'eta', 'signedDate'];
+      const field = dateType && validDateFields.includes(dateType) ? dateType : 'createdAt';
+      const dateCondition: any = {};
+      if (startDate) {
+        dateCondition.gte = new Date(startDate);
+      }
       if (endDate) {
         const eDate = new Date(endDate);
         eDate.setHours(23, 59, 59, 999);
-        where.createdAt.lte = eDate;
+        dateCondition.lte = eDate;
       }
+      where[field] = dateCondition;
+    }
+
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
     }
 
     const pageNum = Math.max(1, Number(params.page) || 1);
-    const limitNum = Math.max(1, Number(params.limit) || 10);
+    const limitNum = Math.max(1, Number(params.limit) || 20);
     const skip = (pageNum - 1) * limitNum;
 
     const [total, waybills, counts] = await Promise.all([
@@ -524,8 +625,13 @@ export class WaybillV2Service {
         const l = Number(item.length) || 0;
         const w = Number(item.width) || 0;
         const h = Number(item.height) || 0;
-        const payableCbm = (l * w * h * qty) / 1_000_000;
-        const recvCbm = item.receivableVolume ? Number(item.receivableVolume) : payableCbm;
+        const calcCbm = (l * w * h * qty) / 1_000_000;
+        const payableCbm = (item.payableVolume !== undefined && item.payableVolume !== null && String(item.payableVolume).trim() !== '' && Number(item.payableVolume) > 0)
+          ? Number(item.payableVolume)
+          : calcCbm;
+        const recvCbm = (item.receivableVolume !== undefined && item.receivableVolume !== null && String(item.receivableVolume).trim() !== '' && Number(item.receivableVolume) > 0)
+          ? Number(item.receivableVolume)
+          : payableCbm;
         const unitWt = item.unitWeight ? Number(item.unitWeight) : 0;
         const totalWt = unitWt * qty;
 
@@ -539,7 +645,7 @@ export class WaybillV2Service {
         const estW = item.estimatedWidth !== undefined && item.estimatedWidth !== null ? Number(item.estimatedWidth) : (item.width !== undefined && item.width !== null ? Number(item.width) : null);
         const estH = item.estimatedHeight !== undefined && item.estimatedHeight !== null ? Number(item.estimatedHeight) : (item.height !== undefined && item.height !== null ? Number(item.height) : null);
         const estWt = item.estimatedWeight !== undefined && item.estimatedWeight !== null ? Number(item.estimatedWeight) : (item.unitWeight !== undefined && item.unitWeight !== null ? Number(item.unitWeight) : null);
-        const estVol = item.estimatedVolume !== undefined && item.estimatedVolume !== null
+        const estVol = (item.estimatedVolume !== undefined && item.estimatedVolume !== null && String(item.estimatedVolume).trim() !== '' && Number(item.estimatedVolume) > 0)
           ? Number(item.estimatedVolume)
           : (estL && estW && estH ? (estL * estW * estH * estQty) / 1_000_000 : null);
 
@@ -603,7 +709,7 @@ export class WaybillV2Service {
       updateData.profitAmount = financials.profitAmount;
     }
 
-    return prisma.waybill.update({
+    const updated = await prisma.waybill.update({
       where: { id },
       data: updateData,
       include: {
@@ -613,6 +719,39 @@ export class WaybillV2Service {
         containerMaster: true,
       },
     });
+
+    // 🔗 集装箱全部完结自动闭环与自愈引擎 (Auto-Completion & Auto-Healing Engine)
+    if (updated.containerId) {
+      if (updated.status === 'DELIVERED') {
+        // 1. 自动完结检查：检索该货柜名下的所有拼箱运单
+        const containerWaybills = await prisma.waybill.findMany({
+          where: { containerId: updated.containerId },
+          select: { id: true, status: true },
+        });
+        const isAllDelivered =
+          containerWaybills.length > 0 && containerWaybills.every((w) => w.status === 'DELIVERED');
+        if (isAllDelivered) {
+          await prisma.containerMaster.update({
+            where: { id: updated.containerId },
+            data: { status: 'COMPLETED' },
+          });
+        }
+      } else {
+        // 2. 自愈回退检查：若某运单撤销签收或回退阶段（非 DELIVERED），而集装箱当前处于 COMPLETED，自动回退至 DISPATCHING
+        const currentContainer = await prisma.containerMaster.findUnique({
+          where: { id: updated.containerId },
+          select: { status: true },
+        });
+        if (currentContainer?.status === 'COMPLETED') {
+          await prisma.containerMaster.update({
+            where: { id: updated.containerId },
+            data: { status: 'DISPATCHING' },
+          });
+        }
+      }
+    }
+
+    return updated;
   }
 
   async batchAssignContainer(waybillIds: string[], containerId: string, loadingDate?: Date | string) {

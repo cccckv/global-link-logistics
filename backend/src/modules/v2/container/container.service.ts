@@ -183,11 +183,17 @@ export class ContainerV2Service {
       },
     });
 
-    // Auto sync status to waybills if sailing or customs
+    // Auto sync status to waybills with strict status guards
     if (data.status === 'SAILING') {
+      // 推进至在途中: 仅推进处于 LOADED 状态的在柜运单
       await prisma.waybill.updateMany({
         where: { containerId: id, status: 'LOADED' },
         data: { status: 'IN_TRANSIT', sailingDate: updateData.sailingDate || new Date() },
+      });
+      // 若是从 DISPATCHING 回退至 SAILING，清空柜内运单的清关时间
+      await prisma.waybill.updateMany({
+        where: { containerId: id, status: 'DISPATCHING' },
+        data: { status: 'IN_TRANSIT', clearanceDate: null },
       });
     } else if (data.status === 'CUSTOMS') {
       await prisma.waybill.updateMany({
@@ -195,9 +201,16 @@ export class ContainerV2Service {
         data: { status: 'CUSTOMS' },
       });
     } else if (data.status === 'DISPATCHING') {
+      // 推进至目的港拆派: 仅推进处于 IN_TRANSIT 或 CUSTOMS 的在柜运单 (绝不触碰 DRAFT/INBOUND/DELIVERED)
       await prisma.waybill.updateMany({
-        where: { containerId: id },
+        where: { containerId: id, status: { in: ['IN_TRANSIT', 'CUSTOMS'] } },
         data: { status: 'DISPATCHING', clearanceDate: updateData.clearanceDate || new Date() },
+      });
+    } else if (data.status === 'LOADING') {
+      // 货柜回退至装柜中: 柜内处于更高阶段 (在途/清关) 的运单同步回退至 LOADED 并清空开船/清关时间
+      await prisma.waybill.updateMany({
+        where: { containerId: id, status: { in: ['IN_TRANSIT', 'CUSTOMS', 'DISPATCHING'] } },
+        data: { status: 'LOADED', sailingDate: null, clearanceDate: null },
       });
     }
 

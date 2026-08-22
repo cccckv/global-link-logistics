@@ -242,9 +242,16 @@ export const waybillV2Api = {
     status?: WaybillStatus;
     search?: string;
     containerId?: string;
+    containerNo?: string;
     userMark?: string;
-    customsType?: string;
+    originWarehouse?: string;
+    destinationCountry?: string;
+    destinationPort?: string;
     forwarderChannel?: string;
+    customsType?: string;
+    unassignedOnly?: boolean | string;
+    overseasKeyword?: string;
+    dateType?: 'createdAt' | 'inboundDate' | 'loadingDate' | 'sailingDate' | 'eta' | 'signedDate';
     startDate?: string;
     endDate?: string;
     page?: number;

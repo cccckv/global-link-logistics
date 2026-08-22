@@ -66,9 +66,9 @@ sequenceDiagram
 | **国内快递单号 (`trackingNumber`)** | 文本 | 国内送仓快递单号（一票多包裹可分行填写） |
 | **品名 (`productName`)** | 文本 | 中文商品名称 |
 | **数量/件数 (`quantity`)** | 整数 | 包装箱数/件数（默认 1） |
-| **长 / 宽 / 高 (`length`, `width`, `height`)** | 浮点数 | 厘米 ($cm$) |
-| **应付体积 (`payableVolume`)** | **自动计算** | $\text{件数}\times\text{长}\times\text{宽}\times\text{高} / 1,000,000$ (保留4位小数) |
-| **应收体积 (`receivableVolume`)** | 浮点数 | 实际计费体积（默认取应付体积，支持向上微调至两位小数） |
+| **长 / 宽 / 高 (`length`, `width`, `height`)** | 浮点数 | 厘米 ($cm$)，选填（支持与体积双向联动） |
+| **方数/体积 CBM (`payableVolume` / `estimatedVolume`)** | **支持直接手填/自动联动** | **可直接输入总方数（如 0.85 CBM）**；若输入长宽高，则自动计算：$\text{件数}\times\text{长}\times\text{宽}\times\text{高} / 1,000,000$ |
+| **应收体积 (`receivableVolume`)** | 浮点数 | 实际计费体积（默认取体积，支持向上微调至两位小数） |
 | **单重 / 总重 (`unitWeight` / `totalWeight`)** | 浮点数 | 公斤 ($kg$)，选填 |
 | **应收单价 (`receivableUnitPrice`)** | 货币 | 支持 **¥ 人民币** 或 **₱ 比索** (元/CBM) |
 | **应付单价 (`payableUnitPrice`)** | 货币 | 支持 **¥ 人民币** 或 **₱ 比索** (元/CBM) |

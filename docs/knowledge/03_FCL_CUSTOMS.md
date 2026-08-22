@@ -1,4 +1,4 @@
-# 业务模块 03：整柜海运、清关与全流程跟踪 (FCL & Customs)
+# 业务模块 03：海运整柜业务体系与全生命周期规范 (FCL & Customs)
 
 > 参考数据源：
 > - `整柜信息进度表2026.8.13(1).xlsx` -> `清关`
@@ -6,33 +6,60 @@
 
 ---
 
-## 📌 1. 业务概念与场景
+## 📌 1. 业务概念与全生命周期闭环
 
-整柜业务是国际海运的核心骨干，涵盖两种业务形态：
-1. **客户单独整包整柜（SEA_FCL）**：大客户（如 `WH-77777`）独占一整个货柜（20GP / 40HQ）；
-2. **自营散货拼箱出海（SEA_LCL）**：将数十票散货运单（Waybills）配载装入同一个物理集装箱（ContainerMaster）出海。
+海运整柜（SEA_FCL）是外贸大宗物流的骨干业务（如大客户 `WH-77777` 独占一整个货柜 20GP / 40HQ / 45HQ）。
+**整柜业务核心特性与红线**：
+1. **纯门到港/门到门（不入国内集拼仓）**：货代订舱提空箱 ➔ 拖车开至厂家工厂装货（产地装箱） ➔ 司机锁封条后直接将重柜送达码头集港（Gate-in）报关 ➔ 装船开航；
+2. **起运点必须是【国内起运港口】**（如厦门港、广州南沙港、深圳蛇口港、宁波港等），**严禁使用国内始发仓**；
+3. **阶段 2（产地装箱）已知柜号**：司机去堆场提空箱前往工厂装货时，集装箱号（`containerNo`）已确定，在阶段 2 直接绑定并录入。
 
-整柜跟踪贯穿 **国内装柜 ➔ 订舱装船 ➔ 海运干线 ➔ 目的港清关 ➔ 提柜拆箱派送** 全生命周期。
+### 🚀 海运整柜 6 大生命阶段标准定义
+
+```mermaid
+graph LR
+    S1["1. 订舱委托\n(DRAFT)"] -->|派车到厂装箱| S2["2. 产地装箱\n(INBOUND)\n直接录入柜号/件数"]
+    S2 -->|拖车送码头| S3["3. 进港报关\n(LOADED)\n重柜集港与海关报关"]
+    S3 -->|船舶离港| S4["4. 干线航运\n(IN_TRANSIT/SAILING)\n提单与订舱海运费"]
+    S4 -->|到港清关| S5["5. 目的港清关\n(CUSTOMS/DISPATCHING)\n税单/THC/码头提柜"]
+    S5 -->|工厂收货| S6["6. 送达签收\n(DELIVERED/COMPLETED)\n收货人签收，还空箱"]
+
+    style S1 fill:#eff6ff,stroke:#3b82f6,color:#1e3a8a
+    style S2 fill:#fefce8,stroke:#eab308,color:#713f12
+    style S3 fill:#f0fdf4,stroke:#22c55e,color:#14532d
+    style S4 fill:#fdf4ff,stroke:#c084fc,color:#581c87
+    style S5 fill:#fff7ed,stroke:#f97316,color:#7c2d12
+    style S6 fill:#ecfdf5,stroke:#10b981,color:#064e3b
+```
+
+| 阶段序号与名称 | 状态代码 (`Waybill.status`) | 核心作业内容 | 核心字段映射与必填规范 |
+| :--- | :--- | :--- | :--- |
+| **1. 订舱委托** | `DRAFT` | 客户下整柜委托，确定箱型与整柜报价 | 客户唛头 (`userMark`)、**国内起运港口 (`originPort`)** ➔ 目的港口、箱型规格 (`20GP/40HQ`)、整柜包干报价 (`CLIENT_QUOTATION`) |
+| **2. 产地装箱** | `INBOUND` | 拖车到工厂装箱落封，**直录柜号** | 装箱日期 (`loadingDate`)、**集装箱柜号 (`containerNo`，直接录入绑定)**、封条号、品名、总装箱件数、预估总重量/毛重 |
+| **3. 进港报关** | `LOADED` | 拖车将重柜送达码头堆场并报关 | 码头进港还重日期、国内海关报关状态、国内拖车费 (`TRUCKING_FEE`) 与报关费 (`CUSTOMS_FEE`) |
+| **4. 干线航运** | `IN_TRANSIT` | 班轮起运离港，提单签发与船期跟踪 | **海运提单号 (`blNumber`)**、承运船司/船名航次 (`vesselVoyage`)、ETD/ETA、海运纯订舱费 (`BOOKING_FEE`) |
+| **5. 目的港清关** | `DISPATCHING` | 船舶到港，海外清关并从码头提柜送货 | 清关放行日期 (`clearanceDate`)、总航运天数、海关税单 (`CUSTOMS_SLIP`)、THC/超堆费 (`THC_OVERSTAY_FEE`)、送柜拖车费 |
+| **6. 送达签收** | `DELIVERED` | 海外收件人拆箱收货签字，还空箱完结 | **客户签收日期 (`signedDate`)**、**签收单回执照片 (`SIGN_IMAGE`)**、锁定整柜净毛利 |
 
 ---
 
-## 📋 2. 核心数据字段与数据库模型映射
+## 📋 2. 核心数据字段与数据库模型映射 (方案 A：零迁移规范)
 
 ### 2.1 集装箱主表 (`ContainerMaster`)
 | 业务字段名称 | 真实 Excel 示例 | 数据库表与字段 (`schema.prisma`) | 字段类型 / 说明 |
 | :--- | :--- | :--- | :--- |
-| **集装箱柜号** | `MILU6019768`, `FFAU7478798` | `ContainerMaster.containerNo` | `String @unique`（4位前缀+7位数字标准箱号） |
+| **集装箱柜号** | `MILU6019768`, `FFAU7478798` | `ContainerMaster.containerNo` | `String @unique`（4位前缀+7位数字标准箱号，**阶段2直接录入**） |
 | **箱型规格** | `40HQ`, `20GP` | `ContainerMaster.containerType` | `String?` |
-| **海运提单号 (B/L No)** | `MCLPXMN082208`, `SNLGXGPL408017` | `ContainerMaster.blNumber` | `String?`（**全系统唯一海运提单号字段**） |
+| **海运提单号 (B/L No)** | `MCLPXMN082208`, `SNLGXGPL408017` | `ContainerMaster.blNumber` | `String?`（**全系统唯一海运提单号字段**，阶段4出具） |
 | **承运船司 (Carrier)** | `中远海运(COSCO)`, `万海(WHL)` | `ContainerMaster.carrier` | `String?` |
 | **船名 / 航次** | `WAN HAI 312 V.S012` | `ContainerMaster.vesselVoyage` | `String?` |
 | **船舶 MMSI / IMO** | `413999999 / 9329000` | `ContainerMaster.mmsi / imo` | `String?`（对接 AIS 船讯网实时船舶定位） |
-| **出口港口 (Origin)** | `厦门港`, `天津港`, `广州南沙` | `ContainerMaster.originPort` | `String?` |
-| **清关港口 (Destination)**| `南港(Manila South)`, `北港`, `巴生北` | `ContainerMaster.destinationPort` | `String?` |
-| **装柜时间** | `2026-01-02` | `ContainerMaster.loadingDate` | `DateTime?` |
-| **开船时间 (ETD)** | `2026-01-05` | `ContainerMaster.sailingDate` | `DateTime?`（实际开船离港日期） |
+| **国内起运港口** | `厦门港`, `天津港`, `广州南沙港` | `ContainerMaster.originPort` | `String?`（**整柜起运点，严禁使用始发仓**） |
+| **清关目的港口**| `马尼拉南港`, `马尼拉北港`, `巴生北港` | `ContainerMaster.destinationPort` | `String?` |
+| **装箱日期** | `2026-01-02` | `ContainerMaster.loadingDate` | `DateTime?`（工厂产地装箱时间，阶段2） |
+| **开船时间 (ETD)** | `2026-01-05` | `ContainerMaster.sailingDate` | `DateTime?`（实际开船离港日期，阶段4） |
 | **预计到港 (ETA)** | `2026-01-20` | `ContainerMaster.eta` | `DateTime?` |
-| **清关送达时间** | `2026-01-21` | `ContainerMaster.clearanceDate` | `DateTime?`（通关并送达海外仓时间） |
+| **清关送达时间** | `2026-01-21` | `ContainerMaster.clearanceDate` | `DateTime?`（通关并提柜送达时间，阶段5） |
 | **总计航运天数** | `16`, `28`, `36` | `ContainerMaster.totalShippingDays`| `Int?`（系统公式：`clearanceDate - loadingDate`） |
 | **查验状态 (异常)** | `TIIU5779829 查验柜`, `正常放行` | `ContainerMaster.inspectStatus` | `String?`（海关扣审查验状态） |
 | **当前物流状态** | `SAILING`, `CUSTOMS` | `ContainerMaster.status` | `ContainerStatus` 枚举 |
@@ -78,12 +105,28 @@
 - **全量主数据可维护**：支持修改集装箱主表的全部维度属性（包括集装箱柜号 `containerNo`、柜型规格 `containerType`、装柜日期 `loadingDate`、起运/目的港口、海运提单号 `blNumber`、承运船司 `carrier`、船名航次 `vesselVoyage`、ETD/ETA/清关日期、订舱/报关/清关/拖车渠道以及备注 `note`）；
 - **柜号防重校验**：修改柜号时，后端必须实施唯一性冲突校验（Prisma `P2002`），并友好提示防重。
 
-### 3.3 集装箱整柜流转与完结校验准则
-- **全部完结强校验**：只有在集装箱名下装载的**所有拼箱运单状态均为「已签收完结」(DELIVERED)** 时，方允许将货柜状态标记为 **「全部完结」(COMPLETED)**；
-- **双重拦截与精准提示**：若柜内仍有未签收运单，前后端必须实施双重拦截，并精准列出未签收运单号及票数，禁止直接完结货柜。
+### 3.3 集装箱整柜流转与完结校验准则 (Auto-Completion & Safe Validation)
+- **全部完结强校验**：只有在集装箱名下装载的**所有拼箱运单状态均为「已签收完结」(DELIVERED)** 时，方允许将货柜状态标记为 **「全部完结」(COMPLETED)**；若柜内仍有未签收运单，前后端必须实施双重拦截，并精准列出未签收运单号及票数；
+- **最后一笔签收自动完结 (Auto-Completion)**：当柜内最后一笔散货运单完成签收（状态变更为 `DELIVERED`）时，后端检测到柜内所有散货均已 100% 签收，**自动触发将集装箱主表状态更新为 `COMPLETED`（全部完结）**，无需调度人员重复手动修改；
+- **异常撤销与阶段回退自愈 (Auto-Healing Rollback)**：若某票已完结运单被撤销签收或回退阶段（状态变为非 `DELIVERED`），后端检测到集装箱处于 `COMPLETED` 时，**自动将集装箱状态回退至 `DISPATCHING` (海外拆派中)**，确保货柜状态时刻与末端真实签收进度保持一致。
 
 ### 3.4 集装箱安全删除与散货解绑回退机制
 - **二次防误触确认**：删除集装箱货柜时，前端必须实施二次防误触确认（若柜内有装载散货，高亮提示散货解绑去向）；
 - **散货保护与状态回退**：后端在删除 `ContainerMaster` 时，必须安全自动解绑（`containerId: null`）名下装载的全部拼箱散货运单，并将运单状态重置回 `INBOUND`（已入库待装柜），严禁破坏散货实测数据；
 - **整柜费用与附件级联清理**：整柜专属成本费用（`ContainerFee`）与附件凭据（`ContainerAttachment`）实行级联安全清理。
+
+---
+
+## 💡 4. 海运整柜专属交互与数据规范
+
+1. **体积 (CBM) 直接手填支持**：
+   - 预报与装箱阶段均支持直接输入总方数（如 `28.5 CBM`），无需强行测量或倒推长宽高；
+2. **阶段 2 内嵌快捷新建集装箱**：
+   - 产地装箱弹窗中内嵌【➕ 快速新建集装箱】小弹窗，录入柜号、箱型（40HQ/20GP）、起运港、目的港与提单号后保存，自动刷新下拉列表并直接高亮选中新柜号；
+3. **阶段 2 产地实际装箱清单 (Actual Packing List)**：
+   - 整柜模式下，阶段 2 清单录入品名、**实际装箱件数**、**实际装箱总方数 (CBM)**、**实际总毛重/VGM (kg)**；
+   - 隐藏散货拼箱专属的小件单价与车费列；
+4. **主界面“整柜装箱明细与双轨数据对比”专属卡片**：
+   - 整柜模式下，双轨数据对比卡片彻底去仓库化、去快递号化，直观呈现【阶段 1 客户委托预报】vs【阶段 2 产地实际装箱】的件数、方数与重量偏差，以及 1:1 绑定的集装箱柜号与箱型。
+
 

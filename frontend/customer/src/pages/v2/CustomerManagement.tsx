@@ -42,9 +42,9 @@ export default function CustomerManagement() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [company, setCompany] = useState('');
-  const [destinationCountry, setDestinationCountry] = useState('菲律宾');
-  const [destinationPort, setDestinationPort] = useState('马尼拉南港');
-  const [defaultWarehouse, setDefaultWarehouse] = useState('广州仓');
+  const [destinationCountry, setDestinationCountry] = useState('');
+  const [destinationPort, setDestinationPort] = useState('');
+  const [defaultWarehouse, setDefaultWarehouse] = useState('');
   const [note, setNote] = useState('');
 
   // Initial address when creating customer
@@ -104,9 +104,9 @@ export default function CustomerManagement() {
     setName('');
     setPhone('');
     setCompany('');
-    setDestinationCountry('菲律宾');
-    setDestinationPort('马尼拉南港');
-    setDefaultWarehouse('广州仓');
+    setDestinationCountry('');
+    setDestinationPort('');
+    setDefaultWarehouse('');
     setNote('');
     setInitAddrName('');
     setInitAddrPhone('');
@@ -122,9 +122,9 @@ export default function CustomerManagement() {
     setName(c.name);
     setPhone(c.phone || '');
     setCompany(c.company || '');
-    setDestinationCountry(c.destinationCountry || '菲律宾');
-    setDestinationPort(c.destinationPort || '马尼拉南港');
-    setDefaultWarehouse(c.defaultWarehouse || '广州仓');
+    setDestinationCountry(c.destinationCountry || '');
+    setDestinationPort(c.destinationPort || '');
+    setDefaultWarehouse(c.defaultWarehouse || '');
     setNote(c.note || '');
     setShowCustomerModal(true);
   };
@@ -207,8 +207,8 @@ export default function CustomerManagement() {
     setModalAddrName('');
     setModalAddrPhone('');
     setModalAddrCompany('');
-    setModalAddrCountry(c.destinationCountry || '菲律宾');
-    setModalAddrRegion(c.destinationPort || '马尼拉南港');
+    setModalAddrCountry(c.destinationCountry || '');
+    setModalAddrRegion(c.destinationPort || '');
     setModalAddrDetail('');
     setModalAddrIsDefault((c.addresses?.length || 0) === 0);
     setShowAddressModal(true);
@@ -222,8 +222,8 @@ export default function CustomerManagement() {
     setModalAddrName(addr.name);
     setModalAddrPhone(addr.phone);
     setModalAddrCompany(addr.company || '');
-    setModalAddrCountry(addr.country || c.destinationCountry || '菲律宾');
-    setModalAddrRegion(addr.region || c.destinationPort || '马尼拉南港');
+    setModalAddrCountry(addr.country || c.destinationCountry || '');
+    setModalAddrRegion(addr.region || c.destinationPort || '');
     setModalAddrDetail(addr.address);
     setModalAddrIsDefault(addr.isDefault);
     setShowAddressModal(true);
@@ -439,7 +439,7 @@ export default function CustomerManagement() {
                     <div className="flex justify-between">
                       <span className="text-slate-400">常用路线:</span>
                       <span className="font-semibold text-slate-800">
-                        {c.defaultWarehouse || '广州仓'} ➔ {c.destinationCountry || '菲律宾'} ({c.destinationPort || '马尼拉南港'})
+                        {c.defaultWarehouse || '起运仓未定'} ➔ {c.destinationCountry || '目的国未定'} ({c.destinationPort || '港口未定'})
                       </span>
                     </div>
                     {c.phone && (
@@ -670,6 +670,7 @@ export default function CustomerManagement() {
                     onChange={(e) => setDefaultWarehouse(e.target.value)}
                     className="w-full px-2 py-2 bg-slate-50 border border-slate-300 rounded-lg font-medium"
                   >
+                    <option value="">-- 请选择起运仓 --</option>
                     {ORIGIN_WAREHOUSES.map((w) => (
                       <option key={w.value} value={w.value}>
                         {w.label}
@@ -685,10 +686,11 @@ export default function CustomerManagement() {
                     onChange={(e) => {
                       const c = e.target.value;
                       setDestinationCountry(c);
-                      setDestinationPort(getDefaultPortByCountry(c));
+                      setDestinationPort(c ? getDefaultPortByCountry(c) : '');
                     }}
                     className="w-full px-2 py-2 bg-slate-50 border border-slate-300 rounded-lg font-medium"
                   >
+                    <option value="">-- 请选择目的国 --</option>
                     {DESTINATION_COUNTRIES.map((c) => (
                       <option key={c.name} value={c.name}>
                         {c.name}
@@ -704,6 +706,7 @@ export default function CustomerManagement() {
                     onChange={(e) => setDestinationPort(e.target.value)}
                     className="w-full px-2 py-2 bg-slate-50 border border-slate-300 rounded-lg font-medium"
                   >
+                    <option value="">-- 请选择目的港 --</option>
                     {getPortsByCountry(destinationCountry).map((port) => (
                       <option key={port} value={port}>
                         {port}

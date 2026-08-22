@@ -14,5 +14,6 @@
 ### 3. 工程与后端红线规范 (Engineering Standards)
 - **Prisma 分页与数值强转**：从 URL Query 接收的 `page` 和 `limit` 必须显式强制转换为整型（如 `Math.max(1, Number(query.limit) || 10)`），严禁将字符串直接传给 Prisma 的 `take` / `skip`；
 - **前端除零容错保护**：核算体积/重量偏差比时，必须做好除零保护（如 `estVol > 0.00001`），严禁渲染 `undefined%` 或 `Infinity%`；
-- **Git 分支管理准则**：严禁擅自合并至 `main` 主分支，所有重构和新特性必须保留在指定功能/重构分支（如 `refactor`）。
+- **Git 分支管理准则**：严禁擅自合并至 `main` 主分支，所有重构和新特性必须保留在指定功能/重构分支（如 `refactor`）；
+- **服务重启与数据库保护红线 (Database Protection Standard)**：当收到“重启服务”、“重新启动”指令时，**绝对严禁终止或重启 PostgreSQL 数据库常驻进程（`start-embedded-pg.js`）**。只能重启 Fastify 后端业务进程（`src/app.ts`）和 Vite 前端进程（`npm run dev`），严禁强杀数据库导致 WAL 缓冲区数据在异常恢复中丢失。
 

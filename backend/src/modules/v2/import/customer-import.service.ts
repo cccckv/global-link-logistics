@@ -1,5 +1,7 @@
 import ExcelJS from 'exceljs';
 import { PrismaClient, AddressType } from '@prisma/client';
+import { DictionaryValidator } from './dictionary-validator.service';
+import { OFFICIAL_CUSTOMER_COLUMNS } from './template-generator.service';
 
 const prisma = new PrismaClient();
 
@@ -174,17 +176,96 @@ export class CustomerImportService {
           name: consigneeName || targetGroup.name || clientCode,
           phone: consigneePhone || targetGroup.phone || '000000',
           company: consigneeCompany,
-          country: destinationCountry || targetGroup.destinationCountry || '菲律宾',
-          region: destinationPort || targetGroup.destinationPort || '马尼拉南港',
+          country: destinationCountry || targetGroup.destinationCountry || undefined,
+          region: destinationPort || targetGroup.destinationPort || undefined,
           address: consigneeAddress || '自提',
           isDefault,
         });
       }
     });
 
+    const dictValidator = new DictionaryValidator();
+    await dictValidator.loadMasterData();
+
     // 3. 逐个客户执行入库
     for (const group of groupedMap.values()) {
       try {
+        // 字典严格校验与精准对齐
+        if (group.defaultWarehouse) {
+          const whRes = await dictValidator.validateOriginWarehouse(group.defaultWarehouse);
+          if (!whRes.valid) {
+            errors.push({
+              row: group.firstRowNumber,
+              userMark: group.clientCode,
+              reason: whRes.errorMessage!,
+            });
+            continue;
+          }
+          group.defaultWarehouse = whRes.standardValue;
+        }
+
+        if (group.destinationCountry) {
+          const countryRes = dictValidator.validateDestinationCountry(group.destinationCountry);
+          if (!countryRes.valid) {
+            errors.push({
+              row: group.firstRowNumber,
+              userMark: group.clientCode,
+              reason: countryRes.errorMessage!,
+            });
+            continue;
+          }
+          group.destinationCountry = countryRes.standardValue;
+        }
+
+        if (group.destinationPort) {
+          const portRes = dictValidator.validateDestinationPort(group.destinationCountry, group.destinationPort);
+          if (!portRes.valid) {
+            errors.push({
+              row: group.firstRowNumber,
+              userMark: group.clientCode,
+              reason: portRes.errorMessage!,
+            });
+            continue;
+          }
+          group.destinationPort = portRes.standardValue;
+        }
+
+        // 校验各海外收件人的国家与港口
+        let hasConsigneeError = false;
+        for (const addr of group.addresses) {
+          if (addr.country) {
+            const cRes = dictValidator.validateDestinationCountry(addr.country);
+            if (!cRes.valid) {
+              errors.push({
+                row: group.firstRowNumber,
+                userMark: group.clientCode,
+                reason: cRes.errorMessage!,
+              });
+              hasConsigneeError = true;
+              break;
+            }
+            addr.country = cRes.standardValue;
+          }
+
+          if (addr.region) {
+            const pRes = dictValidator.validateDestinationPort(addr.country, addr.region);
+            if (!pRes.valid) {
+              errors.push({
+                row: group.firstRowNumber,
+                userMark: group.clientCode,
+                reason: pRes.errorMessage!,
+              });
+              hasConsigneeError = true;
+              break;
+            }
+            addr.region = pRes.standardValue;
+          }
+        }
+
+        if (hasConsigneeError) {
+          continue;
+        }
+
         // 修正默认收件人：若无任何一行显式设为默认，则第 1 个地址自动作为默认
         if (group.addresses.length > 0) {
           const hasExplicitDefault = group.addresses.some((a) => a.isDefault);
@@ -346,42 +427,34 @@ export class CustomerImportService {
   }
 
   /**
-   * 智能识别表头各列
+   * 表头列 1:1 官方模板表头精准匹配 (1:1 Exact Official Header Mapping)
    */
   private mapHeaderColumns(headerRow: ExcelJS.Row): Record<string, number> {
     const map: Record<string, number> = {};
 
-    headerRow.eachCell((cell, colNumber) => {
-      const text = String(cell.value || '').trim();
+    // 构建 1:1 精准查找映射
+    const headerToKeyMap = new Map<string, string>();
+    for (const col of OFFICIAL_CUSTOMER_COLUMNS) {
+      headerToKeyMap.set(col.header.trim(), col.key);
+      headerToKeyMap.set(col.header.replace(/\s+/g, ''), col.key);
+      const noBracket = col.header.replace(/[\(（].*?[\)）]/g, '').trim();
+      headerToKeyMap.set(noBracket, col.key);
+    }
 
-      if (text.includes('唛头') || text.includes('编码') || text.includes('客户代码')) {
-        map.clientCode = colNumber;
-      } else if (text.includes('是否默认') || text.includes('默认收件') || text.includes('默认')) {
-        map.isDefault = colNumber;
-      } else if (text.includes('海外') || text.includes('收件') || text.includes('收货')) {
-        if (text.includes('电话') || text.includes('WhatsApp') || text.includes('手机')) {
-          map.consigneePhone = colNumber;
-        } else if (text.includes('公司')) {
-          map.consigneeCompany = colNumber;
-        } else if (text.includes('地址') || text.includes('派送') || text.includes('门牌')) {
-          map.consigneeAddress = colNumber;
-        } else if (text.includes('人') || text.includes('姓名') || text.includes('联系')) {
-          map.consigneeName = colNumber;
-        }
-      } else if (text.includes('客户姓名') || text.includes('企业名') || text.includes('客户名称') || text.includes('姓名')) {
-        map.name = colNumber;
-      } else if (text.includes('客户联系电话') || text.includes('客户电话') || text.includes('联系电话') || text.includes('电话') || text.includes('手机')) {
-        map.phone = colNumber;
-      } else if (text.includes('邮箱') || text.includes('mail')) {
-        map.email = colNumber;
-      } else if (text.includes('起运仓') || text.includes('仓库')) {
-        map.defaultWarehouse = colNumber;
-      } else if (text.includes('目的国') || text.includes('国家')) {
-        map.destinationCountry = colNumber;
-      } else if (text.includes('目的港') || text.includes('港口') || text.includes('地区')) {
-        map.destinationPort = colNumber;
-      } else if (text.includes('备注')) {
-        map.note = colNumber;
+    headerRow.eachCell((cell, colNumber) => {
+      const rawText = String(cell.value || '').trim();
+      if (!rawText) return;
+
+      const rawNoSpace = rawText.replace(/\s+/g, '');
+      const rawNoBracket = rawText.replace(/[\(（].*?[\)）]/g, '').trim();
+
+      const matchedKey =
+        headerToKeyMap.get(rawText) ||
+        headerToKeyMap.get(rawNoSpace) ||
+        headerToKeyMap.get(rawNoBracket);
+
+      if (matchedKey) {
+        map[matchedKey] = colNumber;
       }
     });
 

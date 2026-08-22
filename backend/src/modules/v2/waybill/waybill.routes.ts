@@ -12,7 +12,16 @@ export async function waybillV2Routes(fastify: FastifyInstance) {
       status?: WaybillStatus;
       search?: string;
       containerId?: string;
+      containerNo?: string;
       userMark?: string;
+      originWarehouse?: string;
+      destinationCountry?: string;
+      destinationPort?: string;
+      forwarderChannel?: string;
+      customsType?: string;
+      unassignedOnly?: boolean | string;
+      overseasKeyword?: string;
+      dateType?: 'createdAt' | 'inboundDate' | 'loadingDate' | 'sailingDate' | 'eta' | 'signedDate';
       startDate?: string;
       endDate?: string;
       page?: number;

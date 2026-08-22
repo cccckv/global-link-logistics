@@ -19,6 +19,7 @@ import {
   Check,
   FileSpreadsheet,
   Users,
+  X,
 } from 'lucide-react';
 import { BatchImportModal } from '../../components/v2/BatchImportModal';
 import {
@@ -39,6 +40,7 @@ import {
   getPortsByCountry,
   getDefaultPortByCountry,
   ORIGIN_WAREHOUSES,
+  ORIGIN_PORTS,
 } from '../../lib/logistics-dictionary';
 
 interface CargoItemRow {
@@ -49,6 +51,7 @@ interface CargoItemRow {
   length?: number | '';
   width?: number | '';
   height?: number | '';
+  volume?: number | '';
   unitWeight?: number | '';
   receivableCurrency: CurrencyType;
   receivableUnitPrice?: number | '';
@@ -200,8 +203,23 @@ export default function InboundWorkbench() {
     });
   }, []);
 
-  // Dynamically load channels matching current orderType (SEA_LCL / AIR / SEA_FCL)
+  // Dynamically load channels and sync origin location matching current orderType (SEA_LCL / AIR / SEA_FCL)
   useEffect(() => {
+    if (orderType === 'SEA_FCL') {
+      if (!ORIGIN_PORTS.includes(originWarehouse)) {
+        setOriginWarehouse(ORIGIN_PORTS[0] || '广州南沙港');
+      }
+    } else {
+      if (ORIGIN_PORTS.includes(originWarehouse) || !originWarehouse) {
+        const defaultWh = originWarehouses.find((w) => w.isDefault);
+        if (defaultWh) {
+          setOriginWarehouse(defaultWh.shortName || defaultWh.name);
+        } else if (originWarehouses.length > 0) {
+          setOriginWarehouse(originWarehouses[0].shortName || originWarehouses[0].name);
+        }
+      }
+    }
+
     const targetCategory =
       orderType === 'AIR'
         ? 'AIR'
@@ -222,7 +240,7 @@ export default function InboundWorkbench() {
         }
       }
     });
-  }, [orderType]);
+  }, [orderType, originWarehouses]);
 
 
   const applyConsignee = (addr?: Partial<CustomerAddress> | null) => {
@@ -246,10 +264,13 @@ export default function InboundWorkbench() {
     if (!selectedCustomer?.addresses || selectedCustomer.addresses.length === 0) return [];
     return selectedCustomer.addresses.filter((addr) => {
       const matchCountry = !destinationCountry || !addr.country || addr.country === destinationCountry;
+      if (orderType === 'AIR') {
+        return matchCountry;
+      }
       const matchPort = !destinationPort || !addr.region || addr.region === destinationPort;
       return matchCountry && matchPort;
     });
-  }, [selectedCustomer, destinationCountry, destinationPort]);
+  }, [selectedCustomer, destinationCountry, destinationPort, orderType]);
 
   // Handle Mark Select / Input
   const handleMarkChange = (val: string) => {
@@ -260,14 +281,15 @@ export default function InboundWorkbench() {
     if (matched) {
       setSelectedCustomer(matched);
       if (matched.defaultWarehouse) setOriginWarehouse(matched.defaultWarehouse);
-      const targetCountry = matched.destinationCountry || destinationCountry || '菲律宾';
-      const targetPort = matched.destinationPort || destinationPort || '马尼拉南港';
+      const targetCountry = matched.destinationCountry || destinationCountry || '';
+      const targetPort = orderType === 'AIR' ? '' : (matched.destinationPort || destinationPort || '');
       setDestinationCountry(targetCountry);
       setDestinationPort(targetPort);
 
       // Auto-fill matching overseas address
       const matchingAddrs = (matched.addresses || []).filter((a) => {
         const mC = !targetCountry || !a.country || a.country === targetCountry;
+        if (orderType === 'AIR') return mC;
         const mP = !targetPort || !a.region || a.region === targetPort;
         return mC && mP;
       });
@@ -283,22 +305,35 @@ export default function InboundWorkbench() {
     }
   };
 
+  // Clear Mark input and reset customer auto-fill
+  const handleClearMark = () => {
+    setUserMark('');
+    setSelectedCustomer(null);
+    setSelectedConsigneeId('');
+    setOverseasName('');
+    setOverseasPhone('');
+    setOverseasCompany('');
+    setOverseasAddress('');
+  };
+
   // Handle Country Change with dynamic consignee cascade
   const handleCountryChange = (country: string) => {
     setDestinationCountry(country);
-    const defaultPort = getDefaultPortByCountry(country);
+    const defaultPort = orderType === 'AIR' ? '' : getDefaultPortByCountry(country);
     setDestinationPort(defaultPort);
 
     if (selectedCustomer?.addresses) {
       const matching = selectedCustomer.addresses.filter((a) => {
         const mC = !country || !a.country || a.country === country;
+        if (orderType === 'AIR') return mC;
         const mP = !defaultPort || !a.region || a.region === defaultPort;
         return mC && mP;
       });
       const targetAddr = matching.find((a) => a.isDefault) || matching[0];
       applyConsignee(targetAddr);
       if (targetAddr) {
-        toast.info(`已按【${country}·${defaultPort}】自动匹配收件人【${targetAddr.name}】`);
+        const routeHint = orderType === 'AIR' ? country : `${country}·${defaultPort}`;
+        toast.info(`已按【${routeHint}】自动匹配收件人【${targetAddr.name}】`);
       }
     }
   };
@@ -344,7 +379,20 @@ export default function InboundWorkbench() {
 
   const updateItem = (id: string, field: keyof CargoItemRow, value: any) => {
     setItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        const updated = { ...item, [field]: value };
+        if (['length', 'width', 'height', 'quantity'].includes(field)) {
+          const qty = Number(field === 'quantity' ? value : updated.quantity) || 1;
+          const l = Number(field === 'length' ? value : updated.length) || 0;
+          const w = Number(field === 'width' ? value : updated.width) || 0;
+          const h = Number(field === 'height' ? value : updated.height) || 0;
+          if (l && w && h) {
+            updated.volume = Number(((l * w * h * qty) / 1_000_000).toFixed(4));
+          }
+        }
+        return updated;
+      })
     );
   };
 
@@ -375,6 +423,9 @@ export default function InboundWorkbench() {
   // Calculations
   const totalPieces = items.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0);
   const totalVolumeCbm = items.reduce((sum, i) => {
+    if (i.volume !== undefined && i.volume !== null && i.volume !== '') {
+      return sum + Number(i.volume);
+    }
     const qty = Number(i.quantity) || 0;
     const l = Number(i.length) || 0;
     const w = Number(i.width) || 0;
@@ -433,6 +484,22 @@ export default function InboundWorkbench() {
       toast.error('请确保每行货物都填写了品名');
       return;
     }
+    if (orderType === 'SEA_FCL' && (!fclQuotation || fclQuotation <= 0)) {
+      toast.error('海运整柜订单必须填写「整柜协议总报价」');
+      return;
+    }
+    if (!overseasName.trim()) {
+      toast.error('请填写海外收件联系人姓名 (必填)');
+      return;
+    }
+    if (!overseasPhone.trim()) {
+      toast.error('请填写海外收件人联系电话 (必填)');
+      return;
+    }
+    if (!overseasAddress.trim()) {
+      toast.error('请填写海外目的港详细派送地址 (必填)');
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -442,7 +509,7 @@ export default function InboundWorkbench() {
         userMark: userMark.trim(),
         originWarehouse,
         destinationCountry,
-        destinationPort,
+        destinationPort: orderType === 'AIR' ? undefined : (destinationPort?.trim() || undefined),
         forwarderChannel: forwarderChannel.trim() || undefined,
         expressNo: expressNo.trim() || undefined,
 
@@ -461,7 +528,8 @@ export default function InboundWorkbench() {
           const l = item.length ? Number(item.length) : undefined;
           const w = item.width ? Number(item.width) : undefined;
           const h = item.height ? Number(item.height) : undefined;
-          const estVol = l && w && h ? (l * w * h * qty) / 1_000_000 : undefined;
+          const directVol = item.volume !== undefined && item.volume !== null && item.volume !== '' ? Number(item.volume) : undefined;
+          const estVol = directVol !== undefined ? directVol : (l && w && h ? (l * w * h * qty) / 1_000_000 : undefined);
           return {
             trackingNumber: item.trackingNumber.trim() || undefined,
             productName: item.productName.trim(),
@@ -609,7 +677,7 @@ export default function InboundWorkbench() {
               <label className="block text-xs font-semibold text-slate-700">
                 客户编码 / 唛头 <span className="text-red-500">*</span>
               </label>
-              <div className="relative">
+              <div className="relative flex items-center">
                 <input
                   type="text"
                   list="customer-marks"
@@ -617,8 +685,18 @@ export default function InboundWorkbench() {
                   value={userMark}
                   onChange={(e) => handleMarkChange(e.target.value)}
                   required
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-semibold text-blue-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-3.5 pr-8 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-semibold text-blue-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+                {userMark && (
+                  <button
+                    type="button"
+                    onClick={handleClearMark}
+                    className="absolute right-2.5 p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-full transition-colors"
+                    title="清空唛头"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
                 <datalist id="customer-marks">
                   {customers.map((c) => (
                     <option key={c.id} value={c.clientCode}>
@@ -639,47 +717,64 @@ export default function InboundWorkbench() {
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-semibold text-slate-700">
-                  起运仓 / 集货点
+                  {orderType === 'SEA_FCL' ? '国内起运港口' : '起运仓 / 集货点'} <span className="text-red-500">*</span>
                 </label>
-                <button
-                  type="button"
-                  onClick={() => navigate('/v2/warehouses')}
-                  className="text-[11px] text-blue-600 hover:text-blue-700 hover:underline font-semibold"
-                >
-                  管理起运仓 →
-                </button>
-              </div>
-              <select
-                value={originWarehouse}
-                onChange={(e) => setOriginWarehouse(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">-- 请选择起运仓 --</option>
-                {originWarehouses.length > 0 ? (
-                  originWarehouses.map((w) => (
-                    <option key={w.id} value={w.shortName || w.name}>
-                      {w.name} {w.isDefault ? '⭐ [默认]' : ''}
-                    </option>
-                  ))
-                ) : (
-                  ORIGIN_WAREHOUSES.map((w) => (
-                    <option key={w.value} value={w.value}>
-                      {w.label}
-                    </option>
-                  ))
+                {orderType !== 'SEA_FCL' && (
+                  <button
+                    type="button"
+                    onClick={() => navigate('/v2/warehouses')}
+                    className="text-[11px] text-blue-600 hover:text-blue-700 hover:underline font-semibold"
+                  >
+                    管理起运仓 →
+                  </button>
                 )}
-                {originWarehouse &&
-                  !originWarehouses.some((w) => w.shortName === originWarehouse || w.name === originWarehouse) &&
-                  !ORIGIN_WAREHOUSES.some((w) => w.value === originWarehouse) && (
-                    <option value={originWarehouse}>{originWarehouse} (自定义起运点)</option>
+              </div>
+              {orderType === 'SEA_FCL' ? (
+                <select
+                  value={originWarehouse}
+                  onChange={(e) => setOriginWarehouse(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">-- 请选择国内起运港口 --</option>
+                  {ORIGIN_PORTS.map((port) => (
+                    <option key={port} value={port}>
+                      {port}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <select
+                  value={originWarehouse}
+                  onChange={(e) => setOriginWarehouse(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">-- 请选择起运仓 --</option>
+                  {originWarehouses.length > 0 ? (
+                    originWarehouses.map((w) => (
+                      <option key={w.id} value={w.shortName || w.name}>
+                        {w.name} {w.isDefault ? '⭐ [默认]' : ''}
+                      </option>
+                    ))
+                  ) : (
+                    ORIGIN_WAREHOUSES.map((w) => (
+                      <option key={w.value} value={w.value}>
+                        {w.label}
+                      </option>
+                    ))
                   )}
-              </select>
+                  {originWarehouse &&
+                    !originWarehouses.some((w) => w.shortName === originWarehouse || w.name === originWarehouse) &&
+                    !ORIGIN_WAREHOUSES.some((w) => w.value === originWarehouse) && (
+                      <option value={originWarehouse}>{originWarehouse} (自定义起运点)</option>
+                    )}
+                </select>
+              )}
             </div>
 
             {/* 目的国 */}
             <div className="space-y-1.5">
               <label className="block text-xs font-semibold text-slate-700">
-                目的国 <span className="text-red-500">*</span>
+                {orderType === 'AIR' ? '目的国家 (终点国)' : '目的国'} <span className="text-red-500">*</span>
               </label>
               <select
                 value={destinationCountry}
@@ -695,32 +790,34 @@ export default function InboundWorkbench() {
               </select>
             </div>
 
-            {/* 目的港口 (与目的国关联) */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-slate-700">
-                目的港口
-              </label>
-              <select
-                value={destinationPort}
-                onChange={(e) => handlePortChange(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">-- 请选择目的港口 --</option>
-                {getPortsByCountry(destinationCountry).map((port) => (
-                  <option key={port} value={port}>
-                    {port}
-                  </option>
-                ))}
-                {destinationPort && !getPortsByCountry(destinationCountry).includes(destinationPort) && (
-                  <option value={destinationPort}>
-                    {destinationPort} (自定义/已指定)
-                  </option>
-                )}
-              </select>
-            </div>
+            {/* 目的港口 (仅海运模式显示) */}
+            {orderType !== 'AIR' && (
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-700">
+                  目的港口
+                </label>
+                <select
+                  value={destinationPort}
+                  onChange={(e) => handlePortChange(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">-- 请选择目的港口 --</option>
+                  {getPortsByCountry(destinationCountry).map((port) => (
+                    <option key={port} value={port}>
+                      {port}
+                    </option>
+                  ))}
+                  {destinationPort && !getPortsByCountry(destinationCountry).includes(destinationPort) && (
+                    <option value={destinationPort}>
+                      {destinationPort} (自定义/已指定)
+                    </option>
+                  )}
+                </select>
+              </div>
+            )}
 
             {/* 承运服务商 / 专线渠道 (forwarderChannel) */}
-            <div className="space-y-1.5">
+            <div className={`space-y-1.5 ${orderType === 'AIR' ? '' : 'lg:col-span-2'}`}>
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-semibold text-slate-700">
                   承运服务商 / 专线渠道
@@ -759,7 +856,7 @@ export default function InboundWorkbench() {
             </div>
 
             {/* 订单备注 */}
-            <div className="space-y-1.5 lg:col-span-2">
+            <div className={`space-y-1.5 ${orderType === 'AIR' ? 'col-span-1 md:col-span-2 lg:col-span-4' : 'lg:col-span-2'}`}>
               <label className="block text-xs font-semibold text-slate-700">
                 预报备注
               </label>
@@ -779,7 +876,7 @@ export default function InboundWorkbench() {
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5">
                   <MapPin className="w-3.5 h-3.5 text-emerald-600" />
-                  海外收货人与目的港派送档案 (Consignee)
+                  海外收货人与{orderType === 'AIR' ? '目的国' : '目的港'}派送档案 (Consignee)
                 </h3>
                 <span className="text-[11px] text-slate-400">
                   认唛头不认发件人 · 始发由起运仓集运 · 末端派送依此档案
@@ -792,10 +889,10 @@ export default function InboundWorkbench() {
                   <div className="flex items-center gap-2 shrink-0">
                     <Users className="w-4 h-4 text-emerald-600" />
                     <span className="font-bold text-slate-800">
-                      选择该港口下属海外收件人:
+                      选择该{orderType === 'AIR' ? '国家' : '港口'}下属海外收件人:
                     </span>
                     <span className="text-[11px] px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md font-medium">
-                      {destinationCountry || '未选国别'} · {destinationPort || '全口岸'} ({availableConsignees.length}个)
+                      {destinationCountry || '未选国别'}{orderType !== 'AIR' && destinationPort ? ` · ${destinationPort}` : ''} ({availableConsignees.length}个)
                     </span>
                   </div>
 
@@ -824,7 +921,7 @@ export default function InboundWorkbench() {
                           ))}
                         </>
                       ) : (
-                        <option value="">-- 该港口暂无已登记收件人 (请在下方手工输入新档案) --</option>
+                        <option value="">-- 该{orderType === 'AIR' ? '目的国' : '港口'}暂无已登记收件人 (请在下方手工输入新档案) --</option>
                       )}
                     </select>
                   </div>
@@ -833,31 +930,33 @@ export default function InboundWorkbench() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">
-                      海外收件联系人
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      海外收件联系人 <span className="text-red-500 font-bold">* (必填)</span>
                     </label>
                     <input
                       type="text"
+                      required
                       placeholder="如 Alex Johnson"
                       value={overseasName}
                       onChange={(e) => setOverseasName(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs font-medium"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs font-medium focus:ring-1 focus:ring-blue-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">
-                      海外联系电话 / WhatsApp
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      海外联系电话 / WhatsApp <span className="text-red-500 font-bold">* (必填)</span>
                     </label>
                     <input
                       type="text"
+                      required
                       placeholder="如 +63 917 123 4567"
                       value={overseasPhone}
                       onChange={(e) => setOverseasPhone(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs font-mono font-medium"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs font-mono font-medium focus:ring-1 focus:ring-blue-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
                       海外公司名称 (选填)
                     </label>
                     <input
@@ -865,21 +964,22 @@ export default function InboundWorkbench() {
                       placeholder="如 Manila Trading Inc."
                       value={overseasCompany}
                       onChange={(e) => setOverseasCompany(e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs font-medium"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs font-medium focus:ring-1 focus:ring-blue-500"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">
-                    海外目的港详细派送地址
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    海外目的港详细派送地址 <span className="text-red-500 font-bold">* (必填)</span>
                   </label>
                   <input
                     type="text"
+                    required
                     placeholder="如 Unit 802, BGC Tower, Taguig City, Metro Manila"
                     value={overseasAddress}
                     onChange={(e) => setOverseasAddress(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs font-medium"
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs font-medium focus:ring-1 focus:ring-blue-500"
                   />
                 </div>
 
@@ -945,7 +1045,9 @@ export default function InboundWorkbench() {
                 </div>
               </div>
               <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
-                <span className="text-xs font-bold text-slate-700">整柜协议总报价:</span>
+                <span className="text-xs font-bold text-slate-700">
+                  整柜协议总报价 <span className="text-red-500 font-black">* (必填)</span>:
+                </span>
                 <div className="flex items-center">
                   <select
                     value={fclQuotationCurrency}
@@ -959,6 +1061,8 @@ export default function InboundWorkbench() {
                   <input
                     type="number"
                     step="1"
+                    min="1"
+                    required
                     placeholder="如 28000.00"
                     value={fclQuotation ?? ''}
                     onChange={(e) => setFclQuotation(e.target.value ? Number(e.target.value) : undefined)}
@@ -1069,8 +1173,16 @@ export default function InboundWorkbench() {
                           className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs text-center focus:bg-white"
                         />
                       </td>
-                      <td className="py-2 px-3 text-center font-mono font-bold text-indigo-700 bg-indigo-50/40">
-                        {vol > 0 ? vol.toFixed(4) : '-'}
+                      <td className="py-2 px-2 bg-indigo-50/40">
+                        <input
+                          type="number"
+                          step="0.0001"
+                          placeholder={vol > 0 ? vol.toFixed(4) : "体积 m³"}
+                          value={item.volume !== undefined && item.volume !== null ? item.volume : (vol > 0 ? Number(vol.toFixed(4)) : '')}
+                          onChange={(e) => updateItem(item.id, 'volume', e.target.value ? Number(e.target.value) : '')}
+                          className="w-full px-2 py-1.5 bg-white border border-indigo-200 rounded text-xs text-center font-mono font-bold text-indigo-900 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          title="可直接手填总方数(CBM)，或输入长宽高自动计算"
+                        />
                       </td>
                       <td className="py-2 px-2">
                         <input

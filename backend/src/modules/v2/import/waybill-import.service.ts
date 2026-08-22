@@ -3,6 +3,12 @@ import { PrismaClient, ShipmentType, WaybillStatus, CurrencyType, FeeDirection, 
 import { calculateWaybillFinancials } from '../waybill/waybill.service';
 import { ImageExtractorService } from './image-extractor.service';
 import { ImportErrorDetail } from './customer-import.service';
+import { DictionaryValidator } from './dictionary-validator.service';
+import {
+  OFFICIAL_SEA_LCL_COLUMNS,
+  OFFICIAL_AIR_COLUMNS,
+  OFFICIAL_SEA_FCL_COLUMNS,
+} from './template-generator.service';
 
 const prisma = new PrismaClient();
 
@@ -60,6 +66,7 @@ interface ParsedItemRow {
 
   // FCL specific
   containerNo?: string;
+  containerType?: string;
   blNumber?: string;
   carrier?: string;
   vesselVoyage?: string;
@@ -89,7 +96,7 @@ interface GroupedWaybill {
   mainRowNumber: number;
   userMark: string;
   originWarehouse?: string;
-  destinationCountry: string;
+  destinationCountry?: string;
   destinationPort?: string;
   expressNo?: string;
   airWaybillNo?: string;
@@ -105,6 +112,7 @@ interface GroupedWaybill {
 
   // FCL specific
   containerNo?: string;
+  containerType?: string;
   blNumber?: string;
   carrier?: string;
   vesselVoyage?: string;
@@ -234,7 +242,7 @@ export class WaybillImportService {
           mainRowNumber: r.rowNumber,
           userMark: r.userMark,
           originWarehouse: r.originWarehouse,
-          destinationCountry: r.destinationCountry || (orderType === 'SEA_FCL' ? '菲律宾' : '菲律宾'),
+          destinationCountry: r.destinationCountry,
           destinationPort: r.destinationPort,
           expressNo: r.expressNo,
           airWaybillNo: r.airWaybillNo,
@@ -248,6 +256,7 @@ export class WaybillImportService {
           note: r.note,
           receivableAmount: r.receivableAmount,
           containerNo: r.containerNo,
+          containerType: r.containerType,
           blNumber: r.blNumber,
           carrier: r.carrier,
           vesselVoyage: r.vesselVoyage,
@@ -279,6 +288,13 @@ export class WaybillImportService {
         if (!g.overseasCompany && r.overseasCompany) g.overseasCompany = r.overseasCompany;
         if (!g.overseasAddress && r.overseasAddress) g.overseasAddress = r.overseasAddress;
         if (!g.overseasRegion && r.overseasRegion) g.overseasRegion = r.overseasRegion;
+        if (!g.containerNo && r.containerNo) g.containerNo = r.containerNo;
+        if (!g.containerType && r.containerType) g.containerType = r.containerType;
+        if (!g.blNumber && r.blNumber) g.blNumber = r.blNumber;
+        if (!g.originPort && r.originPort) g.originPort = r.originPort;
+        if (!g.bookingChannel && r.bookingChannel) g.bookingChannel = r.bookingChannel;
+        if (!g.customsChannel && r.customsChannel) g.customsChannel = r.customsChannel;
+        if (!g.clearanceChannel && r.clearanceChannel) g.clearanceChannel = r.clearanceChannel;
       }
 
       // 添加货物明细
@@ -299,7 +315,7 @@ export class WaybillImportService {
         });
       }
 
-      // 添加费用明细
+      // 添加费用明细 (空运与整柜各杂费)
       if (r.internalTruckingFee && r.internalTruckingFee > 0) {
         g.fees.push({
           feeName: '内部车费',
@@ -312,6 +328,34 @@ export class WaybillImportService {
           feeName: '渠道车费',
           feeDirection: FeeDirection.PAYABLE,
           amount: r.channelTruckingFee,
+        });
+      }
+      if (r.truckingFee && r.truckingFee > 0) {
+        g.fees.push({
+          feeName: '拖车费用',
+          feeDirection: FeeDirection.PAYABLE,
+          amount: r.truckingFee,
+        });
+      }
+      if (r.portFee && r.portFee > 0) {
+        g.fees.push({
+          feeName: '订舱费/港杂',
+          feeDirection: FeeDirection.PAYABLE,
+          amount: r.portFee,
+        });
+      }
+      if (r.thcFee && r.thcFee > 0) {
+        g.fees.push({
+          feeName: 'THC超支费',
+          feeDirection: FeeDirection.PAYABLE,
+          amount: r.thcFee,
+        });
+      }
+      if (r.clearanceFee && r.clearanceFee > 0) {
+        g.fees.push({
+          feeName: '目的港清关费',
+          feeDirection: FeeDirection.PAYABLE,
+          amount: r.clearanceFee,
         });
       }
 
@@ -338,6 +382,8 @@ export class WaybillImportService {
       },
     });
     const customerMap = new Map(existingCustomers.map((c) => [c.clientCode, c]));
+    const dictValidator = new DictionaryValidator();
+    await dictValidator.loadMasterData();
 
     const successWaybillNos: string[] = [];
 
@@ -363,6 +409,106 @@ export class WaybillImportService {
         continue;
       }
 
+      // 字典字段严格精准校验与对齐
+      if (g.originWarehouse) {
+        const whRes = await dictValidator.validateOriginWarehouse(g.originWarehouse);
+        if (!whRes.valid) {
+          errors.push({
+            row: g.mainRowNumber,
+            userMark: g.userMark,
+            reason: whRes.errorMessage!,
+          });
+          continue;
+        }
+        g.originWarehouse = whRes.standardValue;
+      }
+
+      const finalCountry = g.destinationCountry || customer.destinationCountry;
+      if (!finalCountry) {
+        errors.push({
+          row: g.mainRowNumber,
+          userMark: g.userMark,
+          reason: `缺少目的国家：Excel 未填录，且客户档案 [${g.userMark}] 中未配置默认目的国家，整单跳过`,
+        });
+        continue;
+      }
+
+      const countryRes = dictValidator.validateDestinationCountry(finalCountry);
+      if (!countryRes.valid) {
+        errors.push({
+          row: g.mainRowNumber,
+          userMark: g.userMark,
+          reason: countryRes.errorMessage!,
+        });
+        continue;
+      }
+      g.destinationCountry = countryRes.standardValue!;
+
+      if (g.originPort) {
+        const opRes = dictValidator.validateOriginPort(g.originPort);
+        if (!opRes.valid) {
+          errors.push({
+            row: g.mainRowNumber,
+            userMark: g.userMark,
+            reason: opRes.errorMessage!,
+          });
+          continue;
+        }
+        g.originPort = opRes.standardValue;
+      }
+
+      if (g.destinationPort) {
+        const portRes = dictValidator.validateDestinationPort(g.destinationCountry, g.destinationPort);
+        if (!portRes.valid) {
+          errors.push({
+            row: g.mainRowNumber,
+            userMark: g.userMark,
+            reason: portRes.errorMessage!,
+          });
+          continue;
+        }
+        g.destinationPort = portRes.standardValue;
+      }
+
+      if (g.forwarderChannel) {
+        const chanRes = await dictValidator.validateForwarderChannel(g.forwarderChannel);
+        if (!chanRes.valid) {
+          errors.push({
+            row: g.mainRowNumber,
+            userMark: g.userMark,
+            reason: chanRes.errorMessage!,
+          });
+          continue;
+        }
+        g.forwarderChannel = chanRes.standardValue;
+      }
+
+      if (g.customsType) {
+        const custRes = dictValidator.validateCustomsType(g.customsType);
+        if (!custRes.valid) {
+          errors.push({
+            row: g.mainRowNumber,
+            userMark: g.userMark,
+            reason: custRes.errorMessage!,
+          });
+          continue;
+        }
+        g.customsType = custRes.standardValue;
+      }
+
+      if (g.containerType) {
+        const ctRes = dictValidator.validateContainerType(g.containerType);
+        if (!ctRes.valid) {
+          errors.push({
+            row: g.mainRowNumber,
+            userMark: g.userMark,
+            reason: ctRes.errorMessage!,
+          });
+          continue;
+        }
+        g.containerType = ctRes.standardValue;
+      }
+
       // 校验明细
       if (g.items.length === 0 && orderType !== 'SEA_FCL') {
         errors.push({
@@ -374,12 +520,50 @@ export class WaybillImportService {
       }
 
       // 整柜特殊校验
-      if (orderType === 'SEA_FCL' && !g.containerNo) {
-        errors.push({
-          row: g.mainRowNumber,
-          userMark: g.userMark,
-          reason: '整柜运单缺少集装箱柜号 (containerNo)，整单跳过',
-        });
+      if (orderType === 'SEA_FCL') {
+        if (!g.containerNo) {
+          errors.push({
+            row: g.mainRowNumber,
+            userMark: g.userMark,
+            reason: '整柜运单缺少集装箱柜号 (containerNo)，整单跳过',
+          });
+          continue;
+        }
+        if (!g.receivableAmount || g.receivableAmount <= 0) {
+          errors.push({
+            row: g.mainRowNumber,
+            userMark: g.userMark,
+            reason: '整柜运单缺少或协议总报价无效 (整柜协议总报价必须大于 0)，整单跳过',
+          });
+          continue;
+        }
+      }
+
+      // 海外收件人必填校验：Excel 填录则优先使用，未填录则必须能从客户档案继承默认收件人；若均无则跳过并提醒
+      const defaultConsignee = customer.addresses?.find((a) => a.isDefault) || customer.addresses?.[0];
+      const finalOverseasName = (g.overseasName || defaultConsignee?.name || '').trim();
+      const finalOverseasPhone = (g.overseasPhone || defaultConsignee?.phone || '').trim();
+      const finalOverseasAddress = (g.overseasAddress || defaultConsignee?.address || '').trim();
+
+      if (!finalOverseasName || !finalOverseasPhone || !finalOverseasAddress) {
+        const missingFields: string[] = [];
+        if (!finalOverseasName) missingFields.push('收件人姓名');
+        if (!finalOverseasPhone) missingFields.push('联系电话');
+        if (!finalOverseasAddress) missingFields.push('派送地址');
+
+        if (!g.overseasName && !g.overseasPhone && !g.overseasAddress && !defaultConsignee) {
+          errors.push({
+            row: g.mainRowNumber,
+            userMark: g.userMark,
+            reason: `缺少海外收件人信息：Excel 未填录，且客户 [${g.userMark}] 档案中未配置默认海外收件人，整单跳过`,
+          });
+        } else {
+          errors.push({
+            row: g.mainRowNumber,
+            userMark: g.userMark,
+            reason: `海外收件人信息不完整（缺少：${missingFields.join('、')}），整单跳过`,
+          });
+        }
         continue;
       }
 
@@ -485,35 +669,56 @@ export class WaybillImportService {
       fees: g.fees,
     });
 
-    // 处理 FCL 集装箱关联
+    // 处理 FCL 集装箱关联 (Upsert 保证始终同步最新渠道、起运港与柜型)
     let containerMasterId: string | undefined;
     if (orderType === 'SEA_FCL' && g.containerNo) {
-      let cont = await prisma.containerMaster.findUnique({
+      const contData = {
+        containerNo: g.containerNo,
+        containerType: g.containerType || undefined,
+        blNumber: g.blNumber,
+        carrier: g.carrier,
+        vesselVoyage: g.vesselVoyage,
+        originPort: g.originPort || undefined,
+        destinationPort: g.destinationPort || customer.destinationPort || undefined,
+        bookingChannel: g.bookingChannel,
+        customsChannel: g.customsChannel,
+        clearanceChannel: g.clearanceChannel,
+        loadingDate: g.loadingDate,
+        sailingDate: g.sailingDate,
+        eta: g.eta,
+      };
+
+      const cont = await prisma.containerMaster.upsert({
         where: { containerNo: g.containerNo },
+        create: contData,
+        update: {
+          containerType: contData.containerType,
+          blNumber: contData.blNumber || undefined,
+          carrier: contData.carrier || undefined,
+          vesselVoyage: contData.vesselVoyage || undefined,
+          originPort: contData.originPort || undefined,
+          destinationPort: contData.destinationPort || undefined,
+          bookingChannel: contData.bookingChannel || undefined,
+          customsChannel: contData.customsChannel || undefined,
+          clearanceChannel: contData.clearanceChannel || undefined,
+          loadingDate: contData.loadingDate || undefined,
+          sailingDate: contData.sailingDate || undefined,
+          eta: contData.eta || undefined,
+        },
       });
-      if (!cont) {
-        cont = await prisma.containerMaster.create({
-          data: {
-            containerNo: g.containerNo,
-            blNumber: g.blNumber,
-            carrier: g.carrier,
-            vesselVoyage: g.vesselVoyage,
-            originPort: g.originPort,
-            destinationPort: g.destinationPort || customer.destinationPort || '马尼拉南港',
-            bookingChannel: g.bookingChannel,
-            customsChannel: g.customsChannel,
-            clearanceChannel: g.clearanceChannel,
-            loadingDate: g.loadingDate,
-            sailingDate: g.sailingDate,
-            eta: g.eta,
-          },
-        });
-      }
       containerMasterId = cont.id;
     }
 
     // 写入数据库
     await prisma.$transaction(async (tx) => {
+      const isFcl = orderType === 'SEA_FCL';
+      const finalOriginWarehouse = isFcl
+        ? (g.originPort || g.originWarehouse || undefined)
+        : (g.originWarehouse || customer.defaultWarehouse || undefined);
+      const finalForwarderChannel = isFcl
+        ? (g.forwarderChannel || g.bookingChannel || undefined)
+        : (g.forwarderChannel || undefined);
+
       const waybill = await tx.waybill.create({
         data: {
           waybillNo,
@@ -522,12 +727,12 @@ export class WaybillImportService {
           customerId: customer.id,
           userMark: customer.clientCode,
           operatorId,
-          originWarehouse: g.originWarehouse || customer.defaultWarehouse || '广州仓',
+          originWarehouse: finalOriginWarehouse,
           destinationCountry: g.destinationCountry || customer.destinationCountry || '菲律宾',
-          destinationPort: g.destinationPort || customer.destinationPort,
+          destinationPort: g.destinationPort || customer.destinationPort || undefined,
           expressNo: g.expressNo,
           airWaybillNo: g.airWaybillNo,
-          forwarderChannel: g.forwarderChannel,
+          forwarderChannel: finalForwarderChannel,
           customsType: g.customsType,
           overseasName: finalOverseasName,
           overseasPhone: finalOverseasPhone,
@@ -652,6 +857,7 @@ export class WaybillImportService {
       channelTruckingFee: getNum(colMap.channelTruckingFee),
       receivableAmount: getNum(colMap.receivableAmount),
       containerNo: String(getVal(colMap.containerNo) || '').trim() || undefined,
+      containerType: String(getVal(colMap.containerType) || '').trim() || undefined,
       blNumber: String(getVal(colMap.blNumber) || '').trim() || undefined,
       carrier: String(getVal(colMap.carrier) || '').trim() || undefined,
       vesselVoyage: String(getVal(colMap.vesselVoyage) || '').trim() || undefined,
@@ -695,112 +901,39 @@ export class WaybillImportService {
   }
 
   /**
-   * 表头列智能匹配
+   * 表头列 1:1 官方模板表头精准匹配 (1:1 Exact Official Header Mapping)
    */
   private mapHeaderColumns(headerRow: ExcelJS.Row, orderType: ShipmentType): Record<string, number> {
     const map: Record<string, number> = {};
 
-    headerRow.eachCell((cell, colNumber) => {
-      const text = String(cell.value || '').trim();
+    let officialCols: Array<{ header: string; key: string }> = [];
+    if (orderType === 'SEA_LCL') officialCols = OFFICIAL_SEA_LCL_COLUMNS;
+    else if (orderType === 'AIR') officialCols = OFFICIAL_AIR_COLUMNS;
+    else if (orderType === 'SEA_FCL') officialCols = OFFICIAL_SEA_FCL_COLUMNS;
 
-      if (text.includes('分组') || text.includes('序号') || text.includes('组号')) {
-        map.groupKey = colNumber;
-      } else if (text.includes('唛头') || text.includes('客户代码') || text.includes('客户')) {
-        map.userMark = colNumber;
-      } else if (text.includes('起运仓') || text.includes('仓库')) {
-        map.originWarehouse = colNumber;
-      } else if (text.includes('目的国') || text.includes('国家')) {
-        map.destinationCountry = colNumber;
-      } else if (text.includes('目的港') || text.includes('清关港口')) {
-        map.destinationPort = colNumber;
-      } else if (text.includes('专线单号') || text.includes('运递单号')) {
-        map.expressNo = colNumber;
-      } else if (text.includes('空运单号') || text.includes('AWB') || text.includes('提单号')) {
-        if (orderType === 'AIR') {
-          map.airWaybillNo = colNumber;
-        } else if (orderType === 'SEA_FCL') {
-          map.blNumber = colNumber;
-        }
-      } else if (text.includes('品名') || text.includes('货物名称')) {
-        map.productName = colNumber;
-      } else if (text.includes('件数') || text.includes('数量')) {
-        map.quantity = colNumber;
-      } else if (text === '长' || text.includes('长 (cm)') || text.includes('长(cm)')) {
-        map.length = colNumber;
-      } else if (text === '宽' || text.includes('宽 (cm)') || text.includes('宽(cm)')) {
-        map.width = colNumber;
-      } else if (text === '高' || text.includes('高 (cm)') || text.includes('高(cm)')) {
-        map.height = colNumber;
-      } else if (text.includes('单重')) {
-        map.unitWeight = colNumber;
-      } else if (text.includes('重量') || text.includes('计费重量') || text.includes('合计重量')) {
-        map.totalWeight = colNumber;
-      } else if (text.includes('体积') || text.includes('方数')) {
-        map.payableVolume = colNumber;
-      } else if (text.includes('应收单价') || text.includes('应收（RMB）') || text.includes('应收(RMB)')) {
-        map.receivableUnitPrice = colNumber;
-      } else if (text.includes('应付单价') || text.includes('应付（RMB）') || text.includes('应付(RMB)') || text.includes('应付成本')) {
-        map.payableUnitPrice = colNumber;
-      } else if (text.includes('送仓') || text.includes('快递单号')) {
-        map.trackingNumber = colNumber;
-      } else if (text.includes('内部车费')) {
-        map.internalTruckingFee = colNumber;
-      } else if (text.includes('渠道车费') || text.includes('应付渠道车费')) {
-        map.channelTruckingFee = colNumber;
-      } else if (text.includes('叫车截图')) {
-        map.pickupImg = colNumber;
-      } else if (text.includes('签收截图') || text.includes('签收图片')) {
-        map.signImg = colNumber;
-      } else if (text.includes('水单') || text.includes('报关水单')) {
-        map.customsSlipImg = colNumber;
-      } else if (text.includes('过磅')) {
-        map.weightImg = colNumber;
-      } else if (text.includes('柜号') || text.includes('集装箱')) {
-        map.containerNo = colNumber;
-      } else if (text.includes('船公司') || text.includes('船司')) {
-        map.carrier = colNumber;
-      } else if (text.includes('航次') || text.includes('船名')) {
-        map.vesselVoyage = colNumber;
-      } else if (text.includes('起运港') || text.includes('出口港口')) {
-        map.originPort = colNumber;
-      } else if (text.includes('订舱渠道')) {
-        map.bookingChannel = colNumber;
-      } else if (text.includes('报关渠道')) {
-        map.customsChannel = colNumber;
-      } else if (text.includes('清关渠道')) {
-        map.clearanceChannel = colNumber;
-      } else if (text.includes('海外') || text.includes('收件') || text.includes('收货')) {
-        if (text.includes('电话') || text.includes('手机') || text.includes('WhatsApp')) {
-          map.overseasPhone = colNumber;
-        } else if (text.includes('公司')) {
-          map.overseasCompany = colNumber;
-        } else if (text.includes('地址') || text.includes('派送') || text.includes('门牌')) {
-          map.overseasAddress = colNumber;
-        } else if (text.includes('人') || text.includes('姓名') || text.includes('联系')) {
-          map.overseasName = colNumber;
-        }
-      } else if (text.includes('报关/通道') || text.includes('通道类型') || text.includes('报关类型') || text.includes('货品通道')) {
-        map.customsType = colNumber;
-      } else if (text.includes('承运') || text.includes('服务商') || text.includes('渠道') || text.includes('专线渠道')) {
-        map.forwarderChannel = colNumber;
-      } else if (text.includes('包干报价') || text.includes('客户报价') || text.includes('整柜包干')) {
-        map.receivableAmount = colNumber;
-      } else if (text.includes('拖车费用') || text.includes('拖车')) {
-        map.truckingFee = colNumber;
-      } else if (text.includes('港杂') || text.includes('订舱费')) {
-        map.portFee = colNumber;
-      } else if (text.includes('THC') || text.includes('堆箱费')) {
-        map.thcFee = colNumber;
-      } else if (text.includes('清关费')) {
-        map.clearanceFee = colNumber;
-      } else if (text.includes('装柜时间') || text.includes('装柜日期')) {
-        map.loadingDate = colNumber;
-      } else if (text.includes('开船时间') || text.includes('开船日期')) {
-        map.sailingDate = colNumber;
-      } else if (text.includes('预计到港') || text.includes('ETA')) {
-        map.eta = colNumber;
-      } else if (text.includes('备注')) {
-        map.note = colNumber;
+    // 构建 1:1 精准查找映射
+    const headerToKeyMap = new Map<string, string>();
+    for (const col of officialCols) {
+      headerToKeyMap.set(col.header.trim(), col.key);
+      headerToKeyMap.set(col.header.replace(/\s+/g, ''), col.key);
+      const noBracket = col.header.replace(/[\(（].*?[\)）]/g, '').trim();
+      headerToKeyMap.set(noBracket, col.key);
+    }
+
+    headerRow.eachCell((cell, colNumber) => {
+      const rawText = String(cell.value || '').trim();
+      if (!rawText) return;
+
+      const rawNoSpace = rawText.replace(/\s+/g, '');
+      const rawNoBracket = rawText.replace(/[\(（].*?[\)）]/g, '').trim();
+
+      const matchedKey =
+        headerToKeyMap.get(rawText) ||
+        headerToKeyMap.get(rawNoSpace) ||
+        headerToKeyMap.get(rawNoBracket);
+
+      if (matchedKey) {
+        map[matchedKey] = colNumber;
       }
     });
 

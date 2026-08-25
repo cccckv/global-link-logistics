@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { LogIn, Smartphone, Lock } from 'lucide-react';
 import { authApi } from '../lib/api';
 
 export default function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectParam = searchParams.get('redirect');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -21,8 +23,14 @@ export default function Login() {
       localStorage.setItem('jwt_token', token);
       localStorage.setItem('user', JSON.stringify(user));
 
-      // 根据角色跳转
-      if (user.userRole === 'USER') {
+      // 若有重定向目标且符合角色权限，优先回跳至原工作页面
+      if (redirectParam && redirectParam.startsWith('/')) {
+        if (user.userRole === 'USER' && redirectParam.startsWith('/v2/')) {
+          navigate('/customer/waybills');
+        } else {
+          navigate(redirectParam);
+        }
+      } else if (user.userRole === 'USER') {
         navigate('/customer/waybills');
       } else if (user.userRole === 'ADMIN') {
         navigate('/v2/inbound');

@@ -19,6 +19,25 @@ v2Api.interceptors.request.use((config) => {
   return config;
 });
 
+v2Api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      const url = error.config?.url || '';
+      const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/register');
+      if (!isAuthEndpoint) {
+        localStorage.removeItem('jwt_token');
+        localStorage.removeItem('user');
+        const currentPath = window.location.pathname + window.location.search;
+        if (window.location.pathname !== '/login') {
+          window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`;
+        }
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Types
 export type ShipmentType = 'SEA_LCL' | 'AIR' | 'SEA_FCL' | 'LAND';
 export type WaybillStatus = 'DRAFT' | 'INBOUND' | 'LOADED' | 'IN_TRANSIT' | 'CUSTOMS' | 'DISPATCHING' | 'DELIVERED' | 'CANCELLED';

@@ -8,7 +8,7 @@ export async function originWarehouseV2Routes(fastify: FastifyInstance) {
   const service = new OriginWarehouseV2Service();
 
   // GET /api/v2/origin-warehouses
-  fastify.get('/', async (request) => {
+  fastify.get('/', { preHandler: [fastify.authenticate] }, async (request) => {
     const query = request.query as {
       isActive?: string;
       search?: string;
@@ -22,7 +22,7 @@ export async function originWarehouseV2Routes(fastify: FastifyInstance) {
   });
 
   // GET /api/v2/origin-warehouses/:id
-  fastify.get('/:id', async (request, reply) => {
+  fastify.get('/:id', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const warehouse = await service.getWarehouseById(id);
     if (!warehouse) {

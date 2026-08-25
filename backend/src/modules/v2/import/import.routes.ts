@@ -3,11 +3,16 @@ import { ShipmentType } from '@prisma/client';
 import { TemplateGeneratorService, TemplateType } from './template-generator.service';
 import { CustomerImportService } from './customer-import.service';
 import { WaybillImportService } from './waybill-import.service';
+import { authorize } from '../../../lib/auth';
+
+const INTERNAL_ROLES = ['ADMIN', 'SALES', 'FINANCE'];
 
 export async function importV2Routes(fastify: FastifyInstance) {
   const templateService = new TemplateGeneratorService();
   const customerImportService = new CustomerImportService();
   const waybillImportService = new WaybillImportService();
+
+  const internalHandler = { preHandler: [fastify.authenticate, authorize(INTERNAL_ROLES)] };
 
   // 1. 下载导入模板
   fastify.get('/template', async (request, reply) => {
@@ -28,8 +33,8 @@ export async function importV2Routes(fastify: FastifyInstance) {
     }
   });
 
-  // 2. 批量导入客户档案
-  fastify.post('/customer', async (request, reply) => {
+  // 2. 批量导入客户档案 (Internal only)
+  fastify.post('/customer', internalHandler, async (request, reply) => {
     const { skipExisting = 'true' } = request.query as { skipExisting?: string };
 
     try {
@@ -54,8 +59,8 @@ export async function importV2Routes(fastify: FastifyInstance) {
     }
   });
 
-  // 3. 批量导入订单
-  fastify.post('/waybill', async (request, reply) => {
+  // 3. 批量导入订单 (Internal only)
+  fastify.post('/waybill', internalHandler, async (request, reply) => {
     const { type = 'SEA_LCL' } = request.query as { type?: ShipmentType };
 
     try {

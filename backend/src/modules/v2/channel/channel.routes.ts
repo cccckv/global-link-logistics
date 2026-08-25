@@ -9,7 +9,7 @@ export async function channelV2Routes(fastify: FastifyInstance) {
   const service = new ChannelV2Service();
 
   // GET /api/v2/channels
-  fastify.get('/', async (request) => {
+  fastify.get('/', { preHandler: [fastify.authenticate] }, async (request) => {
     const query = request.query as {
       category?: ChannelCategory;
       isActive?: string;
@@ -25,7 +25,7 @@ export async function channelV2Routes(fastify: FastifyInstance) {
   });
 
   // GET /api/v2/channels/:id
-  fastify.get('/:id', async (request, reply) => {
+  fastify.get('/:id', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const channel = await service.getChannelById(id);
     if (!channel) {

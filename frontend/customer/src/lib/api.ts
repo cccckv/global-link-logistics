@@ -27,7 +27,10 @@ api.interceptors.response.use(
       if (!isAuthEndpoint) {
         localStorage.removeItem('jwt_token');
         localStorage.removeItem('user');
-        window.location.href = '/login';
+        const currentPath = window.location.pathname + window.location.search;
+        if (window.location.pathname !== '/login') {
+          window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`;
+        }
       }
     }
     return Promise.reject(error);

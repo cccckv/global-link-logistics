@@ -9,7 +9,7 @@ export async function customerV2Routes(fastify: FastifyInstance) {
   // Search or list all customers
   fastify.get<{
     Querystring: { search?: string; code?: string };
-  }>('/', async (request, reply) => {
+  }>('/', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     const { search, code } = request.query;
     if (code) {
       const customer = await customerService.getCustomerByCode(code);
@@ -22,7 +22,7 @@ export async function customerV2Routes(fastify: FastifyInstance) {
   // Get single customer details
   fastify.get<{
     Params: { id: string };
-  }>('/:id', async (request, reply) => {
+  }>('/:id', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     const customer = await customerService.getCustomerById(request.params.id);
     if (!customer) {
       return reply.code(404).send({ success: false, error: 'Customer not found' });

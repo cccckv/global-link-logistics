@@ -54,7 +54,7 @@ function sanitizeExt(filename: string, mimeType: string): string {
 
 export async function uploadV2Routes(fastify: FastifyInstance) {
   // 1. Upload local file (images, pdfs, docs)
-  fastify.post('/upload', async (request, reply) => {
+  fastify.post('/upload', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     try {
       const file = await request.file();
       if (!file) {

@@ -136,6 +136,11 @@ export interface ContainerMaster {
   customsChannel?: string;
   clearanceChannel?: string;
   truckingChannel?: string;
+  truckPlateNo?: string;
+  driverName?: string;
+  driverPhone?: string;
+  truckingDate?: string;
+  destArrivedDate?: string;
   loadingDate?: string;
   sailingDate?: string;
   eta?: string;

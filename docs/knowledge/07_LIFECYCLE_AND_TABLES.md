@@ -99,16 +99,18 @@ sequenceDiagram
   - `ContainerFee`（新建 Insert，整柜干线费用）
   - `Waybill`（批量更新 Update，同步 `status = IN_TRANSIT`）
 
-### 阶段五：目的港清关 (Customs Clearance)
+### 阶段五：目的港清关与送柜拆派 (Customs Clearance & Dest Drayage)
 - **交互规范**：
   1. 填入清关放行时间 `clearanceDate`、海关查验状态 `inspectStatus`；
-  2. 系统自动计算总航运耗时 `totalShippingDays = clearanceDate - loadingDate`；
-  3. 录入目的港清关费、THC/堆存费（支持比索 PHP 计算）；
-  4. **本地文件上传**：本地直选或拖拽上传海关缴税水单 PDF / 图片（`attachmentType = CUSTOMS_SLIP`）。
+  2. **目的港送柜拖车信息录入 (强制必填)**：录入司机姓名 `driverName`、联系电话 `driverPhone`、车牌号码 `truckPlateNo`、订车时间 `truckingDate`、送达仓库时间 `destArrivedDate`（拼箱柜自动从集装箱已有数据继承预填，免重复录入）；
+  3. 系统自动计算总航运耗时 `totalShippingDays = clearanceDate - loadingDate`；
+  4. 录入目的港清关费、THC/堆存费（支持比索 PHP 计算）；
+  5. **本地文件上传**：本地直选或拖拽上传海关缴税水单 PDF / 图片（`attachmentType = CUSTOMS_SLIP`）。
 - **触碰的数据表**：
-  - `ContainerMaster`（更新 Update，`status = DISPATCHING`）
+  - `ContainerMaster`（更新 Update，写入拖车 5 大字段与 `clearanceDate`，`status = DISPATCHING`）
   - `ContainerFee`（新建 Insert，清关与 THC 费用）
   - `WaybillAttachment`（新建 Insert，上传水单附件）
+  - `Waybill`（批量/单票更新 Update，同步 `status = DISPATCHING`）
 
 ### 阶段六：海外派送与签收 (Delivery Completion)
 - **交互规范**：
@@ -191,24 +193,35 @@ sequenceDiagram
 
 ---
 
-## 🔒 7. 全生命周期单向递进刚性门禁 (Sequential Step Gate) 规范
+## 🔒 7. 全生命周期「前置数据链刚性守卫」矩阵 (Completeness Gate Matrix)
 
-为了杜绝因跳阶段操作导致到仓实测尺寸、实测重量或装箱柜号被悬空遗漏，系统实施**前端阶梯严格上锁**与**前置数据完整性强校验**的双重刚性门禁：
+为了杜绝因跳阶段操作导致到仓实测尺寸、实测重量、干线提单、清关放行及送柜拖车信息被悬空遗漏，系统实施**全入口防御性数据链刚性守卫**：
 
 ### 7.1 前端阶梯严格上锁铁律
 1. **已完成阶段 (`idx < currentStageIdx`)**：展示为绿色完成态，支持点击打开弹窗查看和回溯修改历史快照；
 2. **当前进行中阶段 (`idx === currentStageIdx`)**：展示为蓝色高亮进行中，为当前**唯一允许操作流转推进的阶段**；
 3. **未来未解锁阶段 (`idx > currentStageIdx`)**：展示为灰色置灰态并附加锁头图标（🔒），**严禁点击打开操作弹窗**。系统强制阻断并提示：*“流程不可跳跃！当前处于【阶段 X】，请先按顺序完成当前阶段数据录入与流转。”*
+4. **底部待办 Banner 纠偏**：Banner 按钮精准对应当前进行中阶段（`currentStageIdx + 1`），严禁跨级诱导操作未来阶段。
 
-### 7.2 关键阶段前置数据完整性强校验 (Completeness Gate)
-在触发流转保存时，系统实施前置数据完整性拦截：
-- **推进至 阶段 3 (装柜配载/仓库发货) 前**：
-  - 海运拼箱 (`SEA_LCL`)：强校验必须具备实测长宽高或实测总方数 (`payableVolume > 0`)；
-  - 空运专线 (`AIR`)：强校验必须具备实测重量 (`totalWeightKg > 0`)；
-  - 海运整柜 (`SEA_FCL`)：强校验必须已录入实际装箱清单并成功绑定集装箱柜号；
-- **推进至 阶段 4 (干线航运/在途) 前**：
-  - 强校验必须已绑定合法集装箱柜号并录入海运提单号及实际开船日；
-- 若未满足前置数据完整性，系统弹窗严厉拦截并指引操作员先完善前序阶段数据。
+### 7.2 全生命周期「前置数据链刚性守卫」校验矩阵
+在触发任何阶段向前流转推进（`advanceStatus = true`）时，系统实施刚性拦截：
+
+| 推进的目标阶段 | 业务模式 | 触发推进时的【前置数据强校验】 | 缺失时的拦截提示文案 |
+| :--- | :--- | :--- | :--- |
+| **推进至 阶段 2 (实测/装箱)** | 全模式 | 必须具备阶段 1 客户委托基本信息（唛头、目的地） | “请先完善阶段 1 客户委托预报信息！” |
+| **推进至 阶段 3 (装柜/发货)** | `SEA_LCL`<br>`SEA_FCL`<br>`AIR` | ① 拼箱：必须已有阶段 2 实测体积 (`payableVolume > 0`)；<br>② 整柜：必须已录入装箱清单并绑定柜号；<br>③ 空运：必须已有实测重量 (`totalWeightKg > 0`) 且录入【发货运单号 `expressNo`】 | “无法装柜/发货：当前运单尚未在阶段 2 完成实测核量，请先完善实测数据！” |
+| **推进至 阶段 4 (干线在途)** | `SEA_LCL`<br>`SEA_FCL`<br>`AIR` | ① 海运：必须已绑定集装箱货柜 (`containerId` 有效)，必须录入实际开船日 (`sailingDate`)、船名航次与海运提单号；<br>② 空运：必须已有阶段 3 发货运单号 | “无法启运在途：当前运单尚未在阶段 3 分配集装箱货柜，请先完成装柜配载！” |
+| **推进至 阶段 5 (清关/派送)** | `SEA_LCL`<br>`SEA_FCL`<br>`AIR` | ① 海运：必须已有阶段 4 实际开船日 (`sailingDate`，班轮已启运)；必须录入清关完成日、海关税单及**目的港送柜拖车信息（司机姓名、联系电话、车牌号、送达时间）**；<br>② 空运：必须已有阶段 4 到海外仓记录 | “无法办理清关：当前集装箱尚未在阶段 4 记录实际开船日，请先完善开船信息！”<br>“请完善目的港送柜拖车信息！” |
+| **推进至 阶段 6 (送达签收)** | `SEA_LCL`<br>`SEA_FCL`<br>`AIR` | ① 海运：**必须已有阶段 5 清关放行记录 (`clearanceDate` 存在) 且具备送柜拖车送达记录**；必须录入客户签收日期 (`signedDate`)；<br>② 空运：**必须已有阶段 5 海外派送中记录**；必须录入客户签收日期 | ❌ **“无法完成签收：当前运单尚未在阶段 5 记录目的港清关放行及送柜拖车信息，请先完善阶段 5 数据！”** |
+
+### 7.3 阶段 5 目的港送柜拖车数据沉淀标准
+在海运整柜与拼箱中，目的港清关后由车队提柜送往目的仓/收件人工厂，拖车信息直接存入 `ContainerMaster` 原生字段并全柜共享：
+- `driverName`: 司机姓名（如 Kuya Juan / 张师傅）
+- `driverPhone`: 司机联系电话
+- `truckPlateNo`: 拖车车牌号码（如 NBD-8821）
+- `truckingDate`: 订车/提柜时间
+- `destArrivedDate`: 送达目的地仓库时间
+
 
 
 

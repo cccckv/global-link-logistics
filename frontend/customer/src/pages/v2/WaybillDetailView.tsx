@@ -257,10 +257,16 @@ export default function WaybillDetailView() {
   const [vesselVoyage, setVesselVoyage] = useState('');
   const [blNumber, setBlNumber] = useState('');
 
-  // Stage 5 (清关放行) State
+  // Stage 5 (清关放行 & 目的港送柜拖车) State
   const [clearanceDate, setClearanceDate] = useState('');
   const [inspectStatus, setInspectStatus] = useState('');
   const [customsSlipUrl, setCustomsSlipUrl] = useState('');
+  const [truckDriverName, setTruckDriverName] = useState('');
+  const [truckDriverPhone, setTruckDriverPhone] = useState('');
+  const [truckPlateNo, setTruckPlateNo] = useState('');
+  const [truckingDate, setTruckingDate] = useState('');
+  const [destArrivedDate, setDestArrivedDate] = useState('');
+  const [hasInheritedTrucking, setHasInheritedTrucking] = useState(false);
 
   // Stage 6 (客户签收) State
   const [signedDate, setSignedDate] = useState('');
@@ -356,6 +362,20 @@ export default function WaybillDetailView() {
             : ''
         );
         setBlNumber(wb.containerMaster?.blNumber || '');
+
+        const cont = wb.containerMaster;
+        const dName = cont?.driverName || '';
+        const dPhone = cont?.driverPhone || '';
+        const pNo = cont?.truckPlateNo || '';
+        const tDate = cont?.truckingDate ? new Date(cont.truckingDate).toISOString().slice(0, 10) : '';
+        const aDate = cont?.destArrivedDate ? new Date(cont.destArrivedDate).toISOString().slice(0, 10) : '';
+
+        setTruckDriverName(dName);
+        setTruckDriverPhone(dPhone);
+        setTruckPlateNo(pNo);
+        setTruckingDate(tDate);
+        setDestArrivedDate(aDate);
+        setHasInheritedTrucking(Boolean(dName || pNo || dPhone || tDate || aDate));
       }
       if (contRes.data.success) {
         setContainers(contRes.data.data || []);
@@ -877,6 +897,14 @@ export default function WaybillDetailView() {
   const handleStage4Submit = async (advanceStatus: boolean = true) => {
     if (!waybill) return;
 
+    // 前置门禁校验：海运分支必须已在阶段 3 装柜分配集装箱
+    if (advanceStatus) {
+      if (waybill.orderType !== 'AIR' && !waybill.containerId) {
+        toast.error('无法启运在途：当前运单尚未在阶段 3 分配集装箱货柜，请先完成装柜配载！');
+        return;
+      }
+    }
+
     // 空运专用分支
     if (waybill.orderType === 'AIR') {
       try {
@@ -940,6 +968,22 @@ export default function WaybillDetailView() {
   const handleStage5Submit = async (advanceStatus: boolean = true) => {
     if (!waybill) return;
 
+    // 前置门禁校验：海运分支必须已有阶段 4 实际开船日（已出海启运）
+    if (advanceStatus) {
+      if (waybill.orderType !== 'AIR') {
+        const hasSailing = waybill.sailingDate || waybill.containerMaster?.sailingDate;
+        if (!hasSailing) {
+          toast.error('无法办理清关：当前集装箱尚未在阶段 4 记录实际开船日（班轮未启运），请先完善开船信息！');
+          return;
+        }
+      } else {
+        if (!waybill.expressNo) {
+          toast.error('无法安排海外派送：当前运单尚未在阶段 3 录入发货运单号！');
+          return;
+        }
+      }
+    }
+
     // 空运专用分支
     if (waybill.orderType === 'AIR') {
       try {
@@ -962,6 +1006,29 @@ export default function WaybillDetailView() {
     }
 
     // 海运分支
+    if (advanceStatus) {
+      if (!truckDriverName.trim()) {
+        toast.error('请填写目的港送柜拖车司机姓名！');
+        return;
+      }
+      if (!truckDriverPhone.trim()) {
+        toast.error('请填写拖车司机联系电话！');
+        return;
+      }
+      if (!truckPlateNo.trim()) {
+        toast.error('请填写拖车车牌号码！');
+        return;
+      }
+      if (!truckingDate) {
+        toast.error('请选择订车/提柜时间！');
+        return;
+      }
+      if (!destArrivedDate) {
+        toast.error('请选择送达仓库时间！');
+        return;
+      }
+    }
+
     try {
       const formattedClearanceDate = clearanceDate ? new Date(clearanceDate).toISOString() : (advanceStatus ? new Date().toISOString() : undefined);
 
@@ -987,6 +1054,11 @@ export default function WaybillDetailView() {
           status: advanceStatus ? 'DISPATCHING' : undefined,
           clearanceDate: formattedClearanceDate,
           inspectStatus,
+          driverName: truckDriverName.trim() || undefined,
+          driverPhone: truckDriverPhone.trim() || undefined,
+          truckPlateNo: truckPlateNo.trim() || undefined,
+          truckingDate: truckingDate ? new Date(truckingDate).toISOString() : undefined,
+          destArrivedDate: destArrivedDate ? new Date(destArrivedDate).toISOString() : undefined,
         });
       }
 
@@ -1001,6 +1073,29 @@ export default function WaybillDetailView() {
   // Stage 6 Save & Advance: 签收完结
   const handleStage6Submit = async () => {
     if (!waybill) return;
+
+    // 前置门禁刚性拦截：必须已具备阶段 5 清关放行及拖车送达记录
+    if (waybill.orderType !== 'AIR') {
+      const hasClearance = waybill.clearanceDate || waybill.containerMaster?.clearanceDate;
+      const hasTrucking = Boolean(
+        truckPlateNo?.trim() ||
+        truckDriverName?.trim() ||
+        destArrivedDate ||
+        waybill.containerMaster?.truckPlateNo ||
+        waybill.containerMaster?.driverName ||
+        waybill.containerMaster?.destArrivedDate
+      );
+      if (!hasClearance || !hasTrucking) {
+        toast.error('无法完成签收：当前运单尚未在阶段 5 记录目的港清关放行及送柜拖车信息，请先完善阶段 5 数据！');
+        return;
+      }
+    } else {
+      if (waybill.status !== 'DISPATCHING' && !waybill.clearanceDate) {
+        toast.error('无法完成签收：当前运单尚未到达海外仓并进入阶段 5 海外派送，请先完善阶段 5 派送信息！');
+        return;
+      }
+    }
+
     if (!signedDate) {
       toast.error('请填写客户签收日期！');
       return;
@@ -1601,8 +1696,8 @@ export default function WaybillDetailView() {
         </div>
       </div>
 
-      {/* Next Step Stage Callout Banner */}
-      {currentStageIdx < 5 && (
+      {/* Current Stage Action Callout Banner */}
+      {waybill.status !== 'DELIVERED' && (
         <div className="bg-gradient-to-r from-slate-900 to-blue-950 text-white rounded-2xl p-5 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4 border border-slate-800">
           <div className="flex items-center gap-3.5">
             <div className="p-3 bg-blue-500/20 text-blue-400 rounded-xl">
@@ -1610,19 +1705,19 @@ export default function WaybillDetailView() {
             </div>
             <div>
               <span className="text-[11px] text-blue-300 uppercase tracking-wider font-semibold">
-                按流程顺序推进下一阶段
+                当前待办阶段流转指引
               </span>
               <h3 className="text-sm font-bold text-white mt-0.5">
-                {stages[currentStageIdx + 1]?.label}：{stages[currentStageIdx + 1]?.desc}
+                {currentStage.label}：{currentStage.desc}
               </h3>
             </div>
           </div>
 
           <button
-            onClick={() => setActiveStageModal(currentStageIdx + 2)}
+            onClick={() => setActiveStageModal(currentStage.stageNum)}
             className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/30 flex items-center gap-2 transition-all shrink-0"
           >
-            {stages[currentStageIdx]?.actionText || '推进至下一阶段'}
+            {stages[currentStageIdx]?.actionText || '点击录入并流转'}
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
@@ -3679,6 +3774,83 @@ export default function WaybillDetailView() {
                     accept="image/*,application/pdf"
                     helperText="支持从电脑上传海关税单图片、PDF 或扣关放行证明"
                   />
+
+                  {/* 目的港送柜拖车信息 (海关提柜 ➔ 目的地仓库) */}
+                  <div className="p-3.5 bg-blue-50/70 border border-blue-200/80 rounded-xl space-y-3">
+                    <div className="flex items-center justify-between border-b border-blue-200/60 pb-2">
+                      <div className="flex items-center gap-1.5 text-blue-900 font-bold text-xs">
+                        <Truck className="w-4 h-4 text-blue-600" />
+                        目的港送柜拖车信息 (海关提柜 ➔ 目的仓)
+                        <span className="text-red-500">*</span>
+                      </div>
+                      {hasInheritedTrucking && (
+                        <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded text-[10px] font-bold">
+                          ✅ 已继承本柜拖车数据
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          司机姓名 <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="如：Kuya Juan / 张师傅"
+                          value={truckDriverName}
+                          onChange={(e) => setTruckDriverName(e.target.value)}
+                          className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          联系电话 <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="如：0917-888-9999 / 13800000000"
+                          value={truckDriverPhone}
+                          onChange={(e) => setTruckDriverPhone(e.target.value)}
+                          className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          车牌号码 <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="如：NBD-8821 / 闽C-89821"
+                          value={truckPlateNo}
+                          onChange={(e) => setTruckPlateNo(e.target.value)}
+                          className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          订车/提柜时间 <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="date"
+                          value={truckingDate}
+                          onChange={(e) => setTruckingDate(e.target.value)}
+                          className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          送达仓库时间 <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="date"
+                          value={destArrivedDate}
+                          onChange={(e) => setDestArrivedDate(e.target.value)}
+                          className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </>
               )}
             </div>

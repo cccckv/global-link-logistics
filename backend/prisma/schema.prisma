@@ -601,6 +601,13 @@ model ContainerMaster {
   clearanceChannel   String?         // 清关渠道
   truckingChannel    String?         // 拖车渠道
 
+  // 目的港送柜拖车信息 (海关提柜 ➔ 目的地仓库)
+  truckPlateNo       String?         // 拖车车牌号码
+  driverName         String?         // 司机姓名
+  driverPhone        String?         // 司机联系电话
+  truckingDate       DateTime?       // 订车时间 / 提柜起运时间
+  destArrivedDate    DateTime?       // 送达目的地仓库时间
+
   // 时间节点
   loadingDate        DateTime?       // 装柜时间
   sailingDate        DateTime?       // 开船时间 (ETD)

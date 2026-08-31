@@ -82,6 +82,11 @@ export default function ContainerTracking() {
   const [editCustomsChannel, setEditCustomsChannel] = useState('');
   const [editClearanceChannel, setEditClearanceChannel] = useState('');
   const [editTruckingChannel, setEditTruckingChannel] = useState('');
+  const [editTruckPlateNo, setEditTruckPlateNo] = useState('');
+  const [editDriverName, setEditDriverName] = useState('');
+  const [editDriverPhone, setEditDriverPhone] = useState('');
+  const [editTruckingDate, setEditTruckingDate] = useState('');
+  const [editDestArrivedDate, setEditDestArrivedDate] = useState('');
   const [editNote, setEditNote] = useState('');
 
   // Add Fee Modal
@@ -238,6 +243,11 @@ export default function ContainerTracking() {
     setEditCustomsChannel(c.customsChannel || '');
     setEditClearanceChannel(c.clearanceChannel || '');
     setEditTruckingChannel(c.truckingChannel || '');
+    setEditTruckPlateNo(c.truckPlateNo || '');
+    setEditDriverName(c.driverName || '');
+    setEditDriverPhone(c.driverPhone || '');
+    setEditTruckingDate(c.truckingDate ? new Date(c.truckingDate).toISOString().slice(0, 10) : '');
+    setEditDestArrivedDate(c.destArrivedDate ? new Date(c.destArrivedDate).toISOString().slice(0, 10) : '');
     setEditNote(c.note || '');
   };
 
@@ -265,6 +275,11 @@ export default function ContainerTracking() {
         customsChannel: editCustomsChannel.trim() || undefined,
         clearanceChannel: editClearanceChannel.trim() || undefined,
         truckingChannel: editTruckingChannel.trim() || undefined,
+        truckPlateNo: editTruckPlateNo.trim() || undefined,
+        driverName: editDriverName.trim() || undefined,
+        driverPhone: editDriverPhone.trim() || undefined,
+        truckingDate: editTruckingDate ? new Date(editTruckingDate).toISOString() : undefined,
+        destArrivedDate: editDestArrivedDate ? new Date(editDestArrivedDate).toISOString() : undefined,
         note: editNote.trim() || undefined,
       });
       toast.success('集装箱货柜信息已成功修改！');
@@ -1430,6 +1445,64 @@ export default function ContainerTracking() {
                         </option>
                       )}
                     </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      拖车司机姓名
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="如 Kuya Juan / 张师傅"
+                      value={editDriverName}
+                      onChange={(e) => setEditDriverName(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      司机联系电话
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="如 0917-888-9999"
+                      value={editDriverPhone}
+                      onChange={(e) => setEditDriverPhone(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-mono text-slate-800"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      拖车车牌号码
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="如 NBD-8821 / 闽C-89821"
+                      value={editTruckPlateNo}
+                      onChange={(e) => setEditTruckPlateNo(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      订车/提柜起运时间
+                    </label>
+                    <input
+                      type="date"
+                      value={editTruckingDate}
+                      onChange={(e) => setEditTruckingDate(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      送达目的地仓库时间
+                    </label>
+                    <input
+                      type="date"
+                      value={editDestArrivedDate}
+                      onChange={(e) => setEditDestArrivedDate(e.target.value)}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800"
+                    />
                   </div>
                   <div className="sm:col-span-2">
                     <label className="block text-xs font-semibold text-slate-700 mb-1">

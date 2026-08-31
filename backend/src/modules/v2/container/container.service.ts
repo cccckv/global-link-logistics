@@ -17,6 +17,11 @@ export interface CreateContainerInput {
   customsChannel?: string;
   clearanceChannel?: string;
   truckingChannel?: string;
+  truckPlateNo?: string;
+  driverName?: string;
+  driverPhone?: string;
+  truckingDate?: Date | string;
+  destArrivedDate?: Date | string;
   loadingDate?: Date | string;
   sailingDate?: Date | string;
   eta?: Date | string;
@@ -32,6 +37,8 @@ export class ContainerV2Service {
     if ('sailingDate' in data) createData.sailingDate = parseNullableDate(data.sailingDate) || undefined;
     if ('eta' in data) createData.eta = parseNullableDate(data.eta) || undefined;
     if ('clearanceDate' in data) createData.clearanceDate = parseNullableDate(data.clearanceDate) || undefined;
+    if ('truckingDate' in data) createData.truckingDate = parseNullableDate(data.truckingDate) || undefined;
+    if ('destArrivedDate' in data) createData.destArrivedDate = parseNullableDate(data.destArrivedDate) || undefined;
 
     return prisma.containerMaster.create({
       data: createData,
@@ -140,6 +147,8 @@ export class ContainerV2Service {
     if ('sailingDate' in data) updateData.sailingDate = parseNullableDate(data.sailingDate);
     if ('eta' in data) updateData.eta = parseNullableDate(data.eta);
     if ('clearanceDate' in data) updateData.clearanceDate = parseNullableDate(data.clearanceDate);
+    if ('truckingDate' in data) updateData.truckingDate = parseNullableDate(data.truckingDate);
+    if ('destArrivedDate' in data) updateData.destArrivedDate = parseNullableDate(data.destArrivedDate);
 
     // Compute totalShippingDays if both dates exist
     const current = await prisma.containerMaster.findUnique({ where: { id } });

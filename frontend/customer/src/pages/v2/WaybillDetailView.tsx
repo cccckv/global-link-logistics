@@ -1872,7 +1872,7 @@ export default function WaybillDetailView() {
                             <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full text-[10px] font-bold">
                               体积超标 +{volDiffPct.toFixed(0)}%
                             </span>
-                          ) : actVol ? (
+                          ) : (waybill.orderType === 'SEA_FCL' ? (waybill.containerMaster || waybill.containerId || currentStageIdx >= 1 || actVol) : actVol) ? (
                             <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full text-[10px] font-medium">
                               {waybill.orderType === 'SEA_FCL' ? '装箱核准' : '实测正常'}
                             </span>

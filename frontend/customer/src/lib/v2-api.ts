@@ -338,6 +338,9 @@ export const containerV2Api = {
   deleteFee: (feeId: string) =>
     v2Api.delete<{ success: boolean; message: string }>(`/containers/fees/${feeId}`),
 
+  updateReturnStatus: (id: string, data: any) =>
+    v2Api.patch<{ success: boolean; data: ContainerMaster }>(`/containers/${id}/return-status`, data),
+
   delete: (id: string) =>
     v2Api.delete<{ success: boolean; message: string }>(`/containers/${id}`),
 };

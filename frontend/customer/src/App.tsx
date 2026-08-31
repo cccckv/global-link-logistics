@@ -18,6 +18,7 @@ import InboundWorkbench from './pages/v2/InboundWorkbench';
 import WaybillManagement from './pages/v2/WaybillManagement';
 import WaybillDetailView from './pages/v2/WaybillDetailView';
 import ContainerTracking from './pages/v2/ContainerTracking';
+import ContainerReturnManagement from './pages/v2/ContainerReturnManagement';
 import CustomerManagement from './pages/v2/CustomerManagement';
 import ChannelManagement from './pages/v2/ChannelManagement';
 import OriginWarehouseManagement from './pages/v2/OriginWarehouseManagement';
@@ -122,6 +123,16 @@ export default function App() {
               <ProtectedRoute>
                 <InternalRoute>
                   <ContainerTracking />
+                </InternalRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/v2/container-return"
+            element={
+              <ProtectedRoute>
+                <InternalRoute>
+                  <ContainerReturnManagement />
                 </InternalRoute>
               </ProtectedRoute>
             }

@@ -618,6 +618,14 @@ model ContainerMaster {
 
   // 状态
   status             ContainerStatus @default(LOADING)
+  // ====== 空箱还柜业务字段 ======
+  returnStatus       ContainerReturnStatus @default(UNFINISHED)
+  hasExtraCharge     Boolean               @default(false)
+  extraChargeReason  String?
+  extraChargeProofUrl String?
+  returnAppointmentDate DateTime?
+  actualReturnDate      DateTime?
+
   note               String?
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
@@ -636,6 +644,13 @@ enum ContainerStatus {
   ARRIVED
   CUSTOMS
   DISPATCHING
+  COMPLETED
+}
+
+enum ContainerReturnStatus {
+  UNFINISHED
+  PENDING
+  RETURNING
   COMPLETED
 }
 

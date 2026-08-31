@@ -146,4 +146,16 @@ export async function containerV2Routes(fastify: FastifyInstance) {
       }
     }
   );
+
+  fastify.patch<{ Params: { id: string }; Body: any }>(
+    '/:id/return-status',
+    async (request, reply) => {
+      try {
+        const updated = await containerService.updateReturnInfo(request.params.id, request.body);
+        return reply.send({ success: true, data: updated });
+      } catch (err: any) {
+        return reply.code(500).send({ success: false, error: err.message });
+      }
+    }
+  );
 }

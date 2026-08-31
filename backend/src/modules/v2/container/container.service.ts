@@ -50,6 +50,8 @@ export class ContainerV2Service {
     search?: string;
     originPort?: string;
     destinationPort?: string;
+    returnStatus?: string;
+    hasExtraCharge?: string;
     page?: number;
     limit?: number;
   }) {
@@ -61,6 +63,9 @@ export class ContainerV2Service {
     if (params?.status) where.status = params.status;
     if (params?.originPort) where.originPort = params.originPort;
     if (params?.destinationPort) where.destinationPort = params.destinationPort;
+    if (params?.returnStatus) where.returnStatus = params.returnStatus;
+    if (params?.hasExtraCharge === 'true') where.hasExtraCharge = true;
+    if (params?.hasExtraCharge === 'false') where.hasExtraCharge = false;
 
     if (params?.search) {
       const q = params.search;
@@ -262,5 +267,20 @@ export class ContainerV2Service {
     });
 
     return prisma.containerMaster.delete({ where: { id } });
+  }
+
+  async updateReturnInfo(id: string, data: any) {
+    const updateData: any = {};
+    if (data.returnStatus !== undefined) updateData.returnStatus = data.returnStatus;
+    if (data.hasExtraCharge !== undefined) updateData.hasExtraCharge = data.hasExtraCharge;
+    if (data.extraChargeReason !== undefined) updateData.extraChargeReason = data.extraChargeReason;
+    if (data.extraChargeProofUrl !== undefined) updateData.extraChargeProofUrl = data.extraChargeProofUrl;
+    if (data.returnAppointmentDate !== undefined) updateData.returnAppointmentDate = parseNullableDate(data.returnAppointmentDate);
+    if (data.actualReturnDate !== undefined) updateData.actualReturnDate = parseNullableDate(data.actualReturnDate);
+
+    return prisma.containerMaster.update({
+      where: { id },
+      data: updateData,
+    });
   }
 }

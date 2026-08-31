@@ -13,12 +13,9 @@ import {
   ExternalLink,
   Trash2,
   Edit3,
-  Edit2,
   Plus,
   Container as ContainerIcon,
   ChevronRight,
-  ChevronDown,
-  ChevronUp,
   ShieldCheck,
   RotateCcw,
   Save,
@@ -1185,8 +1182,6 @@ export default function WaybillDetailView() {
       toast.error('上传附件失败');
     }
   };
-
-
   // Delete Attachment
   const handleDeleteAttachment = async (attId: string) => {
     if (!confirm('确认删除该单证附件？')) return;
@@ -1197,6 +1192,19 @@ export default function WaybillDetailView() {
     } catch (err: any) {
       toast.error('删除附件失败');
     }
+  };
+
+  // Handle clicking on a stage card (Inspection & Edit for achieved stages)
+  const handleStageCardClick = (targetStageNum: number, targetIdx: number) => {
+    if (!waybill) return;
+    // 严禁越级跳步：未达到的未来阶段 (targetIdx > currentStageIdx) 严格上锁不可打开
+    if (targetIdx > currentStageIdx && waybill.status !== 'DELIVERED') {
+      toast.warning(
+        `流程不可跳跃！当前处于【${currentStage.label}】，请通过下方待办指引按顺序推进流程。`
+      );
+      return;
+    }
+    setActiveStageModal(targetStageNum);
   };
 
   if (loading) {
@@ -1310,19 +1318,6 @@ export default function WaybillDetailView() {
     }
   };
 
-  // Handle clicking on a stage card (Strict Sequential Gate)
-  const handleStageCardClick = (targetStageNum: number, targetIdx: number) => {
-    // 严禁越级跳步：未来阶段 (targetIdx > currentStageIdx) 严格上锁，不可打开弹窗
-    if (targetIdx > currentStageIdx && waybill.status !== 'DELIVERED') {
-      toast.warning(
-        `流程不可跨越！当前处于【${currentStage.label}】，请先按顺序完成当前阶段数据录入与流转。`
-      );
-      return;
-    }
-    setActiveStageModal(targetStageNum);
-  };
-
-
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
       {/* Header */}
@@ -1362,7 +1357,7 @@ export default function WaybillDetailView() {
               )}
             </div>
             <p className="text-slate-500 text-xs mt-1">
-              路线: {waybill.originWarehouse || '起运点待定'} ➔ {waybill.destinationCountry || '目的国待定'} ({waybill.destinationPort || '目的港待定'})
+              路线: {waybill.originWarehouse || '广州'} ➔ {waybill.destinationCountry} ({waybill.destinationPort || '港口待定'})
             </p>
           </div>
         </div>
@@ -1406,75 +1401,48 @@ export default function WaybillDetailView() {
             w.shortName === waybill.originWarehouse ||
             w.name === waybill.originWarehouse
         );
+        const originPortName = ORIGIN_PORTS.find(
+          (p) => p === waybill.originWarehouse
+        ) || waybill.originWarehouse || '国内起运港';
 
         return (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-all">
-            {/* 紧凑摘要栏 (常驻单行) */}
-            <div className="px-5 py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-gradient-to-r from-slate-50/90 via-white to-blue-50/30">
-              <div className="flex items-center gap-3 flex-wrap text-xs">
-                {/* 起运口岸标签 (整柜为国内起运港，散拼/空运为起运仓) */}
-                {waybill.orderType === 'SEA_FCL' ? (
-                  <div className="flex items-center gap-1.5 font-medium text-slate-700 bg-white px-3 py-1.5 rounded-xl border border-blue-200 shadow-xs">
-                    <Ship className="w-4 h-4 text-blue-600 shrink-0" />
-                    <span className="text-slate-400">国内起运港:</span>
-                    <span className="font-bold text-slate-900">
-                      {waybill.originWarehouse || '未维护起运港'}
-                    </span>
-                    <span className="text-blue-700 bg-blue-50 px-2 py-0.5 text-[10px] font-bold rounded-md border border-blue-200/60">
-                      整柜产地直装 · 直拉码头进港
-                    </span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1.5 font-medium text-slate-700 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-xs">
-                    <Building className="w-4 h-4 text-blue-600 shrink-0" />
-                    <span className="text-slate-400">始发起运仓:</span>
-                    <span className="font-bold text-slate-900">
-                      {originHubInfo?.name || waybill.originWarehouse || '未指定起运仓'}
-                    </span>
-                    {originHubInfo?.contactPhone && (
-                      <span className="text-slate-500 font-mono text-[11px]">
-                        ({originHubInfo.contactName} · {originHubInfo.contactPhone})
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                <span className="text-slate-400 font-bold">➔</span>
-
-                {/* 海外收件人标签 */}
-                <div className="flex items-center gap-1.5 font-medium text-slate-700 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-xs">
-                  <MapPin className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span className="text-slate-400">海外收件人:</span>
-                  {waybill.overseasName ? (
-                    <>
-                      <span className="font-bold text-slate-900">{waybill.overseasName}</span>
-                      {waybill.overseasPhone && (
-                        <span className="text-slate-500 font-mono text-[11px]">
-                          ({waybill.overseasPhone})
-                        </span>
-                      )}
-                      <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold rounded-md border border-emerald-200/60">
-                        {waybill.destinationCountry} · {waybill.destinationPort || '目的港'}
-                      </span>
-                    </>
-                  ) : (
-                    <span className="text-slate-400 italic">未填海外收件人</span>
-                  )}
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden transition-all">
+            <div className="px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-b border-slate-100 bg-slate-50/50">
+              <div className="flex items-center gap-4 flex-wrap text-xs">
+                <span className="font-bold text-slate-900 flex items-center gap-1.5">
+                  <Truck className="w-4 h-4 text-blue-600" />
+                  {waybill.orderType === 'SEA_FCL'
+                    ? '海运整柜专属干线路径'
+                    : waybill.orderType === 'AIR'
+                    ? '空运专线干线路径'
+                    : '散货拼箱集运路径'}
+                </span>
+                <span className="text-slate-300">|</span>
+                <div className="flex items-center gap-2 font-semibold">
+                  <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded font-mono text-[11px]">
+                    {waybill.orderType === 'SEA_FCL'
+                      ? originPortName
+                      : (originHubInfo?.shortName || waybill.originWarehouse || '国内集拼仓')}
+                  </span>
+                  <span className="text-slate-400">➔</span>
+                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-mono text-[11px]">
+                    {waybill.destinationCountry || '目的国'}{waybill.orderType !== 'AIR' && waybill.destinationPort ? ` (${waybill.destinationPort})` : ''}
+                  </span>
                 </div>
               </div>
 
-              {/* 快捷操作区 */}
-              <div className="flex items-center gap-2 self-end md:self-auto shrink-0">
+              <div className="flex items-center gap-3 self-end md:self-auto">
                 <button
+                  type="button"
                   onClick={handleCopyDispatchInstruction}
-                  className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all"
-                  title="复制标准格式派件单"
+                  className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 shadow-sm transition-all"
+                  title="一键复制海外派件派送指令信息"
                 >
-                  <Copy className="w-3.5 h-3.5 text-blue-600" />
+                  <Copy className="w-3.5 h-3.5 text-slate-500" />
                   复制派件指令
                 </button>
-
                 <button
+                  type="button"
                   onClick={() => {
                     setEditOverseasName(waybill.overseasName || '');
                     setEditOverseasPhone(waybill.overseasPhone || '');
@@ -1483,96 +1451,85 @@ export default function WaybillDetailView() {
                     setEditOverseasAddress(waybill.overseasAddress || '');
                     setShowOverseasEditModal(true);
                   }}
-                  className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+                  className="px-3 py-1.5 bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 text-emerald-800 rounded-lg text-xs font-semibold flex items-center gap-1 shadow-sm transition-all"
+                  title="随时在途纠偏与更新海外收件人及送货地址"
                 >
-                  <Edit2 className="w-3.5 h-3.5" />
+                  <Edit3 className="w-3.5 h-3.5 text-emerald-600" />
                   修改海外收件人
                 </button>
-
                 <button
+                  type="button"
                   onClick={() => setIsRouteCardExpanded(!isRouteCardExpanded)}
-                  className="px-2.5 py-1.5 text-slate-500 hover:text-slate-800 text-xs font-bold flex items-center gap-1 transition-all rounded-lg hover:bg-slate-100"
+                  className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 ml-2"
                 >
-                  {isRouteCardExpanded ? (
-                    <>
-                      收起 <ChevronUp className="w-3.5 h-3.5" />
-                    </>
-                  ) : (
-                    <>
-                      展开档案 <ChevronDown className="w-3.5 h-3.5" />
-                    </>
-                  )}
+                  {isRouteCardExpanded ? '收起档案' : '展开档案'}
+                  <ChevronRight
+                    className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                      isRouteCardExpanded ? 'rotate-90' : ''
+                    }`}
+                  />
                 </button>
               </div>
             </div>
 
-            {/* 展开后的结构化详情档案 */}
+            {/* 展开内容：始发枢纽与海外收件人详细档案 */}
             {isRouteCardExpanded && (
-              <div className="p-5 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-5 bg-white animate-in fade-in duration-150">
-                {/* 左侧：国内起运点 (整柜为起运港，拼箱/空运为集运仓) */}
-                <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80 space-y-2 text-xs">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-200/60">
+              <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 bg-white border-t border-slate-100">
+                {/* 左侧：始发地枢纽信息 */}
+                <div className="p-4 bg-slate-50/70 rounded-xl border border-slate-200/80 space-y-2 text-xs">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-200">
                     <span className="font-bold text-slate-800 flex items-center gap-1.5">
                       <Building className="w-4 h-4 text-blue-600" />
-                      {waybill.orderType === 'SEA_FCL' ? '国内起运港口 (Origin Port)' : '国内起运集运仓 (Origin Hub)'}
+                      {waybill.orderType === 'SEA_FCL'
+                        ? '国内起运港口档案 (Origin Port)'
+                        : '始发集运仓库档案 (Hub Depot)'}
                     </span>
-                    {waybill.orderType === 'SEA_FCL' ? (
-                      <span className="font-mono text-[11px] font-bold px-2 py-0.5 bg-blue-100 text-blue-800 rounded">
-                        FCL PORT
-                      </span>
-                    ) : originHubInfo?.code && (
-                      <span className="font-mono text-[11px] font-bold px-2 py-0.5 bg-blue-100 text-blue-800 rounded">
-                        {originHubInfo.code}
-                      </span>
-                    )}
+                    <span className="text-[11px] font-mono font-bold px-2 py-0.5 bg-blue-100 text-blue-800 rounded">
+                      {waybill.orderType === 'SEA_FCL'
+                        ? 'PORT'
+                        : (originHubInfo?.code || 'WAREHOUSE')}
+                    </span>
                   </div>
-                  <div className="space-y-1.5 text-slate-600">
-                    {waybill.orderType === 'SEA_FCL' ? (
-                      <>
-                        <p>
-                          <span className="text-slate-400">起运港口:</span>{' '}
-                          <span className="font-bold text-slate-900 text-sm">
-                            {waybill.originWarehouse || '未维护起运港'}
-                          </span>
-                        </p>
-                        <p className="text-[11px] text-blue-800 bg-blue-50 p-2 rounded-lg border border-blue-200/60">
-                          🚢 海运整柜模式：货车司机提空箱直接前往客户工厂产地装箱，装完后直拉码头进港报关，不入国内集拼仓。
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <p>
-                          <span className="text-slate-400">仓库全称:</span>{' '}
-                          <span className="font-bold text-slate-900">
-                            {originHubInfo?.name || waybill.originWarehouse || '未指定起运仓'}
-                          </span>
-                        </p>
-                        <p>
-                          <span className="text-slate-400">负责人/电话:</span>{' '}
-                          <span className="font-medium text-slate-800">
-                            {originHubInfo?.contactName ? `${originHubInfo.contactName} (${originHubInfo.contactPhone || '暂无电话'})` : (originHubInfo?.contactPhone || '暂无联系人')}
-                          </span>
-                        </p>
-                        <p>
-                          <span className="text-slate-400">详细仓址:</span>{' '}
-                          <span className="text-slate-700">
-                            {originHubInfo ? `${originHubInfo.province || ''}${originHubInfo.city || ''}${originHubInfo.address || ''}` : '暂无详细仓址'}
-                          </span>
-                        </p>
-                        {originHubInfo?.receivingHours && (
-                          <p>
-                            <span className="text-slate-400">营业收货:</span>{' '}
-                            <span className="text-slate-600">{originHubInfo.receivingHours}</span>
-                          </p>
-                        )}
-                        {originHubInfo?.note && (
-                          <p className="text-[11px] text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200/60">
-                            💡 {originHubInfo.note}
-                          </p>
-                        )}
-                      </>
-                    )}
-                  </div>
+                  {waybill.orderType === 'SEA_FCL' ? (
+                    <div className="space-y-1.5 text-slate-600">
+                      <p>
+                        <span className="text-slate-400">起运港名称:</span>{' '}
+                        <span className="font-bold text-slate-900">
+                          {originPortName}
+                        </span>
+                      </p>
+                      <p>
+                        <span className="text-slate-400">集装箱堆场 / 码头作业区:</span>{' '}
+                        <span className="font-medium text-slate-800">
+                          国际集装箱码头堆场 (海关监管区)
+                        </span>
+                      </p>
+                      <p className="text-[11px] text-blue-700 bg-blue-50/80 p-2 rounded border border-blue-200">
+                        💡 提示：海运整柜由拖车直接在工厂/产地装箱落封后送达该港口码头，无需进入国内散货集拼仓。
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5 text-slate-600">
+                      <p>
+                        <span className="text-slate-400">仓库名称:</span>{' '}
+                        <span className="font-bold text-slate-900">
+                          {originHubInfo?.name || `${waybill.originWarehouse || '广州'} 集拼中心`}
+                        </span>
+                      </p>
+                      <p>
+                        <span className="text-slate-400">国内收件联系人:</span>{' '}
+                        <span className="font-medium text-slate-800">
+                          {originHubInfo?.contactName || '仓管收发部'} ({originHubInfo?.contactPhone || '138-0000-0000'})
+                        </span>
+                      </p>
+                      <p>
+                        <span className="text-slate-400">收货地址:</span>{' '}
+                        <span className="font-medium text-slate-800">
+                          {originHubInfo?.address || '广东省广州市白云区国际物流集拼仓'}
+                        </span>
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* 右侧：海外收货与派送档案 */}
@@ -1638,34 +1595,26 @@ export default function WaybillDetailView() {
 
         <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
           {stages.map((st, idx) => {
-            const isCompleted = currentStageIdx > idx || waybill.status === 'DELIVERED';
-            const isCurrent = currentStageIdx === idx && waybill.status !== 'DELIVERED';
-            const isLocked = idx > currentStageIdx && waybill.status !== 'DELIVERED';
+            const isCompleted = idx <= currentStageIdx;
 
             return (
               <div
                 key={st.key}
                 onClick={() => handleStageCardClick(st.stageNum, idx)}
-                className={`p-4 rounded-xl border transition-all relative group ${isCurrent
-                    ? 'bg-blue-50/90 border-blue-500 shadow-md ring-2 ring-blue-500/20 cursor-pointer'
-                    : isCompleted
-                      ? 'bg-emerald-50/60 border-emerald-300 text-slate-800 hover:border-emerald-500 cursor-pointer'
-                      : 'bg-slate-50 border-slate-200 text-slate-400 opacity-60 cursor-not-allowed'
-                  }`}
+                className={`p-4 rounded-xl border transition-all relative group ${
+                  isCompleted
+                    ? 'bg-emerald-50/60 border-emerald-300 text-slate-800 hover:border-emerald-500 cursor-pointer shadow-sm'
+                    : 'bg-slate-50 border-slate-200 text-slate-400 opacity-60 cursor-not-allowed'
+                }`}
               >
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className={`text-xs font-bold ${isCurrent
-                      ? 'text-blue-900'
-                      : isCompleted
-                        ? 'text-emerald-900'
-                        : 'text-slate-400'
-                    }`}>
+                  <span className={`text-xs font-bold ${
+                    isCompleted ? 'text-emerald-900' : 'text-slate-400'
+                  }`}>
                     {st.label}
                   </span>
                   {isCompleted ? (
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  ) : isCurrent ? (
-                    <span className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse" />
                   ) : (
                     <Lock className="w-3.5 h-3.5 text-slate-400" />
                   )}
@@ -1675,17 +1624,11 @@ export default function WaybillDetailView() {
                 </p>
 
                 {/* Subtext actions */}
-                {isCompleted && (
+                {isCompleted ? (
                   <span className="mt-2.5 inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 group-hover:underline">
                     <Edit3 className="w-3 h-3" /> 点击查看/修改
                   </span>
-                )}
-                {isCurrent && (
-                  <span className="mt-2.5 inline-block text-[10px] font-bold text-blue-700 underline">
-                    点击录入并流转 ➔
-                  </span>
-                )}
-                {isLocked && (
+                ) : (
                   <span className="mt-2.5 inline-block text-[10px] text-slate-400">
                     🔒 前置阶段未完成
                   </span>
@@ -1696,8 +1639,8 @@ export default function WaybillDetailView() {
         </div>
       </div>
 
-      {/* Current Stage Action Callout Banner */}
-      {waybill.status !== 'DELIVERED' && (
+      {/* Next Step Stage Callout Banner (全页面唯一的生命阶段流转推进中心) */}
+      {currentStageIdx < 5 && (
         <div className="bg-gradient-to-r from-slate-900 to-blue-950 text-white rounded-2xl p-5 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4 border border-slate-800">
           <div className="flex items-center gap-3.5">
             <div className="p-3 bg-blue-500/20 text-blue-400 rounded-xl">
@@ -1705,19 +1648,19 @@ export default function WaybillDetailView() {
             </div>
             <div>
               <span className="text-[11px] text-blue-300 uppercase tracking-wider font-semibold">
-                当前待办阶段流转指引
+                当前待办流转推进指引
               </span>
               <h3 className="text-sm font-bold text-white mt-0.5">
-                {currentStage.label}：{currentStage.desc}
+                {stages[currentStageIdx + 1]?.label}：{stages[currentStageIdx + 1]?.desc}
               </h3>
             </div>
           </div>
 
           <button
-            onClick={() => setActiveStageModal(currentStage.stageNum)}
+            onClick={() => setActiveStageModal(currentStageIdx + 2)}
             className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/30 flex items-center gap-2 transition-all shrink-0"
           >
-            {stages[currentStageIdx]?.actionText || '点击录入并流转'}
+            {stages[currentStageIdx]?.actionText || `推进至【${stages[currentStageIdx + 1]?.label}】`}
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>

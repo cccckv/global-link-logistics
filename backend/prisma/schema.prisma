@@ -449,6 +449,10 @@ model Waybill {
   receivableAmount   Decimal?          @db.Decimal(12, 2)
   payableAmount      Decimal?          @db.Decimal(12, 2)
   profitAmount       Decimal?          @db.Decimal(12, 2)
+  settlementCurrency CurrencyType      @default(CNY) // 主结算币种 (CNY | PHP | USD)
+  rawReceivableAmount Decimal?         @db.Decimal(12, 2) // 原币总应收金额
+  usdRate            Decimal?          @db.Decimal(10, 4) // 单票美金汇率 (1 USD = X CNY)
+  phpRate            Decimal?          @db.Decimal(10, 4) // 单票比索汇率 (1 CNY = Y PHP)
   isFixedPrice       Boolean           @default(false) // 是否一口价
   fixedPriceAmount   Decimal?          @db.Decimal(12, 2) // 一口价协议金额
 

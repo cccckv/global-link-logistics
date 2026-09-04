@@ -20,6 +20,7 @@ import {
   FileSpreadsheet,
   Users,
   X,
+  RefreshCw,
 } from 'lucide-react';
 import { BatchImportModal } from '../../components/v2/BatchImportModal';
 import {
@@ -27,6 +28,7 @@ import {
   waybillV2Api,
   channelV2Api,
   originWarehouseV2Api,
+  financeV2Api,
   type Customer,
   type CustomerAddress,
   type ShipmentType,
@@ -123,6 +125,12 @@ export default function InboundWorkbench() {
   const [fclQuotationCurrency, setFclQuotationCurrency] = useState<'CNY' | 'USD' | 'PHP'>('CNY');
   const [fees, setFees] = useState<FeeItemRow[]>([]);
 
+  // 单票统一双汇率与当日实时行情
+  const [usdRate, setUsdRate] = useState<number | ''>(7.20);
+  const [phpRate, setPhpRate] = useState<number | ''>(8.00);
+  const [rateSource, setRateSource] = useState<'LIVE' | 'CACHE' | 'FALLBACK' | 'CUSTOM'>('FALLBACK');
+  const [isLoadingRates, setIsLoadingRates] = useState(false);
+
   // Submitting & Success Result Modal
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdResult, setCreatedResult] = useState<{
@@ -184,8 +192,26 @@ export default function InboundWorkbench() {
     setCreatedResult(null);
   };
 
-  // Load customers & origin warehouses
+  const fetchTodayRates = async () => {
+    setIsLoadingRates(true);
+    try {
+      const res = await financeV2Api.getTodayExchangeRates();
+      if (res.data?.success && res.data?.data) {
+        setUsdRate(res.data.data.usdRate);
+        setPhpRate(res.data.data.phpRate);
+        setRateSource(res.data.data.source);
+      }
+    } catch (e) {
+      console.warn('获取当日实时汇率异常，降级为系统基准默认值', e);
+    } finally {
+      setIsLoadingRates(false);
+    }
+  };
+
+  // Load customers & origin warehouses & today exchange rates
   useEffect(() => {
+    fetchTodayRates();
+
     customerV2Api.list().then((res) => {
       if (res.data.data) {
         setCustomers(res.data.data);
@@ -439,39 +465,55 @@ export default function InboundWorkbench() {
     return sum + wt * qty;
   }, 0);
 
-  const baseReceivable = items.reduce((sum, i) => {
+  const convertToCny = (amount: number, curr?: string) => {
+    const val = Number(amount) || 0;
+    if (val === 0) return 0;
+    const c = (curr || 'CNY').toUpperCase();
+    const effectiveUsd = Number(usdRate) > 0 ? Number(usdRate) : 7.20;
+    const effectivePhp = Number(phpRate) > 0 ? Number(phpRate) : 8.00;
+    if (c === 'USD') return val * effectiveUsd;
+    if (c === 'PHP') return effectivePhp > 0 ? val / effectivePhp : 0;
+    return val;
+  };
+
+  const baseReceivableInCny = items.reduce((sum, i) => {
     const qty = Number(i.quantity) || 0;
     const price = Number(i.receivableUnitPrice) || 0;
+    const priceCny = convertToCny(price, i.receivableCurrency);
     if (orderType === 'AIR') {
-      return sum + price * (Number(i.unitWeight) || 0) * qty;
+      return sum + priceCny * (Number(i.unitWeight) || 0) * qty;
     }
     const vol = ((Number(i.length) || 0) * (Number(i.width) || 0) * (Number(i.height) || 0) * qty) / 1_000_000;
-    return sum + price * vol;
+    return sum + priceCny * vol;
   }, 0);
 
-  const basePayable = items.reduce((sum, i) => {
+  const basePayableInCny = items.reduce((sum, i) => {
     const qty = Number(i.quantity) || 0;
     const price = Number(i.payableUnitPrice) || 0;
+    const priceCny = convertToCny(price, i.payableCurrency);
     if (orderType === 'AIR') {
-      return sum + price * (Number(i.unitWeight) || 0) * qty;
+      return sum + priceCny * (Number(i.unitWeight) || 0) * qty;
     }
     const vol = ((Number(i.length) || 0) * (Number(i.width) || 0) * (Number(i.height) || 0) * qty) / 1_000_000;
-    return sum + price * vol;
+    return sum + priceCny * vol;
   }, 0);
 
-  const extraReceivable = fees
+  const extraReceivableInCny = fees
     .filter((f) => f.feeDirection === 'RECEIVABLE')
-    .reduce((sum, f) => sum + (Number(f.amount) || 0), 0);
+    .reduce((sum, f) => sum + convertToCny(Number(f.amount) || 0, f.currency), 0);
 
-  const extraPayable = fees
+  const extraPayableInCny = fees
     .filter((f) => f.feeDirection === 'PAYABLE')
-    .reduce((sum, f) => sum + (Number(f.amount) || 0), 0);
+    .reduce((sum, f) => sum + convertToCny(Number(f.amount) || 0, f.currency), 0);
 
-  const finalReceivable = orderType === 'SEA_FCL' 
-    ? (Number(fclQuotation) || 0) + extraReceivable 
-    : isFixedPrice && fixedPriceAmount ? fixedPriceAmount + extraReceivable : baseReceivable + extraReceivable;
-  const finalPayable = basePayable + extraPayable;
-  const estimatedProfit = finalReceivable - finalPayable;
+  const finalReceivableInCny = orderType === 'SEA_FCL'
+    ? convertToCny(Number(fclQuotation) || 0, fclQuotationCurrency) + extraReceivableInCny
+    : isFixedPrice && fixedPriceAmount
+    ? convertToCny(Number(fixedPriceAmount) || 0, 'CNY') + extraReceivableInCny
+    : baseReceivableInCny + extraReceivableInCny;
+
+  const finalPayableInCny = basePayableInCny + extraPayableInCny;
+  const estimatedProfitInCny = finalReceivableInCny - finalPayableInCny;
 
   // Submit Handler (Phase 1 creation)
   const handleSubmit = async (e: React.FormEvent) => {
@@ -1203,8 +1245,9 @@ export default function InboundWorkbench() {
                                 onChange={(e) => updateItem(item.id, 'receivableCurrency', e.target.value)}
                                 className="px-1.5 py-1 bg-slate-100 border border-slate-200 rounded text-xs"
                               >
-                                <option value="CNY">¥</option>
-                                <option value="PHP">₱</option>
+                                <option value="CNY">¥ CNY</option>
+                                <option value="PHP">₱ PHP</option>
+                                <option value="USD">$ USD</option>
                               </select>
                               <input
                                 type="number"
@@ -1223,8 +1266,9 @@ export default function InboundWorkbench() {
                                 onChange={(e) => updateItem(item.id, 'payableCurrency', e.target.value)}
                                 className="px-1.5 py-1 bg-slate-100 border border-slate-200 rounded text-xs"
                               >
-                                <option value="CNY">¥</option>
-                                <option value="PHP">₱</option>
+                                <option value="CNY">¥ CNY</option>
+                                <option value="PHP">₱ PHP</option>
+                                <option value="USD">$ USD</option>
                               </select>
                               <input
                                 type="number"
@@ -1254,6 +1298,83 @@ export default function InboundWorkbench() {
               </tbody>
             </table>
           </div>
+        </div>
+
+                {/* Section 2.5: 单票统一汇率卡片 */}
+        <div className="bg-gradient-to-r from-blue-50/70 via-indigo-50/50 to-white rounded-xl border border-blue-200/80 p-5 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <RefreshCw className={`w-4 h-4 text-blue-600 ${isLoadingRates ? 'animate-spin' : ''}`} />
+              <h3 className="text-sm font-bold text-slate-800">
+                单票结算汇率配置 (贵币计价法)
+              </h3>
+              <span className={`px-2 py-0.5 text-[11px] font-semibold rounded-full ${
+                rateSource === 'LIVE' ? 'bg-emerald-100 text-emerald-700' :
+                rateSource === 'CACHE' ? 'bg-blue-100 text-blue-700' :
+                'bg-slate-100 text-slate-600'
+              }`}>
+                {rateSource === 'LIVE' ? '当日实时行情' : rateSource === 'CACHE' ? '今日缓存汇率' : rateSource === 'CUSTOM' ? '单票手工微调' : '系统安全基准'}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={fetchTodayRates}
+              disabled={isLoadingRates}
+              className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-blue-50 text-blue-700 border border-blue-300 rounded text-xs font-semibold shadow-sm transition-colors"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingRates ? 'animate-spin' : ''}`} />
+              {isLoadingRates ? '正在同步...' : '重新获取当日汇率'}
+            </button>
+          </div>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+            <div className="bg-white/90 p-3 rounded-lg border border-slate-200 flex items-center justify-between">
+              <div>
+                <span className="text-xs font-medium text-slate-600">美金结算汇率 (USD)</span>
+                <p className="text-[11px] text-slate-400">1 美元 (USD) 兑换人民币</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-700 font-mono">1 USD =</span>
+                <input
+                  type="number"
+                  step="0.0001"
+                  value={usdRate}
+                  onChange={(e) => {
+                    setUsdRate(e.target.value === '' ? '' : Number(e.target.value));
+                    setRateSource('CUSTOM');
+                  }}
+                  className="w-24 px-2 py-1 bg-slate-50 border border-slate-300 rounded font-mono font-bold text-sm text-blue-700 text-right focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  placeholder="7.2000"
+                />
+                <span className="text-xs font-bold text-slate-700 font-mono">CNY</span>
+              </div>
+            </div>
+
+            <div className="bg-white/90 p-3 rounded-lg border border-slate-200 flex items-center justify-between">
+              <div>
+                <span className="text-xs font-medium text-slate-600">比索结算汇率 (PHP)</span>
+                <p className="text-[11px] text-slate-400">1 人民币 (CNY) 兑换比索</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-700 font-mono">1 CNY =</span>
+                <input
+                  type="number"
+                  step="0.0001"
+                  value={phpRate}
+                  onChange={(e) => {
+                    setPhpRate(e.target.value === '' ? '' : Number(e.target.value));
+                    setRateSource('CUSTOM');
+                  }}
+                  className="w-24 px-2 py-1 bg-slate-50 border border-slate-300 rounded font-mono font-bold text-sm text-purple-700 text-right focus:bg-white focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  placeholder="8.0000"
+                />
+                <span className="text-xs font-bold text-slate-700 font-mono">PHP</span>
+              </div>
+            </div>
+          </div>
+          <p className="text-[11px] text-slate-500">
+            提示：系统自动同步当日基准汇率。若该订单有业务约定特批汇率，可直接微调（仅对本票订单生效）。所有外币收支将统一按此汇率折算为人民币核算净毛利。
+          </p>
         </div>
 
         {/* Section 3: 附加杂费 */}
@@ -1380,15 +1501,15 @@ export default function InboundWorkbench() {
               </p>
             </div>
             <div>
-              <span className="text-slate-400">预计应收总额</span>
+              <span className="text-slate-400">预计应收总额 (折合)</span>
               <p className="text-lg font-bold text-emerald-400 font-mono mt-0.5">
-                ¥ {finalReceivable.toFixed(2)}
+                ¥ {finalReceivableInCny.toFixed(2)}
               </p>
             </div>
             <div>
-              <span className="text-slate-400">预计毛利</span>
-              <p className="text-lg font-bold text-amber-400 font-mono mt-0.5">
-                ¥ {estimatedProfit.toFixed(2)}
+              <span className="text-slate-400">预计净毛利 (折合)</span>
+              <p className={`text-lg font-bold font-mono mt-0.5 ${estimatedProfitInCny >= 0 ? 'text-amber-400' : 'text-red-400'}`}>
+                ¥ {estimatedProfitInCny.toFixed(2)}
               </p>
             </div>
           </div>

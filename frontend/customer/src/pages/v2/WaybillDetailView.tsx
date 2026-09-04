@@ -278,7 +278,29 @@ export default function WaybillDetailView() {
   const [feeDirection, setFeeDirection] = useState<'RECEIVABLE' | 'PAYABLE'>('RECEIVABLE');
   const [feeAmount, setFeeAmount] = useState<number>(0);
   const [feeCurrency, setFeeCurrency] = useState<CurrencyType>('CNY');
+  const [feeExchangeRate, setFeeExchangeRate] = useState<number | string>('');
   const [feeNote, setFeeNote] = useState('');
+
+  const openAddFeeModal = () => {
+    setFeeName('');
+    setFeeDirection('RECEIVABLE');
+    setFeeCurrency('CNY');
+    setFeeAmount(0);
+    setFeeExchangeRate(1.0);
+    setFeeNote('');
+    setShowFeeModal(true);
+  };
+
+  const handleFeeCurrencyChange = (curr: CurrencyType) => {
+    setFeeCurrency(curr);
+    if (curr === 'USD') {
+      setFeeExchangeRate(waybill?.usdRate ? Number(waybill.usdRate) : 7.20);
+    } else if (curr === 'PHP') {
+      setFeeExchangeRate(waybill?.phpRate ? Number(waybill.phpRate) : 8.00);
+    } else {
+      setFeeExchangeRate(1.0);
+    }
+  };
 
   // General Attachment Modal
   const [showAttachModal, setShowAttachModal] = useState(false);
@@ -1129,11 +1151,21 @@ export default function WaybillDetailView() {
       return;
     }
     try {
+      const parsedRate =
+        feeCurrency === 'CNY'
+          ? 1.0
+          : Number(feeExchangeRate) && Number(feeExchangeRate) > 0
+          ? Number(feeExchangeRate)
+          : feeCurrency === 'USD'
+          ? Number(waybill.usdRate) || 7.20
+          : Number(waybill.phpRate) || 8.00;
+
       await financeV2Api.addFee(waybill.id, {
         feeName,
         feeDirection,
         amount: Number(feeAmount),
         currency: feeCurrency,
+        exchangeRate: parsedRate,
         note: feeNote.trim() || undefined,
       });
       toast.success('附加杂费添加成功');
@@ -1384,7 +1416,7 @@ export default function WaybillDetailView() {
             追加凭证
           </button>
           <button
-            onClick={() => setShowFeeModal(true)}
+            onClick={openAddFeeModal}
             className="px-4 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5 transition-all"
           >
             <DollarSign className="w-4 h-4 text-emerald-600" />
@@ -2196,9 +2228,20 @@ export default function WaybillDetailView() {
             <div className="space-y-3 font-mono">
               <div className="flex items-center justify-between text-xs text-slate-400">
                 <span>总应收金额 (Receivable):</span>
-                <span className="text-base font-bold text-emerald-400">
-                  ¥ {Number(waybill.receivableAmount || 0).toFixed(2)}
-                </span>
+                {waybill.settlementCurrency && waybill.settlementCurrency !== 'CNY' && waybill.rawReceivableAmount ? (
+                  <div className="text-right">
+                    <span className="text-base font-bold text-emerald-400">
+                      {waybill.settlementCurrency === 'PHP' ? '₱' : '$'} {Number(waybill.rawReceivableAmount).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                    <span className="text-[11px] text-slate-400 block font-normal">
+                      (折合 ¥ {Number(waybill.receivableAmount || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                    </span>
+                  </div>
+                ) : (
+                  <span className="text-base font-bold text-emerald-400">
+                    ¥ {Number(waybill.receivableAmount || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                )}
               </div>
               <div className="flex items-center justify-between text-xs text-slate-400">
                 <span>总应付成本 (Payable):</span>
@@ -2217,6 +2260,22 @@ export default function WaybillDetailView() {
                   ¥ {Number(waybill.profitAmount || 0).toFixed(2)}
                 </span>
               </div>
+
+              {/* 单票绑定双汇率快照展示 */}
+              <div className="bg-slate-800/80 p-2.5 rounded-lg border border-slate-700/60 space-y-1 text-xs mt-2">
+                <div className="flex items-center justify-between text-slate-300">
+                  <span className="text-[11px] text-slate-400">美金汇率 (USD):</span>
+                  <span className="font-mono font-semibold text-cyan-300">
+                    1 USD = {waybill.usdRate ? Number(waybill.usdRate).toFixed(4) : '7.2000'} CNY
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-slate-300">
+                  <span className="text-[11px] text-slate-400">比索汇率 (PHP):</span>
+                  <span className="font-mono font-semibold text-purple-300">
+                    1 CNY = {waybill.phpRate ? Number(waybill.phpRate).toFixed(4) : '8.0000'} PHP
+                  </span>
+                </div>
+              </div>
             </div>
 
             {/* Fee Items List */}
@@ -2224,7 +2283,7 @@ export default function WaybillDetailView() {
               <div className="flex items-center justify-between text-xs">
                 <span className="text-slate-400 font-semibold">附加杂费清单</span>
                 <button
-                  onClick={() => setShowFeeModal(true)}
+                  onClick={openAddFeeModal}
                   className="text-cyan-400 hover:text-cyan-300 text-[11px]"
                 >
                   + 添加杂费
@@ -2245,10 +2304,24 @@ export default function WaybillDetailView() {
                         ({f.feeDirection === 'RECEIVABLE' ? '应收' : '应付'})
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 font-mono">
-                      <span className={f.feeDirection === 'RECEIVABLE' ? 'text-emerald-400' : 'text-rose-400'}>
-                        ¥ {Number(f.amountInCny || f.amount).toFixed(2)}
-                      </span>
+                    <div className="flex items-center gap-2 font-mono text-right">
+                      <div>
+                        {f.currency && f.currency !== 'CNY' ? (
+                          <>
+                            <span className={`block font-bold ${f.feeDirection === 'RECEIVABLE' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              {f.currency === 'PHP' ? '₱' : '$'} {Number(f.amount).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                            <span className="text-[10px] text-slate-400 block font-normal">
+                              折合 ¥ {Number(f.amountInCny || f.amount).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+                              {f.exchangeRate ? <span className="text-[9px] text-slate-500 font-mono">(@{Number(f.exchangeRate).toFixed(4)})</span> : null}
+                            </span>
+                          </>
+                        ) : (
+                          <span className={f.feeDirection === 'RECEIVABLE' ? 'text-emerald-400' : 'text-rose-400'}>
+                            ¥ {Number(f.amountInCny || f.amount).toFixed(2)}
+                          </span>
+                        )}
+                      </div>
                       <button
                         onClick={() => f.id && handleDeleteFee(f.id)}
                         className="text-slate-500 hover:text-rose-400"
@@ -3958,7 +4031,7 @@ export default function WaybillDetailView() {
                   <label className="block text-xs font-semibold text-slate-700 mb-1">币种</label>
                   <select
                     value={feeCurrency}
-                    onChange={(e) => setFeeCurrency(e.target.value as any)}
+                    onChange={(e) => handleFeeCurrencyChange(e.target.value as any)}
                     className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs"
                   >
                     <option value="CNY">¥ 人民币 (CNY)</option>
@@ -3977,6 +4050,52 @@ export default function WaybillDetailView() {
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold font-mono"
                   />
                 </div>
+              </div>
+
+              {feeCurrency !== 'CNY' && (
+                <div className="p-3 bg-amber-50/70 border border-amber-200/90 rounded-xl space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <label className="font-bold text-amber-900 flex items-center gap-1.5">
+                      <span>{feeCurrency === 'USD' ? '美元结算汇率 (1 USD = X CNY)' : '比索结算汇率 (1 CNY = Y PHP)'}</span>
+                    </label>
+                    <span className="text-[11px] text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded font-mono">
+                      单票参考: {feeCurrency === 'USD' ? (waybill?.usdRate ? Number(waybill.usdRate).toFixed(4) : '7.2000') : (waybill?.phpRate ? Number(waybill.phpRate).toFixed(4) : '8.0000')}
+                    </span>
+                  </div>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    value={feeExchangeRate}
+                    onChange={(e) => setFeeExchangeRate(e.target.value === '' ? '' : Number(e.target.value))}
+                    required
+                    placeholder="输入实付汇率"
+                    className="w-full px-3 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-mono font-bold text-amber-950 shadow-inner focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  />
+                  <p className="text-[10px] text-amber-700 leading-tight">
+                    * 杂费因付款时间不同费率可能变化。提交后将独立锁定该实付汇率快照，历史记账不受后续订单基准汇率变动影响。
+                  </p>
+                </div>
+              )}
+
+              {/* 实时折合人民币预览 */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs font-mono">
+                <span className="text-slate-500">折合人民币成本/应收:</span>
+                <span className="font-bold text-emerald-600 text-sm">
+                  ¥{' '}
+                  {(() => {
+                    const amt = Number(feeAmount) || 0;
+                    if (feeCurrency === 'CNY') return amt.toFixed(2);
+                    const rate =
+                      Number(feeExchangeRate) && Number(feeExchangeRate) > 0
+                        ? Number(feeExchangeRate)
+                        : feeCurrency === 'USD'
+                        ? Number(waybill?.usdRate) || 7.2
+                        : Number(waybill?.phpRate) || 8.0;
+                    if (feeCurrency === 'USD') return (amt * rate).toFixed(2);
+                    if (feeCurrency === 'PHP') return (rate > 0 ? amt / rate : 0).toFixed(2);
+                    return amt.toFixed(2);
+                  })()}
+                </span>
               </div>
 
               <div>

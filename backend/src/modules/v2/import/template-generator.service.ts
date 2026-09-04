@@ -50,6 +50,8 @@ export const OFFICIAL_SEA_LCL_COLUMNS = [
   { header: '目的国家', key: 'destinationCountry', width: 16 },
   { header: '承运渠道/服务商 (选填)', key: 'forwarderChannel', width: 22 },
   { header: '报关/通道类型 (选填)', key: 'customsType', width: 20 },
+  { header: '单票美金汇率 (选填)', key: 'usdRate', width: 18 },
+  { header: '单票比索汇率 (选填)', key: 'phpRate', width: 18 },
   { header: '海外收件联系人 (选填)', key: 'overseasName', width: 20 },
   { header: '海外联系电话 (WhatsApp)', key: 'overseasPhone', width: 24 },
   { header: '海外收件公司 (选填)', key: 'overseasCompany', width: 20 },
@@ -63,8 +65,10 @@ export const OFFICIAL_SEA_LCL_COLUMNS = [
   { header: '实测单重 (kg)', key: 'unitWeight', width: 14 },
   { header: '实测总重 (kg)', key: 'totalWeight', width: 14 },
   { header: '实测体积 (m³)', key: 'payableVolume', width: 14 },
-  { header: '应收单价 (元/方)', key: 'receivableUnitPrice', width: 16 },
-  { header: '应付单价 (元/方)', key: 'payableUnitPrice', width: 16 },
+  { header: '应收币种 (选填)', key: 'receivableCurrency', width: 16 },
+  { header: '应收单价 (原币/方)', key: 'receivableUnitPrice', width: 18 },
+  { header: '应付币种 (选填)', key: 'payableCurrency', width: 16 },
+  { header: '应付单价 (原币/方)', key: 'payableUnitPrice', width: 18 },
   { header: '送仓快递单号', key: 'trackingNumber', width: 20 },
   { header: '备注', key: 'note', width: 25 },
   { header: '叫车截图', key: 'pickupImg', width: 18 },
@@ -78,6 +82,8 @@ export const OFFICIAL_AIR_COLUMNS = [
   { header: '目的国家', key: 'destinationCountry', width: 16 },
   { header: '承运渠道/服务商 (选填)', key: 'forwarderChannel', width: 22 },
   { header: '报关/通道类型 (选填)', key: 'customsType', width: 20 },
+  { header: '单票美金汇率 (选填)', key: 'usdRate', width: 18 },
+  { header: '单票比索汇率 (选填)', key: 'phpRate', width: 18 },
   { header: '海外收件联系人 (选填)', key: 'overseasName', width: 20 },
   { header: '海外联系电话 (WhatsApp)', key: 'overseasPhone', width: 24 },
   { header: '海外收件公司 (选填)', key: 'overseasCompany', width: 20 },
@@ -86,10 +92,13 @@ export const OFFICIAL_AIR_COLUMNS = [
   { header: '申报品名 (必填)', key: 'productName', width: 25 },
   { header: '实收件数 (件)', key: 'quantity', width: 14 },
   { header: '实测总重 (kg)', key: 'totalWeight', width: 14 },
-  { header: '应收重量单价 (元/kg)', key: 'receivableUnitPrice', width: 20 },
-  { header: '应付成本单价 (元/kg)', key: 'payableUnitPrice', width: 20 },
-  { header: '内部车费 (元)', key: 'internalTruckingFee', width: 16 },
-  { header: '渠道车费 (元)', key: 'channelTruckingFee', width: 16 },
+  { header: '应收币种 (选填)', key: 'receivableCurrency', width: 16 },
+  { header: '应收重量单价 (原币/kg)', key: 'receivableUnitPrice', width: 22 },
+  { header: '应付币种 (选填)', key: 'payableCurrency', width: 16 },
+  { header: '应付成本单价 (原币/kg)', key: 'payableUnitPrice', width: 22 },
+  { header: '车费币种 (选填)', key: 'truckingFeeCurrency', width: 16 },
+  { header: '内部车费 (原币)', key: 'internalTruckingFee', width: 16 },
+  { header: '渠道车费 (原币)', key: 'channelTruckingFee', width: 16 },
   { header: '送仓快递单号', key: 'trackingNumber', width: 20 },
   { header: '备注', key: 'note', width: 25 },
   { header: '过磅截图', key: 'weightImg', width: 18 },
@@ -98,6 +107,8 @@ export const OFFICIAL_AIR_COLUMNS = [
 
 export const OFFICIAL_SEA_FCL_COLUMNS = [
   { header: '客户唛头 (必填)', key: 'userMark', width: 22 },
+  { header: '单票美金汇率 (选填)', key: 'usdRate', width: 18 },
+  { header: '单票比索汇率 (选填)', key: 'phpRate', width: 18 },
   { header: '海外收件联系人', key: 'overseasName', width: 18 },
   { header: '海外联系电话', key: 'overseasPhone', width: 20 },
   { header: '海外详细派送地址', key: 'overseasAddress', width: 30 },
@@ -109,14 +120,19 @@ export const OFFICIAL_SEA_FCL_COLUMNS = [
   { header: '起运港', key: 'originPort', width: 16 },
   { header: '目的港', key: 'destinationPort', width: 18 },
   { header: '申报品名', key: 'productName', width: 25 },
-  { header: '整柜包干报价 (元)', key: 'receivableAmount', width: 22 },
+  { header: '整柜报价币种 (选填)', key: 'receivableCurrency', width: 18 },
+  { header: '整柜包干报价 (原币)', key: 'receivableAmount', width: 22 },
   { header: '订舱渠道', key: 'bookingChannel', width: 20 },
   { header: '报关渠道', key: 'customsChannel', width: 20 },
   { header: '清关渠道', key: 'clearanceChannel', width: 22 },
-  { header: '拖车费用 (元)', key: 'truckingFee', width: 16 },
-  { header: '订舱费/港杂 (元)', key: 'portFee', width: 18 },
-  { header: 'THC超支费 (元)', key: 'thcFee', width: 16 },
-  { header: '目的港清关费 (元)', key: 'clearanceFee', width: 18 },
+  { header: '拖车费用币种 (选填)', key: 'truckingFeeCurrency', width: 18 },
+  { header: '拖车费用 (原币)', key: 'truckingFee', width: 16 },
+  { header: '订舱费币种 (选填)', key: 'portFeeCurrency', width: 18 },
+  { header: '海运订舱费/港杂 (原币)', key: 'portFee', width: 20 },
+  { header: 'THC币种 (选填)', key: 'thcFeeCurrency', width: 16 },
+  { header: 'THC超支费 (原币)', key: 'thcFee', width: 16 },
+  { header: '清关费币种 (选填)', key: 'clearanceFeeCurrency', width: 18 },
+  { header: '目的港清关费 (原币)', key: 'clearanceFee', width: 18 },
   { header: '装柜日期 (YYYY-MM-DD)', key: 'loadingDate', width: 22 },
   { header: '开船时间 (YYYY-MM-DD)', key: 'sailingDate', width: 22 },
   { header: '预计到港 (YYYY-MM-DD)', key: 'eta', width: 22 },
@@ -265,6 +281,7 @@ export class TemplateGeneratorService {
       { header: '集装箱柜型规格 (下拉源)', key: 'containerType', width: 22 },      // L 列
       { header: '报关/通道类型 (下拉源)', key: 'customsType', width: 20 },         // M 列
       { header: '是否默认 (下拉源)', key: 'isDefault', width: 15 },               // N 列
+      { header: '结算币种 (下拉源)', key: 'currency', width: 18 },                // O 列
     ];
 
     this.styleHeaderRow(sheet.getRow(1));
@@ -282,10 +299,11 @@ export class TemplateGeneratorService {
       data.fclCustomsChannels.length,
       data.fclClearanceChannels.length,
       data.customsTypes.length,
-      2
+      3
     );
 
     const isDefaultOptions = ['是', '否'];
+    const currencyOptions = ['CNY', 'PHP', 'USD'];
 
     for (let i = 0; i < maxRows; i++) {
       const wh = data.warehouses[i];
@@ -304,10 +322,49 @@ export class TemplateGeneratorService {
         containerType: data.containerTypes[i] || '',
         customsType: data.customsTypes[i] || '',
         isDefault: isDefaultOptions[i] || '',
+        currency: currencyOptions[i] || '',
       });
     }
 
     sheet.getCell('A1').note = '【主数据字典】本工作表按业务分类展示系统标准配置项，供录入页跨表下拉选择及参考。';
+  }
+
+  /**
+   * 将数字索引（1-based）转换为 Excel 列字母 (1 -> A, 26 -> Z, 27 -> AA)
+   */
+  private colToLetter(col: number): string {
+    let temp = col;
+    let letter = '';
+    while (temp > 0) {
+      const mod = (temp - 1) % 26;
+      letter = String.fromCharCode(65 + mod) + letter;
+      temp = Math.floor((temp - mod) / 26);
+    }
+    return letter;
+  }
+
+  /**
+   * 根据模板列 key 动态获取其在表格中的列字母，杜绝硬编码位移
+   */
+  private getColLetterByKey(columns: Array<{ key: string }>, key: string): string {
+    const idx = columns.findIndex((c) => c.key === key);
+    if (idx === -1) return '';
+    return this.colToLetter(idx + 1);
+  }
+
+  /**
+   * 根据列 key 动态为表头添加批注说明，杜绝列调整导致的硬编码错位
+   */
+  private setHeaderNote(
+    sheet: ExcelJS.Worksheet,
+    columns: Array<{ key: string }>,
+    key: string,
+    noteText: string
+  ) {
+    const colLetter = this.getColLetterByKey(columns, key);
+    if (colLetter) {
+      sheet.getCell(`${colLetter}1`).note = noteText;
+    }
   }
 
   /**
@@ -330,106 +387,80 @@ export class TemplateGeneratorService {
     const fclClearanceCount = dict.fclClearanceChannels.length + 1;
     const customsTypeCount = dict.customsTypes.length + 1;
 
+    let cols: Array<{ key: string }> = [];
+    if (type === 'CUSTOMER') cols = OFFICIAL_CUSTOMER_COLUMNS;
+    else if (type === 'SEA_LCL') cols = OFFICIAL_SEA_LCL_COLUMNS;
+    else if (type === 'AIR') cols = OFFICIAL_AIR_COLUMNS;
+    else if (type === 'SEA_FCL') cols = OFFICIAL_SEA_FCL_COLUMNS;
+
+    const colL = (k: string) => this.getColLetterByKey(cols, k);
+
     // 为 2 到 100 行应用数据验证
     for (let r = 2; r <= 100; r++) {
       if (type === 'CUSTOMER') {
-        // 客户档案: E 列起运仓, I 列目的国, J 列目的港, L 列是否默认
-        sheet.getCell(`E${r}`).dataValidation = {
-          type: 'list',
-          allowBlank: true,
-          formulae: [`'系统字典与配置'!$A$2:$A$${whCount}`],
-        };
-        sheet.getCell(`I${r}`).dataValidation = {
-          type: 'list',
-          allowBlank: true,
-          formulae: [`'系统字典与配置'!$D$2:$D$${countryCount}`],
-        };
-        sheet.getCell(`J${r}`).dataValidation = {
-          type: 'list',
-          allowBlank: true,
-          formulae: [`'系统字典与配置'!$E$2:$E$${portCount}`],
-        };
-        sheet.getCell(`L${r}`).dataValidation = {
-          type: 'list',
-          allowBlank: true,
-          formulae: [`'系统字典与配置'!$N$2:$N$3`],
-        };
+        const cWh = colL('defaultWarehouse');
+        const cCountry = colL('destinationCountry');
+        const cPort = colL('destinationPort');
+        const cIsDef = colL('isDefault');
+
+        if (cWh) sheet.getCell(`${cWh}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`'系统字典与配置'!$A$2:$A$${whCount}`] };
+        if (cCountry) sheet.getCell(`${cCountry}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`'系统字典与配置'!$D$2:$D$${countryCount}`] };
+        if (cPort) sheet.getCell(`${cPort}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`'系统字典与配置'!$E$2:$E$${portCount}`] };
+        if (cIsDef) sheet.getCell(`${cIsDef}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`'系统字典与配置'!$N$2:$N$3`] };
       } else if (type === 'SEA_LCL') {
-        // 海运散拼: C 列起运仓, D 列目的国, E 列承运渠道(绑定G列散拼), F 列通道类型(绑定M列)
-        sheet.getCell(`C${r}`).dataValidation = {
-          type: 'list',
-          allowBlank: true,
-          formulae: [`'系统字典与配置'!$A$2:$A$${whCount}`],
-        };
-        sheet.getCell(`D${r}`).dataValidation = {
-          type: 'list',
-          allowBlank: true,
-          formulae: [`'系统字典与配置'!$D$2:$D$${countryCount}`],
-        };
-        sheet.getCell(`E${r}`).dataValidation = {
-          type: 'list',
-          allowBlank: true,
-          formulae: [`'系统字典与配置'!$G$2:$G$${seaLclCount}`],
-        };
-        sheet.getCell(`F${r}`).dataValidation = {
-          type: 'list',
-          allowBlank: true,
-          formulae: [`'系统字典与配置'!$M$2:$M$${customsTypeCount}`],
-        };
+        const cWh = colL('originWarehouse');
+        const cCountry = colL('destinationCountry');
+        const cChannel = colL('forwarderChannel');
+        const cCustoms = colL('customsType');
+        const cRecvCurr = colL('receivableCurrency');
+        const cPayCurr = colL('payableCurrency');
+
+        if (cWh) sheet.getCell(`${cWh}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`'系统字典与配置'!$A$2:$A$${whCount}`] };
+        if (cCountry) sheet.getCell(`${cCountry}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`'系统字典与配置'!$D$2:$D$${countryCount}`] };
+        if (cChannel) sheet.getCell(`${cChannel}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`'系统字典与配置'!$G$2:$G$${seaLclCount}`] };
+        if (cCustoms) sheet.getCell(`${cCustoms}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`'系统字典与配置'!$M$2:$M$${customsTypeCount}`] };
+        if (cRecvCurr) sheet.getCell(`${cRecvCurr}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`'系统字典与配置'!$O$2:$O$4`] };
+        if (cPayCurr) sheet.getCell(`${cPayCurr}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`'系统字典与配置'!$O$2:$O$4`] };
       } else if (type === 'AIR') {
-        // 空运专线: C 列起运仓, D 列目的国, E 列承运渠道(绑定H列空运), F 列通道类型(绑定M列)
-        sheet.getCell(`C${r}`).dataValidation = {
-          type: 'list',
-          allowBlank: true,
-          formulae: [`'系统字典与配置'!$A$2:$A$${whCount}`],
-        };
-        sheet.getCell(`D${r}`).dataValidation = {
-          type: 'list',
-          allowBlank: true,
-          formulae: [`'系统字典与配置'!$D$2:$D$${countryCount}`],
-        };
-        sheet.getCell(`E${r}`).dataValidation = {
-          type: 'list',
-          allowBlank: true,
-          formulae: [`'系统字典与配置'!$H$2:$H$${airCount}`],
-        };
-        sheet.getCell(`F${r}`).dataValidation = {
-          type: 'list',
-          allowBlank: true,
-          formulae: [`'系统字典与配置'!$M$2:$M$${customsTypeCount}`],
-        };
+        const cWh = colL('originWarehouse');
+        const cCountry = colL('destinationCountry');
+        const cChannel = colL('forwarderChannel');
+        const cCustoms = colL('customsType');
+        const cRecvCurr = colL('receivableCurrency');
+        const cPayCurr = colL('payableCurrency');
+        const cTruckCurr = colL('truckingFeeCurrency');
+
+        if (cWh) sheet.getCell(`${cWh}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`'系统字典与配置'!$A$2:$A$${whCount}`] };
+        if (cCountry) sheet.getCell(`${cCountry}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`'系统字典与配置'!$D$2:$D$${countryCount}`] };
+        if (cChannel) sheet.getCell(`${cChannel}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`'系统字典与配置'!$H$2:$H$${airCount}`] };
+        if (cCustoms) sheet.getCell(`${cCustoms}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`'系统字典与配置'!$M$2:$M$${customsTypeCount}`] };
+        if (cRecvCurr) sheet.getCell(`${cRecvCurr}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`'系统字典与配置'!$O$2:$O$4`] };
+        if (cPayCurr) sheet.getCell(`${cPayCurr}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`'系统字典与配置'!$O$2:$O$4`] };
+        if (cTruckCurr) sheet.getCell(`${cTruckCurr}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`'系统字典与配置'!$O$2:$O$4`] };
       } else if (type === 'SEA_FCL') {
-        // 整柜: F 列柜型(L列), J 列起运港(F列), K 列目的港(E列), N 列订舱渠道(I列), O 列报关渠道(J列), P 列清关渠道(K列)
-        sheet.getCell(`F${r}`).dataValidation = {
-          type: 'list',
-          allowBlank: true,
-          formulae: [`'系统字典与配置'!$L$2:$L$${containerTypeCount}`],
-        };
-        sheet.getCell(`J${r}`).dataValidation = {
-          type: 'list',
-          allowBlank: true,
-          formulae: [`'系统字典与配置'!$F$2:$F$${originPortCount}`],
-        };
-        sheet.getCell(`K${r}`).dataValidation = {
-          type: 'list',
-          allowBlank: true,
-          formulae: [`'系统字典与配置'!$E$2:$E$${portCount}`],
-        };
-        sheet.getCell(`N${r}`).dataValidation = {
-          type: 'list',
-          allowBlank: true,
-          formulae: [`'系统字典与配置'!$I$2:$I$${fclBookingCount}`],
-        };
-        sheet.getCell(`O${r}`).dataValidation = {
-          type: 'list',
-          allowBlank: true,
-          formulae: [`'系统字典与配置'!$J$2:$J$${fclCustomsCount}`],
-        };
-        sheet.getCell(`P${r}`).dataValidation = {
-          type: 'list',
-          allowBlank: true,
-          formulae: [`'系统字典与配置'!$K$2:$K$${fclClearanceCount}`],
-        };
+        const cType = colL('containerType');
+        const cOrigPort = colL('originPort');
+        const cDestPort = colL('destinationPort');
+        const cRecvCurr = colL('receivableCurrency');
+        const cBooking = colL('bookingChannel');
+        const cCustoms = colL('customsChannel');
+        const cClearance = colL('clearanceChannel');
+        const cTruckCurr = colL('truckingFeeCurrency');
+        const cPortCurr = colL('portFeeCurrency');
+        const cThcCurr = colL('thcFeeCurrency');
+        const cClearCurr = colL('clearanceFeeCurrency');
+
+        if (cType) sheet.getCell(`${cType}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`'系统字典与配置'!$L$2:$L$${containerTypeCount}`] };
+        if (cOrigPort) sheet.getCell(`${cOrigPort}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`'系统字典与配置'!$F$2:$F$${originPortCount}`] };
+        if (cDestPort) sheet.getCell(`${cDestPort}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`'系统字典与配置'!$E$2:$E$${portCount}`] };
+        if (cRecvCurr) sheet.getCell(`${cRecvCurr}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`'系统字典与配置'!$O$2:$O$4`] };
+        if (cBooking) sheet.getCell(`${cBooking}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`'系统字典与配置'!$I$2:$I$${fclBookingCount}`] };
+        if (cCustoms) sheet.getCell(`${cCustoms}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`'系统字典与配置'!$J$2:$J$${fclCustomsCount}`] };
+        if (cClearance) sheet.getCell(`${cClearance}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`'系统字典与配置'!$K$2:$K$${fclClearanceCount}`] };
+        if (cTruckCurr) sheet.getCell(`${cTruckCurr}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`'系统字典与配置'!$O$2:$O$4`] };
+        if (cPortCurr) sheet.getCell(`${cPortCurr}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`'系统字典与配置'!$O$2:$O$4`] };
+        if (cThcCurr) sheet.getCell(`${cThcCurr}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`'系统字典与配置'!$O$2:$O$4`] };
+        if (cClearCurr) sheet.getCell(`${cClearCurr}${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`'系统字典与配置'!$O$2:$O$4`] };
       }
     }
   }
@@ -491,9 +522,9 @@ export class TemplateGeneratorService {
       note: '',
     });
 
-    sheet.getCell('A1').note = '【唯一标识】系统核心客户编码/唛头，必填。一个客户若有多个海外收件人，录入多行填写相同唛头即可。';
-    sheet.getCell('E1').note = '【起运仓】自带下拉列表选择。可切换至《系统字典与配置》工作表查看详细仓址。';
-    sheet.getCell('L1').note = '填【是】或【否】。若标为【是】，系统将自动提取其目的国和目的港作为客户主路线。';
+    this.setHeaderNote(sheet, OFFICIAL_CUSTOMER_COLUMNS, 'clientCode', '【唯一标识】系统核心客户编码/唛头，必填。一个客户若有多个海外收件人，录入多行填写相同唛头即可。');
+    this.setHeaderNote(sheet, OFFICIAL_CUSTOMER_COLUMNS, 'defaultWarehouse', '【起运仓】自带下拉列表选择。可切换至《系统字典与配置》工作表查看详细仓址。');
+    this.setHeaderNote(sheet, OFFICIAL_CUSTOMER_COLUMNS, 'isDefault', '填【是】或【否】。若标为【是】，系统将自动提取其目的国和目的港作为客户主路线。');
 
     return sheet;
   }
@@ -516,6 +547,8 @@ export class TemplateGeneratorService {
       destinationCountry: '菲律宾',
       forwarderChannel: '万海自营拼箱专线',
       customsType: '化妆退税',
+      usdRate: 7.20,
+      phpRate: 8.00,
       overseasName: '',
       overseasPhone: '',
       overseasAddress: '',
@@ -528,7 +561,9 @@ export class TemplateGeneratorService {
       unitWeight: 51,
       totalWeight: 51,
       payableVolume: 0.237,
+      receivableCurrency: 'CNY',
       receivableUnitPrice: 950,
+      payableCurrency: 'CNY',
       payableUnitPrice: 850,
       trackingNumber: '3430',
       note: '带内置电池',
@@ -543,6 +578,8 @@ export class TemplateGeneratorService {
       destinationCountry: '菲律宾',
       forwarderChannel: '万海自营拼箱专线',
       customsType: '化妆退税',
+      usdRate: 7.20,
+      phpRate: 8.00,
       overseasName: '',
       overseasPhone: '',
       overseasAddress: '',
@@ -555,7 +592,9 @@ export class TemplateGeneratorService {
       unitWeight: 20,
       totalWeight: 40,
       payableVolume: 0.32,
+      receivableCurrency: 'CNY',
       receivableUnitPrice: 950,
+      payableCurrency: 'CNY',
       payableUnitPrice: 850,
       trackingNumber: '3431',
       note: '',
@@ -563,10 +602,12 @@ export class TemplateGeneratorService {
       signImg: '',
     });
 
-    sheet.getCell('A1').note = '【多明细聚合】相同分组号的多行归入同一票海运单。单票单品可留空。';
-    sheet.getCell('B1').note = '【客户唛头】必填，必须已在系统客户档案中建档。';
-    sheet.getCell('C1').note = '【起运仓】自带下拉列表选择。可切换至《系统字典与配置》工作表查看详细仓址。';
-    sheet.getCell('G1').note = '【海外收件人】若此处留空，系统自动从该客户档案中继承其默认海外收件人；若客户档案未配置默认收件人，则此处必填，否则整单拦截跳过。';
+    this.setHeaderNote(sheet, OFFICIAL_SEA_LCL_COLUMNS, 'groupKey', '【多明细聚合】相同分组号的多行归入同一票海运单。单票单品可留空。');
+    this.setHeaderNote(sheet, OFFICIAL_SEA_LCL_COLUMNS, 'userMark', '【客户唛头】必填，必须已在系统客户档案中建档。');
+    this.setHeaderNote(sheet, OFFICIAL_SEA_LCL_COLUMNS, 'originWarehouse', '【起运仓】自带下拉列表选择。可切换至《系统字典与配置》工作表查看详细仓址。');
+    this.setHeaderNote(sheet, OFFICIAL_SEA_LCL_COLUMNS, 'usdRate', '【单票美金汇率】选填。贵币计价法（1 USD = X CNY，如 7.20），留空自动取当日实时汇率。');
+    this.setHeaderNote(sheet, OFFICIAL_SEA_LCL_COLUMNS, 'phpRate', '【单票比索汇率】选填。贵币计价法（1 CNY = Y PHP，如 8.00），留空自动取当日实时汇率。');
+    this.setHeaderNote(sheet, OFFICIAL_SEA_LCL_COLUMNS, 'overseasName', '【海外收件人】若此处留空，系统自动从该客户档案中继承其默认海外收件人；若客户档案未配置默认收件人，则此处必填，否则整单拦截跳过。');
 
     return sheet;
   }
@@ -589,6 +630,8 @@ export class TemplateGeneratorService {
       destinationCountry: '菲律宾',
       forwarderChannel: '菲通货运专线',
       customsType: '普货双清',
+      usdRate: 7.20,
+      phpRate: 8.00,
       overseasName: '',
       overseasPhone: '',
       overseasAddress: '',
@@ -596,8 +639,11 @@ export class TemplateGeneratorService {
       productName: '电子配件',
       quantity: 6,
       totalWeight: 1.5,
+      receivableCurrency: 'CNY',
       receivableUnitPrice: 38.5,
+      payableCurrency: 'CNY',
       payableUnitPrice: 35.0,
+      truckingFeeCurrency: 'CNY',
       internalTruckingFee: 10,
       channelTruckingFee: 8,
       trackingNumber: '3254',
@@ -613,6 +659,8 @@ export class TemplateGeneratorService {
       destinationCountry: '菲律宾',
       forwarderChannel: '菲通货运专线',
       customsType: '普货双清',
+      usdRate: 7.20,
+      phpRate: 8.00,
       overseasName: 'Maria Santos',
       overseasPhone: '+63 915 222 3333',
       overseasAddress: '1245 Soler St, Binondo, Manila',
@@ -620,8 +668,11 @@ export class TemplateGeneratorService {
       productName: '五金工具',
       quantity: 11,
       totalWeight: 11.0,
+      receivableCurrency: 'CNY',
       receivableUnitPrice: 38.5,
+      payableCurrency: 'CNY',
       payableUnitPrice: 35.0,
+      truckingFeeCurrency: '',
       internalTruckingFee: '',
       channelTruckingFee: '',
       trackingNumber: '5931',
@@ -630,10 +681,12 @@ export class TemplateGeneratorService {
       signImg: '',
     });
 
-    sheet.getCell('A1').note = '【多明细聚合】相同分组号的多行归入同一票空运单。单票单品可留空。';
-    sheet.getCell('B1').note = '【客户唛头】必填，必须已在系统客户档案中建档。';
-    sheet.getCell('C1').note = '【起运仓】自带下拉列表选择。可切换至《系统字典与配置》工作表查看详细仓址。';
-    sheet.getCell('G1').note = '【海外收件人】若此处留空，系统自动从该客户档案中继承其默认海外收件人；若客户档案未配置默认收件人，则此处必填，否则整单拦截跳过。';
+    this.setHeaderNote(sheet, OFFICIAL_AIR_COLUMNS, 'groupKey', '【多明细聚合】相同分组号的多行归入同一票空运单。单票单品可留空。');
+    this.setHeaderNote(sheet, OFFICIAL_AIR_COLUMNS, 'userMark', '【客户唛头】必填，必须已在系统客户档案中建档。');
+    this.setHeaderNote(sheet, OFFICIAL_AIR_COLUMNS, 'originWarehouse', '【起运仓】自带下拉列表选择。可切换至《系统字典与配置》工作表查看详细仓址。');
+    this.setHeaderNote(sheet, OFFICIAL_AIR_COLUMNS, 'usdRate', '【单票美金汇率】选填。贵币计价法（1 USD = X CNY，如 7.20），留空自动取当日实时汇率。');
+    this.setHeaderNote(sheet, OFFICIAL_AIR_COLUMNS, 'phpRate', '【单票比索汇率】选填。贵币计价法（1 CNY = Y PHP，如 8.00），留空自动取当日实时汇率。');
+    this.setHeaderNote(sheet, OFFICIAL_AIR_COLUMNS, 'overseasName', '【海外收件人】若此处留空，系统自动从该客户档案中继承其默认海外收件人；若客户档案未配置默认收件人，则此处必填，否则整单拦截跳过。');
 
     return sheet;
   }
@@ -651,6 +704,8 @@ export class TemplateGeneratorService {
     // 示例数据
     sheet.addRow({
       userMark: 'WH-77777',
+      usdRate: 7.20,
+      phpRate: 8.00,
       overseasName: 'Alex Johnson',
       overseasPhone: '+63 917 123 4567',
       overseasAddress: 'Unit 802, BGC Tower, Taguig, Manila',
@@ -662,14 +717,19 @@ export class TemplateGeneratorService {
       originPort: '天津港',
       destinationPort: '马尼拉北港',
       productName: '围栏及配件',
-      receivableAmount: 38000,
+      receivableCurrency: 'USD',
+      receivableAmount: 5500,
       bookingChannel: '优尼科',
       customsChannel: '产地证报关群',
       clearanceChannel: '泉州万海-菲立亚清关公司-渠道5',
+      truckingFeeCurrency: 'CNY',
       truckingFee: 3200,
-      portFee: 2300,
-      thcFee: 650,
-      clearanceFee: 15000,
+      portFeeCurrency: 'USD',
+      portFee: 800,
+      thcFeeCurrency: 'PHP',
+      thcFee: 5200,
+      clearanceFeeCurrency: 'PHP',
+      clearanceFee: 120000,
       loadingDate: '2026-04-10',
       sailingDate: '2026-04-12',
       eta: '2026-04-28',
@@ -677,9 +737,11 @@ export class TemplateGeneratorService {
       customsSlipImg: '',
     });
 
-    sheet.getCell('A1').note = '【客户唛头】必填，整柜货主。';
-    sheet.getCell('B1').note = '【海外收件人】若此处留空，系统自动从该客户档案中继承其默认海外收件人；若客户档案未配置默认收件人，则此处必填，否则整单拦截跳过。';
-    sheet.getCell('E1').note = '【集装箱柜号】必填，如 FFAU7478798。';
+    this.setHeaderNote(sheet, OFFICIAL_SEA_FCL_COLUMNS, 'userMark', '【客户唛头】必填，整柜货主。');
+    this.setHeaderNote(sheet, OFFICIAL_SEA_FCL_COLUMNS, 'usdRate', '【单票美金汇率】选填。贵币计价法（1 USD = X CNY，如 7.20），留空自动取当日实时汇率。');
+    this.setHeaderNote(sheet, OFFICIAL_SEA_FCL_COLUMNS, 'phpRate', '【单票比索汇率】选填。贵币计价法（1 CNY = Y PHP，如 8.00），留空自动取当日实时汇率。');
+    this.setHeaderNote(sheet, OFFICIAL_SEA_FCL_COLUMNS, 'overseasName', '【海外收件人】若此处留空，系统自动从该客户档案中继承其默认海外收件人；若客户档案未配置默认收件人，则此处必填，否则整单拦截跳过。');
+    this.setHeaderNote(sheet, OFFICIAL_SEA_FCL_COLUMNS, 'containerNo', '【集装箱柜号】必填，如 FFAU7478798。');
 
     return sheet;
   }

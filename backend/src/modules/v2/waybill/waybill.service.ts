@@ -1,5 +1,6 @@
 import { PrismaClient, ShipmentType, WaybillStatus, CurrencyType, FeeDirection, AttachmentType } from '@prisma/client';
 import { CustomerV2Service } from '../customer/customer.service';
+import { convertAmountToCny } from '../import/dictionary-validator.service';
 
 const prisma = new PrismaClient();
 const customerService = new CustomerV2Service();
@@ -117,6 +118,10 @@ export interface CreateWaybillInput {
   inboundDate?: Date | string;
   items: CreateWaybillItemInput[];
   fees?: CreateWaybillFeeInput[];
+  settlementCurrency?: CurrencyType | string;
+  rawReceivableAmount?: number | null;
+  usdRate?: number | null;
+  phpRate?: number | null;
   attachments?: Array<{
     attachmentType: AttachmentType;
     fileUrl: string;
@@ -130,13 +135,17 @@ export interface CalculateFinancialsParams {
   orderType: ShipmentType;
   isFixedPrice?: boolean;
   fixedPriceAmount?: number | null;
+  settlementCurrency?: CurrencyType | string;
   currentReceivableAmount?: number | null;
-  items: Array<{
+  usdRate?: number | null;
+  phpRate?: number | null;
+  items?: Array<{
     quantity?: number | null;
     length?: number | null;
     width?: number | null;
     height?: number | null;
     unitWeight?: number | null;
+    totalWeight?: number | null;
     estimatedQuantity?: number | null;
     estimatedLength?: number | null;
     estimatedWidth?: number | null;
@@ -144,34 +153,75 @@ export interface CalculateFinancialsParams {
     estimatedWeight?: number | null;
     estimatedVolume?: number | null;
     receivableUnitPrice?: number | null;
+    receivableCurrency?: CurrencyType | string;
     payableUnitPrice?: number | null;
+    payableCurrency?: CurrencyType | string;
   }>;
   fees?: Array<{
     feeDirection: FeeDirection;
     amountInCny?: any;
     amount?: any;
+    currency?: CurrencyType | string;
     exchangeRate?: any;
   }>;
 }
 
 export function calculateWaybillFinancials(params: CalculateFinancialsParams) {
-  const { orderType, isFixedPrice, fixedPriceAmount, currentReceivableAmount, items, fees } = params;
+  const {
+    orderType,
+    isFixedPrice,
+    fixedPriceAmount,
+    settlementCurrency,
+    currentReceivableAmount,
+    usdRate,
+    phpRate,
+    items,
+    fees,
+  } = params;
 
-  let baseReceivable = 0;
-  let basePayable = 0;
+  // 辅助解析汇率：单票双汇率优先，明细显式传入兜底，系统基准保底
+  const getEffectiveRate = (curr: string, specificRate?: number | null) => {
+    if (specificRate && Number(specificRate) > 0) return Number(specificRate);
+    const upper = (curr || 'CNY').toUpperCase();
+    if (upper === 'USD') return usdRate && Number(usdRate) > 0 ? Number(usdRate) : 7.20;
+    if (upper === 'PHP') return phpRate && Number(phpRate) > 0 ? Number(phpRate) : 8.00;
+    return 1.0;
+  };
+
+  let baseReceivableInCny = 0;
+  let basePayableInCny = 0;
+  let rawBaseReceivable = 0;
+  let dominantCurrency = settlementCurrency || 'CNY';
 
   if (items && items.length > 0) {
     for (const item of items) {
       const qty = item.quantity && Number(item.quantity) > 0 ? Number(item.quantity) : 1;
-      const recvPrice = item.receivableUnitPrice ? Number(item.receivableUnitPrice) : 0;
-      const payPrice = item.payableUnitPrice ? Number(item.payableUnitPrice) : 0;
+      const rawRecvPrice = item.receivableUnitPrice ? Number(item.receivableUnitPrice) : 0;
+      const rawPayPrice = item.payableUnitPrice ? Number(item.payableUnitPrice) : 0;
+
+      const recvCurr = (item.receivableCurrency || 'CNY') as CurrencyType;
+      const payCurr = (item.payableCurrency || 'CNY') as CurrencyType;
+
+      if (recvCurr !== 'CNY') {
+        dominantCurrency = recvCurr;
+      }
+
+      // 遵循贵币计价法换算折合人民币单价
+      const recvRate = getEffectiveRate(recvCurr);
+      const payRate = getEffectiveRate(payCurr);
+      const { amountInCny: recvPriceInCny } = convertAmountToCny(rawRecvPrice, recvCurr, recvRate);
+      const { amountInCny: payPriceInCny } = convertAmountToCny(rawPayPrice, payCurr, payRate);
 
       if (orderType === 'AIR') {
-        const wt = item.unitWeight !== undefined && item.unitWeight !== null
-          ? Number(item.unitWeight)
-          : (item.estimatedWeight !== undefined && item.estimatedWeight !== null ? Number(item.estimatedWeight) : 0);
-        baseReceivable += recvPrice * wt * qty;
-        basePayable += payPrice * wt * qty;
+        const wt = item.totalWeight !== undefined && item.totalWeight !== null
+          ? Number(item.totalWeight)
+          : (item.unitWeight !== undefined && item.unitWeight !== null
+            ? Number(item.unitWeight) * qty
+            : (item.estimatedWeight !== undefined && item.estimatedWeight !== null ? Number(item.estimatedWeight) : 0));
+        
+        rawBaseReceivable += rawRecvPrice * wt;
+        baseReceivableInCny += recvPriceInCny * wt;
+        basePayableInCny += payPriceInCny * wt;
       } else {
         let vol = 0;
         if (item.length && item.width && item.height) {
@@ -182,56 +232,76 @@ export function calculateWaybillFinancials(params: CalculateFinancialsParams) {
         } else if (item.estimatedVolume) {
           vol = Number(item.estimatedVolume);
         }
-        baseReceivable += recvPrice * vol;
-        basePayable += payPrice * vol;
+
+        rawBaseReceivable += rawRecvPrice * vol;
+        baseReceivableInCny += recvPriceInCny * vol;
+        basePayableInCny += payPriceInCny * vol;
       }
     }
   }
 
-  // Determine final base receivable (isolated from surcharges)
-  let finalBaseReceivable = baseReceivable;
+  // 处理一口价
+  let finalBaseReceivableInCny = baseReceivableInCny;
+  let finalRawBaseReceivable = rawBaseReceivable;
+
   if (isFixedPrice) {
     if (fixedPriceAmount !== undefined && fixedPriceAmount !== null && Number(fixedPriceAmount) > 0) {
-      finalBaseReceivable = Number(fixedPriceAmount);
+      finalRawBaseReceivable = Number(fixedPriceAmount);
+      const fixedCurr = (settlementCurrency || 'CNY') as CurrencyType;
+      const fixedRate = getEffectiveRate(fixedCurr);
+      const { amountInCny } = convertAmountToCny(
+        Number(fixedPriceAmount),
+        fixedCurr,
+        fixedRate
+      );
+      finalBaseReceivableInCny = amountInCny;
     } else if (currentReceivableAmount !== undefined && currentReceivableAmount !== null && Number(currentReceivableAmount) > 0) {
       let existingRecvFeesSum = 0;
       if (fees && fees.length > 0) {
         for (const fee of fees) {
           if (fee.feeDirection === 'RECEIVABLE') {
-            const rate = fee.exchangeRate ? Number(fee.exchangeRate) : 1.0;
-            existingRecvFeesSum += fee.amountInCny !== undefined && fee.amountInCny !== null
+            const feeCurr = (fee.currency || 'CNY') as CurrencyType;
+            const feeRate = getEffectiveRate(feeCurr, fee.exchangeRate);
+            const cny = fee.amountInCny !== undefined && fee.amountInCny !== null
               ? Number(fee.amountInCny)
-              : (Number(fee.amount || 0) * rate);
+              : convertAmountToCny(Number(fee.amount || 0), feeCurr, feeRate).amountInCny;
+            existingRecvFeesSum += cny;
           }
         }
       }
-      finalBaseReceivable = Math.max(0, Number(currentReceivableAmount) - existingRecvFeesSum);
+      finalBaseReceivableInCny = Math.max(0, Number(currentReceivableAmount) - existingRecvFeesSum);
+      finalRawBaseReceivable = finalBaseReceivableInCny;
     }
   }
 
-  let finalReceivable = finalBaseReceivable;
-  let finalPayable = basePayable;
+  let finalReceivableInCny = finalBaseReceivableInCny;
+  let finalPayableInCny = basePayableInCny;
 
+  // 累加杂费
   if (fees && fees.length > 0) {
     for (const fee of fees) {
-      const rate = fee.exchangeRate ? Number(fee.exchangeRate) : 1.0;
+      const feeCurr = (fee.currency || 'CNY') as CurrencyType;
+      const feeRate = getEffectiveRate(feeCurr, fee.exchangeRate);
       const cny = fee.amountInCny !== undefined && fee.amountInCny !== null
         ? Number(fee.amountInCny)
-        : (Number(fee.amount || 0) * rate);
+        : convertAmountToCny(Number(fee.amount || 0), feeCurr, feeRate).amountInCny;
+
       if (fee.feeDirection === 'RECEIVABLE') {
-        finalReceivable += cny;
+        finalReceivableInCny += cny;
       } else {
-        finalPayable += cny;
+        finalPayableInCny += cny;
       }
     }
   }
 
   return {
-    baseReceivable: Math.round(finalBaseReceivable * 100) / 100,
-    basePayable: Math.round(basePayable * 100) / 100,
-    receivableAmount: Math.round(finalReceivable * 100) / 100,
-    payableAmount: Math.round(finalPayable * 100) / 100,
-    profitAmount: Math.round((finalReceivable - finalPayable) * 100) / 100,
+    baseReceivable: Math.round(finalBaseReceivableInCny * 100) / 100,
+    basePayable: Math.round(basePayableInCny * 100) / 100,
+    receivableAmount: Math.round(finalReceivableInCny * 100) / 100,
+    payableAmount: Math.round(finalPayableInCny * 100) / 100,
+    profitAmount: Math.round((finalReceivableInCny - finalPayableInCny) * 100) / 100,
+    rawReceivableAmount: Math.round(finalRawBaseReceivable * 100) / 100,
+    settlementCurrency: dominantCurrency as CurrencyType,
   };
 }
 
@@ -304,15 +374,24 @@ export class WaybillV2Service {
     const feesToCreate: any[] = [];
     if (data.fees && data.fees.length > 0) {
       data.fees.forEach(fee => {
-        const rate = fee.exchangeRate || 1.0;
-        const cnyAmount = fee.amount * rate;
+        const feeCurr = (fee.currency || 'CNY').toUpperCase();
+        let effectiveRate = 1.0;
+        if (fee.exchangeRate && Number(fee.exchangeRate) > 0) {
+          effectiveRate = Number(fee.exchangeRate);
+        } else if (feeCurr === 'USD') {
+          effectiveRate = data.usdRate && Number(data.usdRate) > 0 ? Number(data.usdRate) : 7.20;
+        } else if (feeCurr === 'PHP') {
+          effectiveRate = data.phpRate && Number(data.phpRate) > 0 ? Number(data.phpRate) : 8.00;
+        }
+
+        const { amountInCny } = convertAmountToCny(Number(fee.amount || 0), feeCurr, effectiveRate);
         feesToCreate.push({
           feeName: fee.feeName,
           feeDirection: fee.feeDirection,
           amount: fee.amount,
           currency: fee.currency || 'CNY',
-          exchangeRate: rate,
-          amountInCny: cnyAmount,
+          exchangeRate: effectiveRate,
+          amountInCny,
           note: fee.note,
         });
       });
@@ -322,6 +401,9 @@ export class WaybillV2Service {
       orderType: data.orderType,
       isFixedPrice: data.isFixedPrice,
       fixedPriceAmount: data.fixedPriceAmount,
+      settlementCurrency: data.settlementCurrency,
+      usdRate: data.usdRate,
+      phpRate: data.phpRate,
       items: processedItems,
       fees: feesToCreate,
     });
@@ -346,6 +428,11 @@ export class WaybillV2Service {
         airWaybillNo: data.airWaybillNo,
         note: data.note,
         isFixedPrice: data.isFixedPrice || false,
+        fixedPriceAmount: data.fixedPriceAmount ? Number(data.fixedPriceAmount) : undefined,
+        usdRate: data.usdRate ? Number(data.usdRate) : undefined,
+        phpRate: data.phpRate ? Number(data.phpRate) : undefined,
+        settlementCurrency: (data.settlementCurrency as CurrencyType) || financials.settlementCurrency as CurrencyType || 'CNY',
+        rawReceivableAmount: data.rawReceivableAmount !== undefined && data.rawReceivableAmount !== null ? Number(data.rawReceivableAmount) : financials.rawReceivableAmount,
         recipientName: data.recipientName,
         recipientPhone: data.recipientPhone,
         recipientCompany: data.recipientCompany,
@@ -668,6 +755,12 @@ export class WaybillV2Service {
     });
     if (!existingWb) throw new Error('Waybill not found');
 
+    const effectiveUsdRate = data.usdRate !== undefined ? (data.usdRate ? Number(data.usdRate) : undefined) : (existingWb.usdRate ? Number(existingWb.usdRate) : undefined);
+    const effectivePhpRate = data.phpRate !== undefined ? (data.phpRate ? Number(data.phpRate) : undefined) : (existingWb.phpRate ? Number(existingWb.phpRate) : undefined);
+
+    if (data.usdRate !== undefined) updateData.usdRate = data.usdRate ? Number(data.usdRate) : null;
+    if (data.phpRate !== undefined) updateData.phpRate = data.phpRate ? Number(data.phpRate) : null;
+
     const effectiveOrderType = updateData.orderType || existingWb.orderType;
     const effectiveIsFixed = updateData.isFixedPrice !== undefined ? updateData.isFixedPrice : existingWb.isFixedPrice;
     const effectiveFixedAmt = updateData.fixedPriceAmount !== undefined ? updateData.fixedPriceAmount : existingWb.fixedPriceAmount;
@@ -850,7 +943,10 @@ export class WaybillV2Service {
         orderType: effectiveOrderType,
         isFixedPrice: effectiveIsFixed,
         fixedPriceAmount: effectiveFixedAmt,
+        settlementCurrency: existingWb.settlementCurrency,
         currentReceivableAmount: existingWb.receivableAmount ? Number(existingWb.receivableAmount) : undefined,
+        usdRate: effectiveUsdRate,
+        phpRate: effectivePhpRate,
         items: finalItemsForFinancials as any,
         fees: existingWb.fees as any,
       });
@@ -858,18 +954,30 @@ export class WaybillV2Service {
       updateData.receivableAmount = financials.receivableAmount;
       updateData.payableAmount = financials.payableAmount;
       updateData.profitAmount = financials.profitAmount;
-    } else if (updateData.isFixedPrice !== undefined || updateData.fixedPriceAmount !== undefined) {
+      updateData.settlementCurrency = financials.settlementCurrency || existingWb.settlementCurrency;
+      updateData.rawReceivableAmount = financials.rawReceivableAmount;
+    } else if (
+      updateData.isFixedPrice !== undefined ||
+      updateData.fixedPriceAmount !== undefined ||
+      data.usdRate !== undefined ||
+      data.phpRate !== undefined
+    ) {
       const financials = calculateWaybillFinancials({
         orderType: effectiveOrderType,
         isFixedPrice: effectiveIsFixed,
         fixedPriceAmount: effectiveFixedAmt,
+        settlementCurrency: existingWb.settlementCurrency,
         currentReceivableAmount: existingWb.receivableAmount ? Number(existingWb.receivableAmount) : undefined,
+        usdRate: effectiveUsdRate,
+        phpRate: effectivePhpRate,
         items: existingWb.items as any,
         fees: existingWb.fees as any,
       });
       updateData.receivableAmount = financials.receivableAmount;
       updateData.payableAmount = financials.payableAmount;
       updateData.profitAmount = financials.profitAmount;
+      updateData.settlementCurrency = financials.settlementCurrency || existingWb.settlementCurrency;
+      updateData.rawReceivableAmount = financials.rawReceivableAmount;
     }
 
     const updated = await prisma.waybill.update({

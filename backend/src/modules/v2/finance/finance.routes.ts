@@ -2,11 +2,28 @@ import { FastifyInstance } from 'fastify';
 import { FinanceV2Service } from './finance.service';
 import { FeeDirection, CurrencyType, AttachmentType } from '@prisma/client';
 import { authorize } from '../../../lib/auth';
+import { exchangeRateService } from './exchange-rate.service';
 
 const financeService = new FinanceV2Service();
 const INTERNAL_ROLES = ['ADMIN', 'SALES', 'FINANCE'];
 
 export async function financeV2Routes(fastify: FastifyInstance) {
+  // Get today's live benchmark exchange rates
+  fastify.get(
+    '/exchange-rate/today',
+    {
+      preHandler: [fastify.authenticate],
+    },
+    async (_request, reply) => {
+      try {
+        const rates = await exchangeRateService.getTodayRates();
+        return reply.send({ success: true, data: rates });
+      } catch (err: any) {
+        return reply.code(500).send({ success: false, error: err.message });
+      }
+    }
+  );
+
   // Add fee item to waybill (Internal only)
   fastify.post<{
     Params: { id: string };

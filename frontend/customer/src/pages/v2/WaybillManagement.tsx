@@ -924,8 +924,22 @@ export default function WaybillManagement() {
                           ? `${wb.totalWeightKg || 0} kg`
                           : `${Number(wb.totalPayableCbm || 0).toFixed(4)} m³`}
                       </td>
-                      <td className="py-3 px-3 text-right font-mono font-bold text-emerald-700">
-                        ¥ {Number(wb.receivableAmount || 0).toFixed(2)}
+                      <td className="py-3 px-3 text-right font-mono">
+                        {wb.settlementCurrency && wb.settlementCurrency !== 'CNY' && wb.rawReceivableAmount ? (
+                          <>
+                            <div className="font-bold text-emerald-700 leading-tight">
+                              {wb.settlementCurrency === 'PHP' ? '₱' : '$'}{' '}
+                              {Number(wb.rawReceivableAmount).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-normal leading-tight mt-0.5">
+                              折合 ¥ {Number(wb.receivableAmount || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="font-bold text-emerald-700">
+                            ¥ {Number(wb.receivableAmount || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </div>
+                        )}
                       </td>
                       <td className="py-3 px-3">
                         {wb.orderType === 'AIR' ? (

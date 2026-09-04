@@ -1,5 +1,6 @@
 import { PrismaClient, FeeDirection, CurrencyType, AttachmentType } from '@prisma/client';
 import { calculateWaybillFinancials } from '../waybill/waybill.service';
+import { convertAmountToCny } from '../import/dictionary-validator.service';
 
 const prisma = new PrismaClient();
 
@@ -12,8 +13,22 @@ export class FinanceV2Service {
     exchangeRate?: number;
     note?: string;
   }) {
-    const rate = data.exchangeRate || 1.0;
-    const cny = data.amount * rate;
+    const waybill = await prisma.waybill.findUnique({
+      where: { id: waybillId },
+      select: { usdRate: true, phpRate: true },
+    });
+
+    const curr = (data.currency || 'CNY').toUpperCase();
+    let effectiveRate = 1.0;
+    if (data.exchangeRate && Number(data.exchangeRate) > 0) {
+      effectiveRate = Number(data.exchangeRate);
+    } else if (curr === 'USD') {
+      effectiveRate = waybill?.usdRate && Number(waybill.usdRate) > 0 ? Number(waybill.usdRate) : 7.20;
+    } else if (curr === 'PHP') {
+      effectiveRate = waybill?.phpRate && Number(waybill.phpRate) > 0 ? Number(waybill.phpRate) : 8.00;
+    }
+
+    const { amountInCny } = convertAmountToCny(Number(data.amount || 0), curr, effectiveRate);
 
     const fee = await prisma.waybillFee.create({
       data: {
@@ -21,9 +36,9 @@ export class FinanceV2Service {
         feeName: data.feeName,
         feeDirection: data.feeDirection,
         amount: data.amount,
-        currency: data.currency || 'CNY',
-        exchangeRate: rate,
-        amountInCny: cny,
+        currency: (curr as CurrencyType) || 'CNY',
+        exchangeRate: effectiveRate,
+        amountInCny,
         note: data.note,
       },
     });
@@ -78,11 +93,13 @@ export class FinanceV2Service {
       orderType: waybill.orderType,
       isFixedPrice: waybill.isFixedPrice,
       fixedPriceAmount: waybill.fixedPriceAmount ? Number(waybill.fixedPriceAmount) : undefined,
+      settlementCurrency: waybill.settlementCurrency,
       currentReceivableAmount: waybill.receivableAmount ? Number(waybill.receivableAmount) : undefined,
+      usdRate: waybill.usdRate ? Number(waybill.usdRate) : undefined,
+      phpRate: waybill.phpRate ? Number(waybill.phpRate) : undefined,
       items: waybill.items as any,
       fees: waybill.fees as any,
     });
-
 
     await prisma.waybill.update({
       where: { id: waybillId },
@@ -90,6 +107,7 @@ export class FinanceV2Service {
         receivableAmount: financials.receivableAmount,
         payableAmount: financials.payableAmount,
         profitAmount: financials.profitAmount,
+        rawReceivableAmount: financials.rawReceivableAmount,
       },
     });
   }

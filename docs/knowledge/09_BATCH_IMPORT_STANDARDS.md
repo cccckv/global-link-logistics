@@ -106,8 +106,12 @@
 | **实测高 (cm)** | `WaybillItem.height` | ❌ 选填 | 实测尺寸，用于算方 |
 | **实测单重 (kg)** | `WaybillItem.unitWeight` | ❌ 选填 | 实测单件重量 |
 | **实测体积 (m³)** | `WaybillItem.payableVolume` | ❌ 选填 | 若填尺寸自动计算，也可直接录入方数 |
-| **应收单价 (元/方)** | `WaybillItem.receivableUnitPrice` | ❌ 选填 | 散货体积销售单价（如 `850`） |
-| **应付单价 (元/方)** | `WaybillItem.payableUnitPrice` | ❌ 选填 | 散货体积成本单价（如 `750`） |
+| **单票美金汇率** | `Waybill.usdRate` | ❌ 选填 | 贵币汇率（1 USD = X CNY，如 7.20），留空自动取当日汇率 |
+| **单票比索汇率** | `Waybill.phpRate` | ❌ 选填 | 贵币汇率（1 CNY = Y PHP，如 8.00），留空自动取当日汇率 |
+| **应收币种** | `WaybillItem.receivableCurrency` | ❌ 选填 | 下拉：`CNY` / `PHP` / `USD`，留空默认 `CNY` |
+| **应收单价** | `WaybillItem.receivableUnitPrice` | ❌ 选填 | 散货体积原币销售单价（如 `6500` PHP/方 或 `850` CNY/方） |
+| **应付币种** | `WaybillItem.payableCurrency` | ❌ 选填 | 下拉：`CNY` / `PHP` / `USD`，留空默认 `CNY` |
+| **应付单价** | `WaybillItem.payableUnitPrice` | ❌ 选填 | 散货体积原币成本单价 |
 | **送仓快递单号** | `WaybillItem.trackingNumber` | ❌ 选填 | 快递单号 |
 | **备注** | `note` | ❌ 选填 | 订单备注 |
 | **叫车截图** | `WaybillAttachment` | ❌ 选填 | 单元格内嵌图片，归档为 `PICKUP_SCREENSHOT` |
@@ -130,10 +134,15 @@
 | **申报品名** | `WaybillItem.productName` | **✅ 必填** | 货物中文品名 |
 | **实收件数** | `WaybillItem.quantity` | **✅ 必填** | 整数 |
 | **计费总重量 (kg)** | `WaybillItem.totalWeight` | **✅ 必填** | 实测/计费重量（如 `11.5`） |
-| **应收单价 (元/kg)** | `WaybillItem.receivableUnitPrice` | ❌ 选填 | 空运重量销售单价（如 `38.5`） |
-| **应付单价 (元/kg)** | `WaybillItem.payableUnitPrice` | ❌ 选填 | 空运重量成本单价（如 `35.0`） |
-| **内部车费 (元)** | `WaybillFee(PAYABLE)` | ❌ 选填 | 杂费科目：内部车费 |
-| **渠道车费 (元)** | `WaybillFee(PAYABLE)` | ❌ 选填 | 杂费科目：渠道车费 |
+| **单票美金汇率** | `Waybill.usdRate` | ❌ 选填 | 贵币汇率（1 USD = X CNY，如 7.20），留空自动取当日汇率 |
+| **单票比索汇率** | `Waybill.phpRate` | ❌ 选填 | 贵币汇率（1 CNY = Y PHP，如 8.00），留空自动取当日汇率 |
+| **应收币种** | `WaybillItem.receivableCurrency` | ❌ 选填 | 下拉：`CNY` / `PHP` / `USD`，默认 `CNY` |
+| **应收重量单价** | `WaybillItem.receivableUnitPrice` | ❌ 选填 | 原币单价（如 `400` PHP/kg 或 `38.5` CNY/kg） |
+| **应付币种** | `WaybillItem.payableCurrency` | ❌ 选填 | 下拉：`CNY` / `PHP` / `USD`，默认 `CNY` |
+| **应付成本单价** | `WaybillItem.payableUnitPrice` | ❌ 选填 | 原币成本单价 |
+| **车费币种** | `WaybillFee.currency` | ❌ 选填 | 下拉：`CNY` / `PHP` / `USD`，默认 `CNY` |
+| **内部车费 (原币)** | `WaybillFee(PAYABLE)` | ❌ 选填 | 杂费科目：内部车费 |
+| **渠道车费 (原币)** | `WaybillFee(PAYABLE)` | ❌ 选填 | 杂费科目：渠道车费 |
 | **送仓快递单号** | `WaybillItem.trackingNumber` | ❌ 选填 | 快递单号 |
 | **备注** | `note` | ❌ 选填 | 订单备注 |
 | **过磅截图** | `WaybillAttachment` | ❌ 选填 | 单元格内嵌图片 |
@@ -148,13 +157,27 @@
 | **海外联系电话** | `Waybill.overseasPhone` | ❌ 选填 | 留空则自动继承该唛头默认收件人电话 |
 | **海外详细派送地址** | `Waybill.overseasAddress` | ❌ 选填 | 留空则自动继承该唛头默认派送地址 |
 | **集装箱柜号** | `ContainerMaster.containerNo` | **✅ 必填** | 柜号（如 `MILU6019768`） |
+| **集装箱柜型** | `ContainerMaster.containerType` | ❌ 选填 | 下拉：10 种标准国际柜型 |
 | **提单号 (B/L)** | `ContainerMaster.blNumber` | ❌ 选填 | 海运提单号 |
 | **船司** | `ContainerMaster.carrier` | ❌ 选填 | 船公司（中远/万海/马士基等） |
+| **船名/航次** | `ContainerMaster.vesselVoyage` | ❌ 选填 | 船名及航次编号 |
 | **起运港 / 目的港** | `originPort / destinationPort` | ❌ 选填 | 如 厦门港 / 马尼拉南港 |
-| **装柜日期 / 到港时间** | `loadingDate / eta` | ❌ 选填 | 时间节点 |
+| **申报品名** | `WaybillItem.productName` | ❌ 选填 | 货物中文品名 |
+| **单票美金汇率** | `Waybill.usdRate` | ❌ 选填 | 贵币汇率（1 USD = X CNY，如 7.20），留空自动取当日汇率 |
+| **单票比索汇率** | `Waybill.phpRate` | ❌ 选填 | 贵币汇率（1 CNY = Y PHP，如 8.00），留空自动取当日汇率 |
+| **整柜报价币种** | `Waybill.settlementCurrency` | ❌ 选填 | 下拉：`CNY` / `USD` / `PHP`，默认 `CNY` |
+| **整柜包干报价 (原币)** | `Waybill.rawReceivableAmount` | ❌ 选填 | 整柜一口价原币金额（如 `3500` USD 或 `25000` CNY） |
+| **拖车费用币种** | `WaybillFee.currency` | ❌ 选填 | 下拉：`CNY` / `USD` / `PHP`，默认 `CNY` |
+| **拖车费用 (原币)** | `WaybillFee.amount` | ❌ 选填 | 国内拖车集卡费用 |
+| **订舱费币种** | `WaybillFee.currency` | ❌ 选填 | 下拉：`USD` / `CNY` / `PHP`，默认 `USD` |
+| **海运订舱费/港杂 (原币)** | `WaybillFee.amount` | ❌ 选填 | 纯海运费或庄家订舱费 |
+| **THC币种** | `WaybillFee.currency` | ❌ 选填 | 下拉：`PHP` / `CNY` / `USD`，默认 `PHP` |
+| **THC超期/码头费 (原币)** | `WaybillFee.amount` | ❌ 选填 | 目的港码头操作/超期柜租 |
+| **清关费币种** | `WaybillFee.currency` | ❌ 选填 | 下拉：`PHP` / `CNY` / `USD`，默认 `PHP` |
+| **目的港清关费 (原币)** | `WaybillFee.amount` | ❌ 选填 | 海外报关与商检硬成本 |
+| **装柜/开船/到港时间** | `loadingDate / sailingDate / eta` | ❌ 选填 | 时间节点 (YYYY-MM-DD) |
 | **订舱/报关/清关渠道** | `booking/customs/clearanceChannel` | ❌ 选填 | 合作服务商渠道 |
-| **整柜客户总报价 (元)** | `Waybill.receivableAmount` | ❌ 选填 | 整柜协议总应收 |
-| **拖车/港杂/THC等成本** | `ContainerFee` | ❌ 选填 | 各项集装箱硬成本 |
+| **备注** | `note` | ❌ 选填 | 订单备注 |
 
 ---
 

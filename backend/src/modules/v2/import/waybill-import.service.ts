@@ -1,9 +1,10 @@
 import ExcelJS from 'exceljs';
 import { PrismaClient, ShipmentType, WaybillStatus, CurrencyType, FeeDirection, AttachmentType, AddressType } from '@prisma/client';
 import { calculateWaybillFinancials } from '../waybill/waybill.service';
+import { exchangeRateService } from '../finance/exchange-rate.service';
 import { ImageExtractorService } from './image-extractor.service';
 import { ImportErrorDetail } from './customer-import.service';
-import { DictionaryValidator } from './dictionary-validator.service';
+import { DictionaryValidator, convertAmountToCny } from './dictionary-validator.service';
 import {
   OFFICIAL_SEA_LCL_COLUMNS,
   OFFICIAL_AIR_COLUMNS,
@@ -55,11 +56,19 @@ interface ParsedItemRow {
   unitWeight?: number;
   totalWeight?: number;
   payableVolume?: number;
+  usdRate?: number;
+  phpRate?: number;
+  receivableCurrency?: string;
   receivableUnitPrice?: number;
+  receivableExchangeRate?: number;
+  payableCurrency?: string;
   payableUnitPrice?: number;
+  payableExchangeRate?: number;
   trackingNumber?: string;
 
   // Fees (Air / FCL)
+  truckingFeeCurrency?: string;
+  truckingFeeExchangeRate?: number;
   internalTruckingFee?: number;
   channelTruckingFee?: number;
   receivableAmount?: number;
@@ -75,9 +84,15 @@ interface ParsedItemRow {
   customsChannel?: string;
   clearanceChannel?: string;
   truckingFee?: number;
+  portFeeCurrency?: string;
   portFee?: number;
+  portFeeExchangeRate?: number;
+  thcFeeCurrency?: string;
   thcFee?: number;
+  thcFeeExchangeRate?: number;
+  clearanceFeeCurrency?: string;
   clearanceFee?: number;
+  clearanceFeeExchangeRate?: number;
   loadingDate?: Date;
   sailingDate?: Date;
   eta?: Date;
@@ -108,7 +123,11 @@ interface GroupedWaybill {
   overseasAddress?: string;
   overseasRegion?: string;
   note?: string;
+  usdRate?: number;
+  phpRate?: number;
+  receivableCurrency?: string;
   receivableAmount?: number;
+  receivableExchangeRate?: number;
 
   // FCL specific
   containerNo?: string;
@@ -120,10 +139,18 @@ interface GroupedWaybill {
   bookingChannel?: string;
   customsChannel?: string;
   clearanceChannel?: string;
+  truckingFeeCurrency?: string;
   truckingFee?: number;
+  truckingFeeExchangeRate?: number;
+  portFeeCurrency?: string;
   portFee?: number;
+  portFeeExchangeRate?: number;
+  thcFeeCurrency?: string;
   thcFee?: number;
+  thcFeeExchangeRate?: number;
+  clearanceFeeCurrency?: string;
   clearanceFee?: number;
+  clearanceFeeExchangeRate?: number;
   loadingDate?: Date;
   sailingDate?: Date;
   eta?: Date;
@@ -138,7 +165,9 @@ interface GroupedWaybill {
     unitWeight?: number;
     totalWeight?: number;
     payableVolume?: number;
+    receivableCurrency?: string;
     receivableUnitPrice?: number;
+    payableCurrency?: string;
     payableUnitPrice?: number;
     trackingNumber?: string;
   }>;
@@ -147,6 +176,9 @@ interface GroupedWaybill {
     feeName: string;
     feeDirection: FeeDirection;
     amount: number;
+    currency: CurrencyType;
+    exchangeRate: number;
+    amountInCny: number;
   }>;
 
   attachments: Array<{
@@ -159,6 +191,7 @@ interface GroupedWaybill {
 
 export class WaybillImportService {
   private imageExtractor = new ImageExtractorService();
+  private dictValidator = new DictionaryValidator();
 
   /**
    * 批量导入运单入口
@@ -254,7 +287,11 @@ export class WaybillImportService {
           overseasAddress: r.overseasAddress,
           overseasRegion: r.overseasRegion,
           note: r.note,
+          usdRate: r.usdRate,
+          phpRate: r.phpRate,
+          receivableCurrency: r.receivableCurrency,
           receivableAmount: r.receivableAmount,
+          receivableExchangeRate: r.receivableExchangeRate,
           containerNo: r.containerNo,
           containerType: r.containerType,
           blNumber: r.blNumber,
@@ -264,10 +301,18 @@ export class WaybillImportService {
           bookingChannel: r.bookingChannel,
           customsChannel: r.customsChannel,
           clearanceChannel: r.clearanceChannel,
+          truckingFeeCurrency: r.truckingFeeCurrency,
           truckingFee: r.truckingFee,
+          truckingFeeExchangeRate: r.truckingFeeExchangeRate,
+          portFeeCurrency: r.portFeeCurrency,
           portFee: r.portFee,
+          portFeeExchangeRate: r.portFeeExchangeRate,
+          thcFeeCurrency: r.thcFeeCurrency,
           thcFee: r.thcFee,
+          thcFeeExchangeRate: r.thcFeeExchangeRate,
+          clearanceFeeCurrency: r.clearanceFeeCurrency,
           clearanceFee: r.clearanceFee,
+          clearanceFeeExchangeRate: r.clearanceFeeExchangeRate,
           loadingDate: r.loadingDate,
           sailingDate: r.sailingDate,
           eta: r.eta,
@@ -288,13 +333,32 @@ export class WaybillImportService {
         if (!g.overseasCompany && r.overseasCompany) g.overseasCompany = r.overseasCompany;
         if (!g.overseasAddress && r.overseasAddress) g.overseasAddress = r.overseasAddress;
         if (!g.overseasRegion && r.overseasRegion) g.overseasRegion = r.overseasRegion;
+        if (!g.usdRate && r.usdRate) g.usdRate = r.usdRate;
+        if (!g.phpRate && r.phpRate) g.phpRate = r.phpRate;
+        if (!g.receivableCurrency && r.receivableCurrency) g.receivableCurrency = r.receivableCurrency;
+        if (!g.receivableAmount && r.receivableAmount) g.receivableAmount = r.receivableAmount;
+        if (!g.receivableExchangeRate && r.receivableExchangeRate) g.receivableExchangeRate = r.receivableExchangeRate;
         if (!g.containerNo && r.containerNo) g.containerNo = r.containerNo;
         if (!g.containerType && r.containerType) g.containerType = r.containerType;
         if (!g.blNumber && r.blNumber) g.blNumber = r.blNumber;
+        if (!g.carrier && r.carrier) g.carrier = r.carrier;
+        if (!g.vesselVoyage && r.vesselVoyage) g.vesselVoyage = r.vesselVoyage;
         if (!g.originPort && r.originPort) g.originPort = r.originPort;
         if (!g.bookingChannel && r.bookingChannel) g.bookingChannel = r.bookingChannel;
         if (!g.customsChannel && r.customsChannel) g.customsChannel = r.customsChannel;
         if (!g.clearanceChannel && r.clearanceChannel) g.clearanceChannel = r.clearanceChannel;
+        if (!g.truckingFeeCurrency && r.truckingFeeCurrency) g.truckingFeeCurrency = r.truckingFeeCurrency;
+        if (!g.truckingFee && r.truckingFee) g.truckingFee = r.truckingFee;
+        if (!g.truckingFeeExchangeRate && r.truckingFeeExchangeRate) g.truckingFeeExchangeRate = r.truckingFeeExchangeRate;
+        if (!g.portFeeCurrency && r.portFeeCurrency) g.portFeeCurrency = r.portFeeCurrency;
+        if (!g.portFee && r.portFee) g.portFee = r.portFee;
+        if (!g.portFeeExchangeRate && r.portFeeExchangeRate) g.portFeeExchangeRate = r.portFeeExchangeRate;
+        if (!g.thcFeeCurrency && r.thcFeeCurrency) g.thcFeeCurrency = r.thcFeeCurrency;
+        if (!g.thcFee && r.thcFee) g.thcFee = r.thcFee;
+        if (!g.thcFeeExchangeRate && r.thcFeeExchangeRate) g.thcFeeExchangeRate = r.thcFeeExchangeRate;
+        if (!g.clearanceFeeCurrency && r.clearanceFeeCurrency) g.clearanceFeeCurrency = r.clearanceFeeCurrency;
+        if (!g.clearanceFee && r.clearanceFee) g.clearanceFee = r.clearanceFee;
+        if (!g.clearanceFeeExchangeRate && r.clearanceFeeExchangeRate) g.clearanceFeeExchangeRate = r.clearanceFeeExchangeRate;
       }
 
       // 添加货物明细
@@ -309,18 +373,30 @@ export class WaybillImportService {
           unitWeight: r.unitWeight,
           totalWeight: r.totalWeight,
           payableVolume: r.payableVolume,
+          receivableCurrency: r.receivableCurrency,
           receivableUnitPrice: r.receivableUnitPrice,
+          payableCurrency: r.payableCurrency,
           payableUnitPrice: r.payableUnitPrice,
           trackingNumber: r.trackingNumber,
         });
+
+        if (!g.receivableCurrency && r.receivableCurrency) {
+          g.receivableCurrency = r.receivableCurrency;
+        }
+        if (!g.receivableExchangeRate && (r.receivableExchangeRate || r.payableExchangeRate)) {
+          g.receivableExchangeRate = r.receivableExchangeRate || r.payableExchangeRate;
+        }
       }
 
-      // 添加费用明细 (空运与整柜各杂费)
+      // 添加费用明细 (空运与整柜各杂费，后续由单票双汇率统一折算快照)
       if (r.internalTruckingFee && r.internalTruckingFee > 0) {
         g.fees.push({
           feeName: '内部车费',
           feeDirection: FeeDirection.PAYABLE,
           amount: r.internalTruckingFee,
+          currency: (r.truckingFeeCurrency || 'CNY') as CurrencyType,
+          exchangeRate: 1.0,
+          amountInCny: r.internalTruckingFee,
         });
       }
       if (r.channelTruckingFee && r.channelTruckingFee > 0) {
@@ -328,6 +404,9 @@ export class WaybillImportService {
           feeName: '渠道车费',
           feeDirection: FeeDirection.PAYABLE,
           amount: r.channelTruckingFee,
+          currency: (r.truckingFeeCurrency || 'CNY') as CurrencyType,
+          exchangeRate: 1.0,
+          amountInCny: r.channelTruckingFee,
         });
       }
       if (r.truckingFee && r.truckingFee > 0) {
@@ -335,6 +414,9 @@ export class WaybillImportService {
           feeName: '拖车费用',
           feeDirection: FeeDirection.PAYABLE,
           amount: r.truckingFee,
+          currency: (r.truckingFeeCurrency || 'CNY') as CurrencyType,
+          exchangeRate: 1.0,
+          amountInCny: r.truckingFee,
         });
       }
       if (r.portFee && r.portFee > 0) {
@@ -342,6 +424,9 @@ export class WaybillImportService {
           feeName: '订舱费/港杂',
           feeDirection: FeeDirection.PAYABLE,
           amount: r.portFee,
+          currency: (r.portFeeCurrency || 'USD') as CurrencyType,
+          exchangeRate: 1.0,
+          amountInCny: r.portFee,
         });
       }
       if (r.thcFee && r.thcFee > 0) {
@@ -349,6 +434,9 @@ export class WaybillImportService {
           feeName: 'THC超支费',
           feeDirection: FeeDirection.PAYABLE,
           amount: r.thcFee,
+          currency: (r.thcFeeCurrency || 'PHP') as CurrencyType,
+          exchangeRate: 1.0,
+          amountInCny: r.thcFee,
         });
       }
       if (r.clearanceFee && r.clearanceFee > 0) {
@@ -356,6 +444,9 @@ export class WaybillImportService {
           feeName: '目的港清关费',
           feeDirection: FeeDirection.PAYABLE,
           amount: r.clearanceFee,
+          currency: (r.clearanceFeeCurrency || 'PHP') as CurrencyType,
+          exchangeRate: 1.0,
+          amountInCny: r.clearanceFee,
         });
       }
 
@@ -382,7 +473,7 @@ export class WaybillImportService {
       },
     });
     const customerMap = new Map(existingCustomers.map((c) => [c.clientCode, c]));
-    const dictValidator = new DictionaryValidator();
+    const dictValidator = this.dictValidator;
     await dictValidator.loadMasterData();
 
     const successWaybillNos: string[] = [];
@@ -654,17 +745,37 @@ export class WaybillImportService {
         totalWeight: item.totalWeight || (item.unitWeight ? item.unitWeight * qty : undefined),
         payableVolume: vol > 0 ? vol : undefined,
         receivableVolume: vol > 0 ? vol : undefined,
+        receivableCurrency: (item.receivableCurrency as CurrencyType) || CurrencyType.CNY,
         receivableUnitPrice: item.receivableUnitPrice,
+        payableCurrency: (item.payableCurrency as CurrencyType) || CurrencyType.CNY,
         payableUnitPrice: item.payableUnitPrice,
         trackingNumber: item.trackingNumber,
       };
     });
 
-    // 计算财务数据
+    // 获取当日最新汇率作为留空兜底，并计算财务数据
+    const todayRates = await exchangeRateService.getTodayRates();
+    const effectiveUsdRate = g.usdRate && Number(g.usdRate) > 0 ? Number(g.usdRate) : todayRates.usdRate;
+    const effectivePhpRate = g.phpRate && Number(g.phpRate) > 0 ? Number(g.phpRate) : todayRates.phpRate;
+
+    // 单票统一汇率：初始化所有随单杂费的有效汇率与折合人民币快照
+    for (const fee of g.fees) {
+      const feeCurr = (fee.currency || 'CNY').toUpperCase();
+      let rate = 1.0;
+      if (feeCurr === 'USD') rate = effectiveUsdRate;
+      else if (feeCurr === 'PHP') rate = effectivePhpRate;
+      const { amountInCny } = convertAmountToCny(fee.amount, feeCurr, rate);
+      fee.exchangeRate = rate;
+      fee.amountInCny = amountInCny;
+    }
+
     const financials = calculateWaybillFinancials({
       orderType,
       isFixedPrice: orderType === 'SEA_FCL' && !!g.receivableAmount,
       fixedPriceAmount: g.receivableAmount,
+      settlementCurrency: g.receivableCurrency,
+      usdRate: effectiveUsdRate,
+      phpRate: effectivePhpRate,
       items: itemsData,
       fees: g.fees,
     });
@@ -746,6 +857,10 @@ export class WaybillImportService {
           totalPayableCbm: totalPayableCbm > 0 ? totalPayableCbm : undefined,
           totalReceivableCbm: totalReceivableCbm > 0 ? totalReceivableCbm : undefined,
           totalWeightKg: totalWeightKg > 0 ? totalWeightKg : undefined,
+          usdRate: effectiveUsdRate,
+          phpRate: effectivePhpRate,
+          settlementCurrency: financials.settlementCurrency,
+          rawReceivableAmount: financials.rawReceivableAmount,
           receivableAmount: financials.receivableAmount,
           payableAmount: financials.payableAmount,
           profitAmount: financials.profitAmount,
@@ -773,9 +888,9 @@ export class WaybillImportService {
             feeName: fee.feeName,
             feeDirection: fee.feeDirection,
             amount: fee.amount,
-            currency: CurrencyType.CNY,
-            exchangeRate: 1.0,
-            amountInCny: fee.amount,
+            currency: fee.currency,
+            exchangeRate: fee.exchangeRate,
+            amountInCny: fee.amountInCny,
           })),
         });
       }
@@ -827,6 +942,13 @@ export class WaybillImportService {
     const productName = String(getVal(colMap.productName) || '').trim();
     const quantity = getNum(colMap.quantity) || 1;
 
+    const parseCurrency = (colIdx?: number): string | undefined => {
+      const raw = String(getVal(colIdx) || '').trim();
+      if (!raw) return undefined;
+      const res = this.dictValidator.validateCurrency(raw);
+      return res.valid ? res.standardValue : raw;
+    };
+
     const parsed: ParsedItemRow = {
       rowNumber,
       groupKey,
@@ -845,15 +967,23 @@ export class WaybillImportService {
       note: String(getVal(colMap.note) || '').trim() || undefined,
       productName,
       quantity,
+      usdRate: getNum(colMap.usdRate),
+      phpRate: getNum(colMap.phpRate),
       length: getNum(colMap.length),
       width: getNum(colMap.width),
       height: getNum(colMap.height),
       unitWeight: getNum(colMap.unitWeight),
       totalWeight: getNum(colMap.totalWeight),
       payableVolume: getNum(colMap.payableVolume),
+      receivableCurrency: parseCurrency(colMap.receivableCurrency),
       receivableUnitPrice: getNum(colMap.receivableUnitPrice),
+      receivableExchangeRate: getNum(colMap.receivableExchangeRate),
+      payableCurrency: parseCurrency(colMap.payableCurrency),
       payableUnitPrice: getNum(colMap.payableUnitPrice),
+      payableExchangeRate: getNum(colMap.payableExchangeRate),
       trackingNumber: String(getVal(colMap.trackingNumber) || '').trim() || undefined,
+      truckingFeeCurrency: parseCurrency(colMap.truckingFeeCurrency),
+      truckingFeeExchangeRate: getNum(colMap.truckingFeeExchangeRate),
       internalTruckingFee: getNum(colMap.internalTruckingFee),
       channelTruckingFee: getNum(colMap.channelTruckingFee),
       receivableAmount: getNum(colMap.receivableAmount),
@@ -867,9 +997,15 @@ export class WaybillImportService {
       customsChannel: String(getVal(colMap.customsChannel) || '').trim() || undefined,
       clearanceChannel: String(getVal(colMap.clearanceChannel) || '').trim() || undefined,
       truckingFee: getNum(colMap.truckingFee),
+      portFeeCurrency: parseCurrency(colMap.portFeeCurrency),
       portFee: getNum(colMap.portFee),
+      portFeeExchangeRate: getNum(colMap.portFeeExchangeRate),
+      thcFeeCurrency: parseCurrency(colMap.thcFeeCurrency),
       thcFee: getNum(colMap.thcFee),
+      thcFeeExchangeRate: getNum(colMap.thcFeeExchangeRate),
+      clearanceFeeCurrency: parseCurrency(colMap.clearanceFeeCurrency),
       clearanceFee: getNum(colMap.clearanceFee),
+      clearanceFeeExchangeRate: getNum(colMap.clearanceFeeExchangeRate),
       loadingDate: getDate(colMap.loadingDate),
       sailingDate: getDate(colMap.sailingDate),
       eta: getDate(colMap.eta),
@@ -920,6 +1056,20 @@ export class WaybillImportService {
       const noBracket = col.header.replace(/[\(（].*?[\)）]/g, '').trim();
       headerToKeyMap.set(noBracket, col.key);
     }
+
+    // 单票统一汇率与历史别名表头
+    headerToKeyMap.set('单票美金汇率', 'usdRate');
+    headerToKeyMap.set('单票美金汇率(选填)', 'usdRate');
+    headerToKeyMap.set('美金汇率', 'usdRate');
+    headerToKeyMap.set('单票比索汇率', 'phpRate');
+    headerToKeyMap.set('单票比索汇率(选填)', 'phpRate');
+    headerToKeyMap.set('比索汇率', 'phpRate');
+    headerToKeyMap.set('订舱美金汇率', 'portFeeExchangeRate');
+    headerToKeyMap.set('订舱美金汇率(选填)', 'portFeeExchangeRate');
+    headerToKeyMap.set('THC比索汇率', 'thcFeeExchangeRate');
+    headerToKeyMap.set('THC比索汇率(选填)', 'thcFeeExchangeRate');
+    headerToKeyMap.set('清关比索汇率', 'clearanceFeeExchangeRate');
+    headerToKeyMap.set('清关比索汇率(选填)', 'clearanceFeeExchangeRate');
 
     headerRow.eachCell((cell, colNumber) => {
       const rawText = String(cell.value || '').trim();

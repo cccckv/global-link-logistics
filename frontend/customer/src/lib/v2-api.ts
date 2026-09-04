@@ -220,10 +220,13 @@ export interface Waybill {
   totalPayableCbm?: number;
   totalReceivableCbm?: number;
   totalWeightKg?: number;
+  settlementCurrency?: CurrencyType;
+  rawReceivableAmount?: number;
+  usdRate?: number;
+  phpRate?: number;
   receivableAmount?: number;
   payableAmount?: number;
   profitAmount?: number;
-  settlementCurrency: CurrencyType;
 
   createdAt: string;
   updatedAt: string;
@@ -357,6 +360,17 @@ export const financeV2Api = {
 
   deleteAttachment: (attachmentId: string) =>
     v2Api.delete<{ success: boolean; message: string }>(`/finance/attachments/${attachmentId}`),
+
+  getTodayExchangeRates: () =>
+    v2Api.get<{
+      success: boolean;
+      data: {
+        usdRate: number;
+        phpRate: number;
+        date: string;
+        source: 'LIVE' | 'CACHE' | 'FALLBACK';
+      };
+    }>('/finance/exchange-rate/today'),
 };
 
 export type ChannelCategory =

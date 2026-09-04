@@ -370,4 +370,64 @@ export class DictionaryValidator {
       errorMessage: `集装箱柜型【${input.trim()}】不合规。有效柜型：${VALID_CONTAINER_TYPES.join('、')}。`,
     };
   }
+
+  /**
+   * 严格校验与归一化结算币种 (CNY | PHP | USD)
+   */
+  validateCurrency(input?: string): DictionaryValidationResult {
+    if (!input || !input.trim()) {
+      return { valid: true, standardValue: 'CNY' };
+    }
+    const clean = input.trim().toUpperCase();
+    if (clean.includes('PHP') || clean.includes('比索') || clean.includes('PESO')) {
+      return { valid: true, standardValue: 'PHP' };
+    }
+    if (clean.includes('USD') || clean.includes('美元') || clean.includes('美金') || clean.includes('$')) {
+      return { valid: true, standardValue: 'USD' };
+    }
+    if (clean.includes('CNY') || clean.includes('RMB') || clean.includes('人民币') || clean.includes('元') || clean.includes('¥')) {
+      return { valid: true, standardValue: 'CNY' };
+    }
+    return {
+      valid: false,
+      errorMessage: `币种【${input.trim()}】不合规。有效币种：CNY (人民币)、PHP (菲律宾比索)、USD (美元)。`,
+    };
+  }
 }
+
+export const VALID_CURRENCIES = ['CNY', 'PHP', 'USD'] as const;
+
+export const DEFAULT_EXCHANGE_RATES = {
+  USD: 7.2, // 1 USD = 7.2 CNY (美元为贵币，折合人民币 = 美元金额 * 7.2)
+  PHP: 8.0, // 1 CNY = 8.0 PHP (人民币为贵币，折合人民币 = 比索金额 / 8.0)
+  CNY: 1.0,
+};
+
+/**
+ * 遵循行业贵币计价法的折算函数
+ */
+export function convertAmountToCny(
+  amount?: number | null,
+  currency: string = 'CNY',
+  inputRate?: number | null
+): { amountInCny: number; effectiveRate: number } {
+  const val = amount && !isNaN(Number(amount)) ? Number(amount) : 0;
+  if (val === 0) {
+    return { amountInCny: 0, effectiveRate: inputRate && Number(inputRate) > 0 ? Number(inputRate) : 1.0 };
+  }
+
+  const curr = (currency || 'CNY').toUpperCase();
+
+  if (curr === 'USD') {
+    const rate = inputRate && Number(inputRate) > 0 ? Number(inputRate) : DEFAULT_EXCHANGE_RATES.USD;
+    return { amountInCny: Math.round(val * rate * 100) / 100, effectiveRate: rate };
+  }
+
+  if (curr === 'PHP') {
+    const rate = inputRate && Number(inputRate) > 0 ? Number(inputRate) : DEFAULT_EXCHANGE_RATES.PHP;
+    return { amountInCny: Math.round((val / rate) * 100) / 100, effectiveRate: rate };
+  }
+
+  return { amountInCny: Math.round(val * 100) / 100, effectiveRate: 1.0 };
+}
+

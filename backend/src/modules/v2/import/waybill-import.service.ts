@@ -753,10 +753,21 @@ export class WaybillImportService {
       };
     });
 
-    // 获取当日最新汇率作为留空兜底，并计算财务数据
-    const todayRates = await exchangeRateService.getTodayRates();
-    const effectiveUsdRate = g.usdRate && Number(g.usdRate) > 0 ? Number(g.usdRate) : todayRates.usdRate;
-    const effectivePhpRate = g.phpRate && Number(g.phpRate) > 0 ? Number(g.phpRate) : todayRates.phpRate;
+    // 汇率获取：优先使用 Excel 填写的单票汇率；若留空则尝试获取当日实时外汇；若接口失败则严格报错阻断，要求手工录入
+    let effectiveUsdRate = g.usdRate && Number(g.usdRate) > 0 ? Number(g.usdRate) : 0;
+    let effectivePhpRate = g.phpRate && Number(g.phpRate) > 0 ? Number(g.phpRate) : 0;
+
+    if (!effectiveUsdRate || !effectivePhpRate) {
+      try {
+        const todayRates = await exchangeRateService.getTodayRates();
+        if (!effectiveUsdRate) effectiveUsdRate = todayRates.usdRate;
+        if (!effectivePhpRate) effectivePhpRate = todayRates.phpRate;
+      } catch (err: any) {
+        throw new Error(
+          `未填写单票汇率，且当日系统外汇接口连接异常无法自动获取 (${err.message})。为保障财务记账准确，禁止静默默认值兜底，请在 Excel 中手动补齐【单票美金汇率】与【单票比索汇率】后重新导入。`
+        );
+      }
+    }
 
     // 单票统一汇率：初始化所有随单杂费的有效汇率与折合人民币快照
     for (const fee of g.fees) {

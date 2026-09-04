@@ -4,22 +4,15 @@ export interface DailyExchangeRates {
   usdRate: number; // 1 USD = X CNY (贵币计价法)
   phpRate: number; // 1 CNY = Y PHP (贵币计价法)
   date: string;    // YYYY-MM-DD
-  source: 'LIVE' | 'CACHE' | 'FALLBACK';
+  source: 'LIVE' | 'CACHE';
 }
-
-const DEFAULT_RATES: DailyExchangeRates = {
-  usdRate: 7.2000,
-  phpRate: 8.0000,
-  date: new Date().toISOString().split('T')[0],
-  source: 'FALLBACK',
-};
 
 export class ExchangeRateService {
   private cachedRates: DailyExchangeRates | null = null;
   private cacheExpiresAt: number = 0;
 
   /**
-   * 获取当日实时汇率 (带内存缓存与安全熔断兜底)
+   * 获取当日实时汇率 (带当日内存缓存，失败时严格抛错，禁止静默默认值兜底)
    */
   async getTodayRates(): Promise<DailyExchangeRates> {
     const now = Date.now();
@@ -44,15 +37,12 @@ export class ExchangeRateService {
         const cnyToUsd = Number(rates.USD);
         const cnyToPhp = Number(rates.PHP);
 
-        let usdRate = DEFAULT_RATES.usdRate;
-        let phpRate = DEFAULT_RATES.phpRate;
+        if (!cnyToUsd || !cnyToPhp || cnyToUsd <= 0 || cnyToPhp <= 0) {
+          throw new Error('外汇接口返回汇率数值无效');
+        }
 
-        if (cnyToUsd > 0) {
-          usdRate = Math.round((1 / cnyToUsd) * 10000) / 10000;
-        }
-        if (cnyToPhp > 0) {
-          phpRate = Math.round(cnyToPhp * 10000) / 10000;
-        }
+        const usdRate = Math.round((1 / cnyToUsd) * 10000) / 10000;
+        const phpRate = Math.round(cnyToPhp * 10000) / 10000;
 
         this.cachedRates = {
           usdRate,
@@ -64,16 +54,11 @@ export class ExchangeRateService {
 
         return this.cachedRates;
       }
+      throw new Error('外汇接口返回数据结构异常，未能解析有效汇率');
     } catch (err: any) {
-      console.warn(`[ExchangeRateService] 自动获取当日汇率失败，已降级为安全基准值: ${err.message}`);
+      console.error(`[ExchangeRateService] 获取当日外汇牌价失败: ${err.message}`);
+      throw new Error(`无法获取当日外汇汇率 (${err.message})，请手动录入汇率`);
     }
-
-    // 3. 熔断兜底安全返回
-    return {
-      ...DEFAULT_RATES,
-      date: todayStr,
-      source: 'FALLBACK',
-    };
   }
 }
 

@@ -126,9 +126,9 @@ export default function InboundWorkbench() {
   const [fees, setFees] = useState<FeeItemRow[]>([]);
 
   // 单票统一双汇率与当日实时行情
-  const [usdRate, setUsdRate] = useState<number | ''>(7.20);
-  const [phpRate, setPhpRate] = useState<number | ''>(8.00);
-  const [rateSource, setRateSource] = useState<'LIVE' | 'CACHE' | 'FALLBACK' | 'CUSTOM'>('FALLBACK');
+  const [usdRate, setUsdRate] = useState<number | ''>('');
+  const [phpRate, setPhpRate] = useState<number | ''>('');
+  const [rateSource, setRateSource] = useState<'LIVE' | 'CACHE' | 'FALLBACK' | 'CUSTOM' | ''>('');
   const [isLoadingRates, setIsLoadingRates] = useState(false);
 
   // Submitting & Success Result Modal
@@ -154,39 +154,32 @@ export default function InboundWorkbench() {
   const resetForm = () => {
     setUserMark('');
     setSelectedCustomer(null);
-    const defaultWh = originWarehouses.find((w) => w.isDefault);
-    setOriginWarehouse(defaultWh ? (defaultWh.shortName || defaultWh.name) : '');
-    setDestinationCountry('');
-    setDestinationPort('');
-    const defaultCh = channels.find((c) => c.isDefault);
-    setForwarderChannel(defaultCh ? defaultCh.name : '');
     setExpressNo('');
     setNote('');
-    setSelectedConsigneeId('');
-    setOverseasName('');
-    setOverseasPhone('');
-    setOverseasCompany('');
-    setOverseasAddress('');
-    setSaveToAddressBook(false);
     setIsFixedPrice(false);
     setFixedPriceAmount(undefined);
     setFclQuotation(undefined);
     setFclQuotationCurrency('CNY');
     setFees([]);
+    setOverseasName('');
+    setOverseasPhone('');
+    setOverseasCompany('');
+    setOverseasAddress('');
+    setSaveToAddressBook(false);
     setItems([
       {
         id: '1',
-        trackingNumber: '',
         productName: '',
         quantity: 1,
         length: undefined,
         width: undefined,
         height: undefined,
         unitWeight: undefined,
-        receivableCurrency: 'CNY',
         receivableUnitPrice: undefined,
-        payableCurrency: 'CNY',
+        receivableCurrency: 'CNY',
         payableUnitPrice: undefined,
+        payableCurrency: 'CNY',
+        trackingNumber: '',
       },
     ]);
     setCreatedResult(null);
@@ -201,8 +194,10 @@ export default function InboundWorkbench() {
         setPhpRate(res.data.data.phpRate);
         setRateSource(res.data.data.source);
       }
-    } catch (e) {
-      console.warn('获取当日实时汇率异常，降级为系统基准默认值', e);
+    } catch (e: any) {
+      console.warn('获取当日实时汇率异常:', e);
+      setRateSource('');
+      toast.error('获取当日外汇汇率失败，请手动录入单票美金与比索汇率');
     } finally {
       setIsLoadingRates(false);
     }
@@ -469,8 +464,8 @@ export default function InboundWorkbench() {
     const val = Number(amount) || 0;
     if (val === 0) return 0;
     const c = (curr || 'CNY').toUpperCase();
-    const effectiveUsd = Number(usdRate) > 0 ? Number(usdRate) : 7.20;
-    const effectivePhp = Number(phpRate) > 0 ? Number(phpRate) : 8.00;
+    const effectiveUsd = Number(usdRate) > 0 ? Number(usdRate) : 0;
+    const effectivePhp = Number(phpRate) > 0 ? Number(phpRate) : 0;
     if (c === 'USD') return val * effectiveUsd;
     if (c === 'PHP') return effectivePhp > 0 ? val / effectivePhp : 0;
     return val;
@@ -542,6 +537,14 @@ export default function InboundWorkbench() {
       toast.error('请填写海外目的港详细派送地址 (必填)');
       return;
     }
+    if (!usdRate || Number(usdRate) <= 0) {
+      toast.error('请填写有效的单票美金汇率 (必填)');
+      return;
+    }
+    if (!phpRate || Number(phpRate) <= 0) {
+      toast.error('请填写有效的单票比索汇率 (必填)');
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -554,6 +557,10 @@ export default function InboundWorkbench() {
         destinationPort: orderType === 'AIR' ? undefined : (destinationPort?.trim() || undefined),
         forwarderChannel: forwarderChannel.trim() || undefined,
         expressNo: expressNo.trim() || undefined,
+
+        usdRate: Number(usdRate),
+        phpRate: Number(phpRate),
+        settlementCurrency: isFcl ? fclQuotationCurrency : undefined,
 
         note: note.trim() || undefined,
         isFixedPrice: isFcl ? true : isFixedPrice,

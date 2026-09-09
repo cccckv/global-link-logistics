@@ -280,6 +280,7 @@ export const waybillV2Api = {
     forwarderChannel?: string;
     customsType?: string;
     unassignedOnly?: boolean | string;
+    noAddressOnly?: boolean | string;
     overseasKeyword?: string;
     dateType?: 'createdAt' | 'inboundDate' | 'loadingDate' | 'sailingDate' | 'eta' | 'signedDate';
     startDate?: string;

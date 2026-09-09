@@ -499,6 +499,7 @@ export class WaybillV2Service {
     forwarderChannel?: string;
     customsType?: string;
     unassignedOnly?: boolean | string;
+    noAddressOnly?: boolean | string;
     overseasKeyword?: string;
     dateType?: 'createdAt' | 'inboundDate' | 'loadingDate' | 'sailingDate' | 'eta' | 'signedDate';
     startDate?: string;
@@ -519,6 +520,7 @@ export class WaybillV2Service {
       forwarderChannel,
       customsType,
       unassignedOnly,
+      noAddressOnly,
       overseasKeyword,
       dateType,
       startDate,
@@ -529,6 +531,17 @@ export class WaybillV2Service {
     const andConditions: any[] = [];
 
     if (orderType) where.orderType = orderType;
+
+    // 待补地址专用筛选: 未填写海外详细派送地址 (overseasAddress is null or empty)
+    const isNoAddress = noAddressOnly === true || noAddressOnly === 'true';
+    if (isNoAddress) {
+      andConditions.push({
+        OR: [
+          { overseasAddress: null },
+          { overseasAddress: '' },
+        ],
+      });
+    }
 
     // 待配载/待排柜/待发运筛选: 未挂载集装箱 (containerId is null) 且状态为已入库 INBOUND (若指定了 orderType 则精准限定对应类型)
     const isUnassigned = unassignedOnly === true || unassignedOnly === 'true';
@@ -658,7 +671,7 @@ export class WaybillV2Service {
     const countsWhere = { ...where };
     delete countsWhere.status;
 
-    const [total, waybills, counts] = await Promise.all([
+    const [total, waybills, counts, noAddressCount] = await Promise.all([
       prisma.waybill.count({ where }),
       prisma.waybill.findMany({
         where,
@@ -677,6 +690,15 @@ export class WaybillV2Service {
         where: countsWhere,
         _count: { id: true },
       }),
+      prisma.waybill.count({
+        where: {
+          ...countsWhere,
+          OR: [
+            { overseasAddress: null },
+            { overseasAddress: '' },
+          ],
+        },
+      }),
     ]);
 
     const countsMap: Record<string, number> = {
@@ -688,6 +710,7 @@ export class WaybillV2Service {
       CUSTOMS: 0,
       DISPATCHING: 0,
       DELIVERED: 0,
+      NO_ADDRESS: noAddressCount || 0,
     };
 
     let allCount = 0;

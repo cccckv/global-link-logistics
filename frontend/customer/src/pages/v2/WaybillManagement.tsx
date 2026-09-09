@@ -25,6 +25,7 @@ import {
   Anchor,
   Truck,
   User,
+  MapPin,
 } from 'lucide-react';
 import { BatchImportModal, type ImportType } from '../../components/v2/BatchImportModal';
 import {
@@ -81,6 +82,7 @@ export default function WaybillManagement() {
   const [originWarehouse, setOriginWarehouse] = useState('');
   const [destinationCountry, setDestinationCountry] = useState('');
   const [unassignedOnly, setUnassignedOnly] = useState(false);
+  const [noAddressOnly, setNoAddressOnly] = useState(false);
 
   // Filters - Advanced Collapsible
   const [destinationPort, setDestinationPort] = useState('');
@@ -164,6 +166,7 @@ export default function WaybillManagement() {
         destinationCountry: destinationCountry || undefined,
         destinationPort: destinationPort || undefined,
         unassignedOnly: unassignedOnly ? true : undefined,
+        noAddressOnly: noAddressOnly ? true : undefined,
         containerNo: containerNo.trim() || undefined,
         forwarderChannel: forwarderChannel || undefined,
         customsType: customsType || undefined,
@@ -196,6 +199,7 @@ export default function WaybillManagement() {
     destinationCountry,
     destinationPort,
     unassignedOnly,
+    noAddressOnly,
     forwarderChannel,
     customsType,
     startDate,
@@ -475,6 +479,29 @@ export default function WaybillManagement() {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* 待补地址 动态快捷键 */}
+            <button
+              onClick={() => {
+                setNoAddressOnly(!noAddressOnly);
+                setSelectedStatus('');
+                setPage(1);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 border shadow-sm ${
+                noAddressOnly
+                  ? 'bg-rose-600 text-white border-rose-700 shadow-rose-600/20'
+                  : 'bg-rose-50 hover:bg-rose-100 text-rose-800 border-rose-200'
+              }`}
+              title="一键筛选尚未录入海外详细派送地址的运单"
+            >
+              <MapPin className={`w-3.5 h-3.5 ${noAddressOnly ? 'fill-white' : 'text-rose-600'}`} />
+              待补地址
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                noAddressOnly ? 'bg-white/30 text-white' : 'bg-rose-200 text-rose-900'
+              }`}>
+                {counts.NO_ADDRESS || 0}
+              </span>
+            </button>
+
             {/* 待配载/待排柜/待发运 动态快捷键 */}
             <button
               onClick={() => {
@@ -895,9 +922,16 @@ export default function WaybillManagement() {
                         </span>
                       </td>
                       <td className="py-3 px-3">
-                        <span className="text-slate-800 font-medium block">
-                          {wb.originWarehouse || '广州'} ➔ {wb.destinationCountry}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-slate-800 font-medium block">
+                            {wb.originWarehouse || '广州'} ➔ {wb.destinationCountry}
+                          </span>
+                          {!wb.overseasAddress && (
+                            <span className="px-1.5 py-0.2 bg-rose-50 text-rose-700 border border-rose-200 rounded text-[9px] font-bold inline-flex items-center gap-0.5 shadow-xs" title="海外收件人详细派送地址未维护">
+                              <MapPin className="w-2.5 h-2.5 text-rose-600" /> 待补地址
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-1 mt-1">
                           {wb.customsType && (
                             <span className="px-1.5 py-0.2 bg-amber-50 text-amber-800 border border-amber-200 rounded text-[9px] font-semibold">

@@ -525,18 +525,6 @@ export default function InboundWorkbench() {
       toast.error('海运整柜订单必须填写「整柜协议总报价」');
       return;
     }
-    if (!overseasName.trim()) {
-      toast.error('请填写海外收件联系人姓名 (必填)');
-      return;
-    }
-    if (!overseasPhone.trim()) {
-      toast.error('请填写海外收件人联系电话 (必填)');
-      return;
-    }
-    if (!overseasAddress.trim()) {
-      toast.error('请填写海外目的港详细派送地址 (必填)');
-      return;
-    }
     if (!usdRate || Number(usdRate) <= 0) {
       toast.error('请填写有效的单票美金汇率 (必填)');
       return;
@@ -980,12 +968,11 @@ export default function InboundWorkbench() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      海外收件联系人 <span className="text-red-500 font-bold">* (必填)</span>
+                      海外收件联系人 <span className="text-slate-400 font-normal">(选填)</span>
                     </label>
                     <input
                       type="text"
-                      required
-                      placeholder="如 Alex Johnson"
+                      placeholder="如 Alex Johnson (可延后补齐)"
                       value={overseasName}
                       onChange={(e) => setOverseasName(e.target.value)}
                       className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs font-medium focus:ring-1 focus:ring-blue-500"
@@ -993,11 +980,10 @@ export default function InboundWorkbench() {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      海外联系电话 / WhatsApp <span className="text-red-500 font-bold">* (必填)</span>
+                      海外联系电话 / WhatsApp <span className="text-slate-400 font-normal">(选填)</span>
                     </label>
                     <input
                       type="text"
-                      required
                       placeholder="如 +63 917 123 4567"
                       value={overseasPhone}
                       onChange={(e) => setOverseasPhone(e.target.value)}
@@ -1006,7 +992,7 @@ export default function InboundWorkbench() {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      海外公司名称 (选填)
+                      海外公司名称 <span className="text-slate-400 font-normal">(选填)</span>
                     </label>
                     <input
                       type="text"
@@ -1020,12 +1006,11 @@ export default function InboundWorkbench() {
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    海外目的港详细派送地址 <span className="text-red-500 font-bold">* (必填)</span>
+                    海外目的港详细派送地址 <span className="text-slate-400 font-normal">(选填，可暂不填写并在调度看板中待补)</span>
                   </label>
                   <input
                     type="text"
-                    required
-                    placeholder="如 Unit 802, BGC Tower, Taguig City, Metro Manila"
+                    placeholder="如 Unit 802, BGC Tower, Taguig City, Metro Manila (暂无地址可留空)"
                     value={overseasAddress}
                     onChange={(e) => setOverseasAddress(e.target.value)}
                     className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-xs font-medium focus:ring-1 focus:ring-blue-500"

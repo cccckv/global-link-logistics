@@ -946,10 +946,6 @@ export default function WaybillDetailView() {
     }
 
     // 海运分支
-    if (!vesselVoyage.trim()) {
-      toast.error('请填写船名/航次 (Vessel/Voyage)，该字段为必填项！');
-      return;
-    }
     if (!sailingDate) {
       toast.error('请选择实际开船日 (ETD)！');
       return;
@@ -957,7 +953,7 @@ export default function WaybillDetailView() {
 
     try {
       const payload: any = {
-        voyageNumber: vesselVoyage.trim(),
+        voyageNumber: vesselVoyage.trim() || undefined,
       };
       if (advanceStatus) {
         payload.status = 'IN_TRANSIT';
@@ -970,7 +966,7 @@ export default function WaybillDetailView() {
           status: advanceStatus ? 'SAILING' : undefined,
           sailingDate,
           eta: etaDate || undefined,
-          vesselVoyage: vesselVoyage.trim(),
+          vesselVoyage: vesselVoyage.trim() || undefined,
           blNumber: blNumber.trim() || undefined,
         });
       }
@@ -3617,14 +3613,13 @@ export default function WaybillDetailView() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      船名 / 航次 (Vessel/Voyage) <span className="text-red-500">*</span>
+                      船名 / 航次 (Vessel/Voyage)
                     </label>
                     <input
                       type="text"
                       placeholder="如 WAN HAI 312 / V.S012"
                       value={vesselVoyage}
                       onChange={(e) => setVesselVoyage(e.target.value)}
-                      required
                       className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 focus:bg-white focus:ring-2 focus:ring-cyan-500"
                     />
                   </div>

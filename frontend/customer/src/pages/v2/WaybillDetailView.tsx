@@ -26,6 +26,7 @@ import {
   MapPin,
   X,
   Eye,
+  AlertCircle,
 } from 'lucide-react';
 import {
   waybillV2Api,
@@ -307,6 +308,37 @@ export default function WaybillDetailView() {
   const [attachmentType, setAttachmentType] = useState<AttachmentType>('OTHER');
   const [attachFiles, setAttachFiles] = useState<Array<{ url: string; name: string; size?: number }>>([]);
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+
+  // FCL 补录协议总报价弹窗状态
+  const [fclQuotationModalOpen, setFclQuotationModalOpen] = useState(false);
+  const [modalFclAmount, setModalFclAmount] = useState<number | string>('');
+  const [modalFclCurrency, setModalFclCurrency] = useState<CurrencyType>('CNY');
+  const [fclSubmitting, setFclSubmitting] = useState(false);
+
+  const handleFclQuotationSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!waybill) return;
+    const num = Number(modalFclAmount);
+    if (!num || num <= 0) {
+      toast.error('请输入有效的整柜协议报价金额 (必须大于 0)');
+      return;
+    }
+    setFclSubmitting(true);
+    try {
+      await waybillV2Api.update(waybill.id, {
+        isFixedPrice: true,
+        fixedPriceAmount: num,
+        settlementCurrency: modalFclCurrency,
+      });
+      toast.success('🎉 整柜协议总报价补录成功，利润总账已自动重新核算！');
+      setFclQuotationModalOpen(false);
+      loadData();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || '补录协议报价失败');
+    } finally {
+      setFclSubmitting(false);
+    }
+  };
 
   const loadData = async () => {
     if (!id) return;
@@ -1421,6 +1453,42 @@ export default function WaybillDetailView() {
         </div>
       </div>
 
+      {/* 海运整柜未录入协议总报价 Alert Banner 提示 */}
+      {waybill.orderType === 'SEA_FCL' &&
+        (!waybill.fixedPriceAmount ||
+          Number(waybill.fixedPriceAmount) <= 0 ||
+          Number(waybill.receivableAmount || 0) <= 0) && (
+          <div className="p-4 bg-amber-50/90 border-2 border-amber-300 rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-amber-500 text-white rounded-xl shrink-0 shadow-sm">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-amber-900 flex items-center gap-2">
+                  整柜协议总报价待补录
+                  <span className="px-2 py-0.2 bg-amber-200/80 text-amber-800 rounded text-[10px] font-semibold">
+                    当前总应收: ¥0.00
+                  </span>
+                </h4>
+                <p className="text-[11px] text-amber-700 mt-0.5">
+                  该海运整柜订单在下单或导入时报价待定。若商务协议价格已确定，请及时补录，系统将自动重新核算并锁定财务毛利。
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setModalFclAmount(waybill.fixedPriceAmount ? Number(waybill.fixedPriceAmount) : '');
+                setModalFclCurrency(waybill.settlementCurrency || 'CNY');
+                setFclQuotationModalOpen(true);
+              }}
+              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 shrink-0 self-start sm:self-auto"
+            >
+              <DollarSign className="w-3.5 h-3.5" />
+              补录整柜协议报价
+            </button>
+          </div>
+        )}
+
       {/* 形态 2: 紧凑路线与收发档案看板 (Collapsible / Expandable) */}
       {(() => {
         const originHubInfo = originWarehouses.find(
@@ -2224,7 +2292,24 @@ export default function WaybillDetailView() {
             <div className="space-y-3 font-mono">
               <div className="flex items-center justify-between text-xs text-slate-400">
                 <span>总应收金额 (Receivable):</span>
-                {waybill.settlementCurrency && waybill.settlementCurrency !== 'CNY' && waybill.rawReceivableAmount ? (
+                {waybill.orderType === 'SEA_FCL' &&
+                (!waybill.fixedPriceAmount ||
+                  Number(waybill.fixedPriceAmount) <= 0 ||
+                  Number(waybill.receivableAmount || 0) <= 0) ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModalFclAmount(waybill.fixedPriceAmount ? Number(waybill.fixedPriceAmount) : '');
+                      setModalFclCurrency(waybill.settlementCurrency || 'CNY');
+                      setFclQuotationModalOpen(true);
+                    }}
+                    className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs"
+                    title="点击快捷补录整柜协议报价"
+                  >
+                    <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
+                    待补录报价 (¥0.00)
+                  </button>
+                ) : waybill.settlementCurrency && waybill.settlementCurrency !== 'CNY' && waybill.rawReceivableAmount ? (
                   <div className="text-right">
                     <span className="text-base font-bold text-emerald-400">
                       {waybill.settlementCurrency === 'PHP' ? '₱' : '$'} {Number(waybill.rawReceivableAmount).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -4499,6 +4584,99 @@ export default function WaybillDetailView() {
                   className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20"
                 >
                   {isCreatingContainer ? '创建中...' : '确认创建并自动选中'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 补录海运整柜包干协议总报价模态框 */}
+      {/* ========================================================= */}
+      {fclQuotationModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-amber-100 text-amber-800 rounded-lg">
+                  <DollarSign className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">补录整柜协议总报价</h3>
+                  <p className="text-[11px] text-slate-500">录入海运整柜包干协议价，系统将自动核算总应收与毛利</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFclQuotationModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 text-xl font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleFclQuotationSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  结算币种 <span className="text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['CNY', 'USD', 'PHP'] as CurrencyType[]).map((curr) => (
+                    <button
+                      key={curr}
+                      type="button"
+                      onClick={() => setModalFclCurrency(curr)}
+                      className={`py-2 text-xs font-bold rounded-xl border transition-all ${
+                        modalFclCurrency === curr
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {curr === 'CNY' ? '¥ 人民币 (CNY)' : curr === 'USD' ? '$ 美元 (USD)' : '₱ 比索 (PHP)'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  整柜协议包干总金额 <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-sm">
+                    {modalFclCurrency === 'CNY' ? '¥' : modalFclCurrency === 'USD' ? '$' : '₱'}
+                  </span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="1"
+                    required
+                    placeholder="如 28000.00"
+                    value={modalFclAmount}
+                    onChange={(e) => setModalFclAmount(e.target.value)}
+                    className="w-full pl-8 pr-3 py-2.5 bg-white border border-slate-300 rounded-xl text-base font-black text-blue-900 focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  💡 保存后将作为该整柜运单的基准一口价，并按单票锁定汇率自动折算为人民币核算净利润。
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t">
+                <button
+                  type="button"
+                  onClick={() => setFclQuotationModalOpen(false)}
+                  className="px-4 py-2 text-slate-600 hover:text-slate-900 text-xs font-semibold"
+                >
+                  取消
+                </button>
+                <button
+                  type="submit"
+                  disabled={fclSubmitting}
+                  className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-md shadow-amber-600/20 flex items-center gap-1.5"
+                >
+                  {fclSubmitting ? '保存核算中...' : '确认补录并重算利润'}
                 </button>
               </div>
             </form>

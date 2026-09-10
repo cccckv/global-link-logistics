@@ -50,6 +50,7 @@ export class ContainerV2Service {
     search?: string;
     originPort?: string;
     destinationPort?: string;
+    missingBookingFee?: string;
     returnStatus?: string;
     hasExtraCharge?: string;
     page?: number;
@@ -67,6 +68,22 @@ export class ContainerV2Service {
     if (params?.hasExtraCharge === 'true') where.hasExtraCharge = true;
     if (params?.hasExtraCharge === 'false') where.hasExtraCharge = false;
 
+    if (params?.missingBookingFee === 'true') {
+      where.fees = {
+        none: {
+          feeSubject: 'BOOKING_FEE',
+          amount: { gt: 0 },
+        },
+      };
+    } else if (params?.missingBookingFee === 'false') {
+      where.fees = {
+        some: {
+          feeSubject: 'BOOKING_FEE',
+          amount: { gt: 0 },
+        },
+      };
+    }
+
     if (params?.search) {
       const q = params.search;
       where.OR = [
@@ -79,7 +96,7 @@ export class ContainerV2Service {
       ];
     }
 
-    const [data, total] = await Promise.all([
+    const [data, total, statusCounts, missingBookingFeeCount] = await Promise.all([
       prisma.containerMaster.findMany({
         where,
         skip,
@@ -104,13 +121,22 @@ export class ContainerV2Service {
         },
       }),
       prisma.containerMaster.count({ where }),
+      prisma.containerMaster.groupBy({
+        by: ['status'],
+        _count: { id: true },
+      }),
+      prisma.containerMaster.count({
+        where: {
+          fees: {
+            none: {
+              feeSubject: 'BOOKING_FEE',
+              amount: { gt: 0 },
+            },
+          },
+        },
+      }),
     ]);
 
-    // Status counts
-    const statusCounts = await prisma.containerMaster.groupBy({
-      by: ['status'],
-      _count: { id: true },
-    });
     const countsMap = statusCounts.reduce((acc, curr) => {
       acc[curr.status] = curr._count.id;
       return acc;
@@ -124,7 +150,10 @@ export class ContainerV2Service {
         limit,
         totalPages: Math.ceil(total / limit),
       },
-      counts: countsMap,
+      counts: {
+        ...countsMap,
+        missingBookingFee: missingBookingFeeCount,
+      },
     };
   }
 

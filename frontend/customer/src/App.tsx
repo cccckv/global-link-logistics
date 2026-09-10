@@ -24,6 +24,7 @@ import ChannelManagement from './pages/v2/ChannelManagement';
 import OriginWarehouseManagement from './pages/v2/OriginWarehouseManagement';
 import CustomerWaybillList from './pages/customer/CustomerWaybillList';
 import CustomerWaybillDetail from './pages/customer/CustomerWaybillDetail';
+import FinanceWorkbench from './pages/v2/FinanceWorkbench';
 
 export default function App() {
   return (
@@ -163,6 +164,16 @@ export default function App() {
               <ProtectedRoute>
                 <InternalRoute>
                   <OriginWarehouseManagement />
+                </InternalRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/v2/finance"
+            element={
+              <ProtectedRoute>
+                <InternalRoute>
+                  <FinanceWorkbench />
                 </InternalRoute>
               </ProtectedRoute>
             }

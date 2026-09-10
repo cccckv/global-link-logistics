@@ -456,6 +456,13 @@ model Waybill {
   isFixedPrice       Boolean           @default(false) // 是否一口价
   fixedPriceAmount   Decimal?          @db.Decimal(12, 2) // 一口价协议金额
 
+  // 财务核算与主运费结清字段
+  isFreightSettled     Boolean           @default(false)
+  freightSettledAt     DateTime?
+  freightSettledBy     String?
+  freightPaymentMethod String?
+  freightPaymentNote   String?
+
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
 
@@ -547,6 +554,9 @@ model WaybillFee {
   amountInCny        Decimal      @db.Decimal(10, 2)              // 折合人民币
   isPaid             Boolean      @default(false)
   paidAt             DateTime?
+  paidBy             String?      // 结清审核财务人员
+  paymentMethod      String?      // 收款方式 (银行对公/BDO/微信/支付宝/现金等)
+  paymentNote        String?      // 结清对账备注
   note               String?
   createdAt          DateTime     @default(now())
 

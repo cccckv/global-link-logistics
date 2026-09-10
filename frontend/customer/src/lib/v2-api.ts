@@ -109,6 +109,11 @@ export interface WaybillFee {
   currency: CurrencyType;
   exchangeRate?: number;
   amountInCny?: number;
+  isPaid?: boolean;
+  paidAt?: string;
+  paidBy?: string;
+  paymentMethod?: string;
+  paymentNote?: string;
   note?: string;
 }
 
@@ -228,6 +233,29 @@ export interface Waybill {
   payableAmount?: number;
   profitAmount?: number;
 
+  // 财务核算主运费结清字段
+  isFreightSettled?: boolean;
+  freightSettledAt?: string;
+  freightSettledBy?: string;
+  freightPaymentMethod?: string;
+  freightPaymentNote?: string;
+
+  financialProgress?: {
+    receivable: {
+      totalItems: number;
+      settledItems: number;
+      isComplete: boolean;
+      uncollectedCny: number;
+    };
+    payable: {
+      totalItems: number;
+      settledItems: number;
+      isComplete: boolean;
+      unpaidCny: number;
+    };
+    isAllSettled: boolean;
+  };
+
   createdAt: string;
   updatedAt: string;
 
@@ -317,6 +345,7 @@ export const containerV2Api = {
     search?: string;
     originPort?: string;
     destinationPort?: string;
+    missingBookingFee?: string;
     page?: number;
     limit?: number;
   }) =>
@@ -349,7 +378,69 @@ export const containerV2Api = {
     v2Api.delete<{ success: boolean; message: string }>(`/containers/${id}`),
 };
 
+export interface FinanceKpiSummary {
+  totalReceivableCny: number;
+  totalPayableCny: number;
+  totalProfitCny: number;
+  profitMargin: number;
+  uncollectedReceivableCny: number;
+  unpaidPayableCny: number;
+  rawReceivablePhp: number;
+  rawReceivableUsd: number;
+  totalOrdersCount: number;
+}
+
 export const financeV2Api = {
+  getWorkbenchData: (params?: {
+    status?: string;
+    settlementFilter?: string;
+    orderType?: string;
+    search?: string;
+    startDate?: string;
+    endDate?: string;
+    dateType?: string;
+    page?: number;
+    limit?: number;
+  }) =>
+    v2Api.get<{
+      success: boolean;
+      data: Waybill[];
+      pagination: { total: number; page: number; limit: number; totalPages: number };
+      kpi: FinanceKpiSummary;
+    }>('/finance/workbench', { params }),
+
+  settleFee: (
+    feeId: string,
+    data: {
+      isPaid: boolean;
+      paymentMethod?: string;
+      paymentNote?: string;
+    }
+  ) =>
+    v2Api.post<{ success: boolean; data: WaybillFee }>(`/finance/fees/${feeId}/settle`, data),
+
+  settleFreight: (
+    waybillId: string,
+    data: {
+      isSettled: boolean;
+      paymentMethod?: string;
+      paymentNote?: string;
+    }
+  ) =>
+    v2Api.post<{ success: boolean; data: Waybill }>(`/finance/waybills/${waybillId}/settle-freight`, data),
+
+  updateFee: (
+    feeId: string,
+    data: {
+      feeName?: string;
+      amount?: number;
+      currency?: CurrencyType;
+      exchangeRate?: number;
+      note?: string;
+    }
+  ) =>
+    v2Api.put<{ success: boolean; data: WaybillFee }>(`/finance/fees/${feeId}`, data),
+
   addFee: (waybillId: string, fee: Partial<WaybillFee>) =>
     v2Api.post<{ success: boolean; data: WaybillFee }>(`/finance/waybills/${waybillId}/fees`, fee),
 

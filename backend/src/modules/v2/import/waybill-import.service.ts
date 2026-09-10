@@ -620,14 +620,7 @@ export class WaybillImportService {
           });
           continue;
         }
-        if (!g.receivableAmount || g.receivableAmount <= 0) {
-          errors.push({
-            row: g.mainRowNumber,
-            userMark: g.userMark,
-            reason: '整柜运单缺少或协议总报价无效 (整柜协议总报价必须大于 0)，整单跳过',
-          });
-          continue;
-        }
+        // 整柜协议总报价允许待定选填，若 Excel 留空则导入后应收暂计为 0，待业务员后续在详情页补录
       }
 
       // 海外收件人必填校验：Excel 填录则优先使用，未填录则必须能从客户档案继承默认收件人；若均无则跳过并提醒

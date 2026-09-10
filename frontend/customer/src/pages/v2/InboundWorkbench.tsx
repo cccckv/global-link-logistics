@@ -521,10 +521,6 @@ export default function InboundWorkbench() {
       toast.error('请确保每行货物都填写了品名');
       return;
     }
-    if (orderType === 'SEA_FCL' && (!fclQuotation || fclQuotation <= 0)) {
-      toast.error('海运整柜订单必须填写「整柜协议总报价」');
-      return;
-    }
     if (!usdRate || Number(usdRate) <= 0) {
       toast.error('请填写有效的单票美金汇率 (必填)');
       return;
@@ -1080,7 +1076,7 @@ export default function InboundWorkbench() {
               </div>
               <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
                 <span className="text-xs font-bold text-slate-700">
-                  整柜协议总报价 <span className="text-red-500 font-black">* (必填)</span>:
+                  整柜协议总报价 <span className="text-slate-400 font-normal">(选填，若待定可后续补录)</span>:
                 </span>
                 <div className="flex items-center">
                   <select
@@ -1096,11 +1092,10 @@ export default function InboundWorkbench() {
                     type="number"
                     step="1"
                     min="1"
-                    required
-                    placeholder="如 28000.00"
+                    placeholder="待定可留空，后续在详情页随时补录"
                     value={fclQuotation ?? ''}
                     onChange={(e) => setFclQuotation(e.target.value ? Number(e.target.value) : undefined)}
-                    className="w-36 sm:w-44 px-3 py-2 bg-white border border-slate-300 rounded-r-xl text-sm font-black text-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-48 sm:w-60 px-3 py-2 bg-white border border-slate-300 rounded-r-xl text-sm font-black text-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-400 placeholder:font-normal placeholder:text-xs"
                   />
                 </div>
               </div>

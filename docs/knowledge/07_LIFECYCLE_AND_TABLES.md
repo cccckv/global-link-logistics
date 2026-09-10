@@ -63,7 +63,8 @@ sequenceDiagram
 - **交互规范**：
   1. **纯净留白**：输入框初始不带任何虚假数据；输入唛头（如 `WH-ZZY-FLB`）后，系统从 `Customer` 真实档案中回显起运仓、目的国、目的港口与默认收件人。
   2. **级联通道**：根据报关通道（`customsType`）自动联动筛选承运服务商（`forwarderChannel`）。
-  3. **运单号提示与复制**：表单提交后，后端生成全局唯一 `waybillNo`（如 `LCL2608170001`），前端**弹出运单号成功提示窗口**，提供一键复制按钮及【进入详情推进】、【继续开下一单】快捷入口。
+  3. **整柜协议报价非必填支持**：海运整柜模式下，整柜包干协议总报价（`fixedPriceAmount`）支持待定选填，允许先行建单/排柜；运单详情页提供醒目的 Alert Banner 待录提示与快捷一键补录入口。
+  4. **运单号提示与复制**：表单提交后，后端生成全局唯一 `waybillNo`（如 `LCL2608170001`），前端**弹出运单号成功提示窗口**，提供一键复制按钮及【进入详情推进】、【继续开下一单】快捷入口。
 - **触碰的数据表**：
   - `Customer` & `CustomerAddress`（只读）
   - `Waybill`（新建 Insert，`status = DRAFT`）
@@ -93,7 +94,8 @@ sequenceDiagram
 - **交互规范**：
   1. 填入实际开船日 `sailingDate`（ETD）、预计到港 `eta`、船名航次 `vesselVoyage` 以及**海运提单号 `blNumber`**；
   2. 录入整柜全链路干线费用（订舱海运费 USD/RMB、港杂、头程拖车）；
-  3. 系统自动将该集装箱名下所有散货运单同步为 `status = IN_TRANSIT`。
+  3. 系统自动将该集装箱名下所有散货运单同步为 `status = IN_TRANSIT`；
+  4. **订舱海运费 (BOOKING FEE) 预警看板**：集装箱整柜跟踪页提供快捷药丸 `[ ⚠️ 待录订舱海运费 (X) ]`，动态呈现漏录主航运费的集装箱并支持一键下钻过滤与快速补录。
 - **触碰的数据表**：
   - `ContainerMaster`（更新 Update，`status = SAILING`）
   - `ContainerFee`（新建 Insert，整柜干线费用）

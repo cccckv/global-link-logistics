@@ -14,6 +14,7 @@ export async function containerV2Routes(fastify: FastifyInstance) {
       search?: string;
       originPort?: string;
       destinationPort?: string;
+      missingBookingFee?: string;
       page?: number;
       limit?: number;
     };

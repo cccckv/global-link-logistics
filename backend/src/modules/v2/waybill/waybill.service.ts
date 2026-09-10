@@ -739,7 +739,11 @@ export class WaybillV2Service {
         items: { orderBy: { itemIndex: 'asc' } },
         fees: { orderBy: { createdAt: 'asc' } },
         attachments: { orderBy: { uploadedAt: 'desc' } },
-        containerMaster: true,
+        containerMaster: {
+          include: {
+            fees: { orderBy: { createdAt: 'asc' } },
+          },
+        },
         customer: {
           include: {
             addresses: {

@@ -132,6 +132,43 @@ export async function containerV2Routes(fastify: FastifyInstance) {
     }
   );
 
+  // Settle container fee (Internal only)
+  fastify.post<{
+    Params: { feeId: string };
+    Body: {
+      paymentMethod: string;
+      paymentNote?: string;
+      paidBy?: string;
+    };
+  }>(
+    '/fees/:feeId/settle',
+    internalHandler,
+    async (request, reply) => {
+      try {
+        const fee = await containerService.settleContainerFee(request.params.feeId, request.body);
+        return reply.send({ success: true, data: fee });
+      } catch (err: any) {
+        return reply.code(500).send({ success: false, error: err.message });
+      }
+    }
+  );
+
+  // Unsettle container fee (Internal only)
+  fastify.post<{
+    Params: { feeId: string };
+  }>(
+    '/fees/:feeId/unsettle',
+    internalHandler,
+    async (request, reply) => {
+      try {
+        const fee = await containerService.unsettleContainerFee(request.params.feeId);
+        return reply.send({ success: true, data: fee });
+      } catch (err: any) {
+        return reply.code(500).send({ success: false, error: err.message });
+      }
+    }
+  );
+
   // Delete container (Internal only)
   fastify.delete<{
     Params: { id: string };

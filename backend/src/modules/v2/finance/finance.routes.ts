@@ -132,6 +132,7 @@ export async function financeV2Routes(fastify: FastifyInstance) {
       currency?: CurrencyType;
       exchangeRate?: number;
       note?: string;
+      containerFeeSubject?: any;
     };
   }>(
     '/waybills/:id/fees',

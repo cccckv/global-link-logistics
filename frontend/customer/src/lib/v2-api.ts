@@ -115,6 +115,7 @@ export interface WaybillFee {
   paymentMethod?: string;
   paymentNote?: string;
   note?: string;
+  containerFeeSubject?: string;
 }
 
 export interface WaybillAttachment {
@@ -158,10 +159,17 @@ export interface ContainerMaster {
   fees?: Array<{
     id: string;
     feeSubject: string;
+    feeDirection?: FeeDirection;
     amount: number;
     currency: CurrencyType;
+    exchangeRate?: number;
     amountInCny: number;
     note?: string;
+    isPaid?: boolean;
+    paidAt?: string;
+    paymentMethod?: string;
+    paymentNote?: string;
+    paidBy?: string;
   }>;
   waybills?: Array<{
     id: string;

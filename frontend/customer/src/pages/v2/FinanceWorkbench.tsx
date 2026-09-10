@@ -34,6 +34,7 @@ import {
   type FinanceKpiSummary,
 } from '../../lib/v2-api';
 import { LocalFileUpload, type UploadedFileItem } from '../../components/v2/LocalFileUpload';
+import { CONTAINER_FEE_SUBJECTS } from './WaybillDetailView';
 
 export default function FinanceWorkbench() {
   // 列表与分页状态
@@ -92,6 +93,8 @@ export default function FinanceWorkbench() {
   // 增改费用模态框状态
   const [feeModalOpen, setFeeModalOpen] = useState(false);
   const [editingFeeId, setEditingFeeId] = useState<string | null>(null);
+  const [feeCategoryType, setFeeCategoryType] = useState<'CUSTOM' | 'CONTAINER'>('CUSTOM');
+  const [containerFeeSubject, setContainerFeeSubject] = useState<string>('BOOKING_FEE');
   const [feeDirection, setFeeDirection] = useState<FeeDirection>('RECEIVABLE');
   const [feeName, setFeeName] = useState('');
   const [feeCurrency, setFeeCurrency] = useState<CurrencyType>('CNY');
@@ -245,29 +248,50 @@ export default function FinanceWorkbench() {
     if (!selectedWaybill) return;
     setEditingFeeId(null);
     setFeeDirection(dir);
-    setFeeName('');
-    setFeeCurrency('CNY');
+    if (dir === 'PAYABLE' && selectedWaybill.orderType === 'SEA_FCL' && selectedWaybill.containerMaster) {
+      setFeeCategoryType('CONTAINER');
+      setContainerFeeSubject('BOOKING_FEE');
+      const found = CONTAINER_FEE_SUBJECTS.find((s) => s.value === 'BOOKING_FEE');
+      setFeeName(found?.label || '海运订舱费 (BOOKING_FEE)');
+      const curr = found?.defaultCurrency || 'USD';
+      setFeeCurrency(curr);
+      setFeeExchangeRate(
+        curr === 'USD'
+          ? selectedWaybill.usdRate || 7.2
+          : curr === 'PHP'
+          ? selectedWaybill.phpRate || 8.0
+          : 1.0
+      );
+    } else {
+      setFeeCategoryType('CUSTOM');
+      setFeeName('');
+      setFeeCurrency('CNY');
+      setFeeExchangeRate(
+        dir === 'RECEIVABLE' && selectedWaybill.settlementCurrency === 'PHP'
+          ? selectedWaybill.phpRate || 8.0
+          : dir === 'RECEIVABLE' && selectedWaybill.settlementCurrency === 'USD'
+          ? selectedWaybill.usdRate || 7.2
+          : 1.0
+      );
+    }
     setFeeAmount('');
-    setFeeExchangeRate(
-      dir === 'RECEIVABLE' && selectedWaybill.settlementCurrency === 'PHP'
-        ? selectedWaybill.phpRate || 8.0
-        : dir === 'RECEIVABLE' && selectedWaybill.settlementCurrency === 'USD'
-        ? selectedWaybill.usdRate || 7.2
-        : 1.0
-    );
     setFeeNote('');
     setFeeModalOpen(true);
   };
 
   // 打开编辑费用模态框
-  const handleOpenEditFee = (fee: WaybillFee) => {
+  const handleOpenEditFee = (fee: WaybillFee & { feeSubject?: string }) => {
     if (fee.isPaid) {
       toast.error('已结清条目已被锁定，如需修改请先撤销结清');
       return;
     }
     setEditingFeeId(fee.id || null);
-    setFeeDirection(fee.feeDirection);
-    setFeeName(fee.feeName);
+    setFeeDirection(fee.feeDirection || 'PAYABLE');
+    setFeeCategoryType(fee.feeSubject ? 'CONTAINER' : 'CUSTOM');
+    if (fee.feeSubject) {
+      setContainerFeeSubject(fee.feeSubject);
+    }
+    setFeeName(fee.feeName || CONTAINER_FEE_SUBJECTS.find((s) => s.value === fee.feeSubject)?.label || fee.feeSubject || '');
     setFeeCurrency(fee.currency);
     setFeeAmount(Number(fee.amount));
     setFeeExchangeRate(Number(fee.exchangeRate || 1.0));
@@ -307,6 +331,7 @@ export default function FinanceWorkbench() {
           currency: feeCurrency,
           exchangeRate: Number(feeExchangeRate || 1.0),
           note: feeNote.trim(),
+          containerFeeSubject: feeCategoryType === 'CONTAINER' ? containerFeeSubject : undefined,
         });
         toast.success('新费用条目已成功补录，运单毛利已重新核算！');
       }
@@ -1185,14 +1210,146 @@ export default function FinanceWorkbench() {
                   </button>
                 </div>
 
-                {/* 附加应付杂费清单 */}
+                {/* 附加应付成本清单 (包括运单通用应付与整柜干线/还柜异常成本) */}
                 <div className="space-y-2">
                   {(!selectedWaybill.fees ||
-                    selectedWaybill.fees.filter((f) => f.feeDirection === 'PAYABLE').length === 0) && (
+                    selectedWaybill.fees.filter((f) => f.feeDirection === 'PAYABLE').length === 0) &&
+                    (!selectedWaybill.containerMaster?.fees ||
+                      selectedWaybill.containerMaster.fees.length === 0) && (
                     <div className="p-6 bg-slate-50 rounded-xl text-center text-xs text-slate-400 italic border border-dashed border-slate-200">
                       该运单暂未录入干线/报关/清关/拖车等应付成本
                     </div>
                   )}
+
+                  {/* 整柜干线履约与还柜异常成本 (ContainerMaster Fees) */}
+                  {selectedWaybill.orderType === 'SEA_FCL' &&
+                    (selectedWaybill.containerMaster?.fees || []).map((cfee: any) => {
+                      const subInfo = CONTAINER_FEE_SUBJECTS.find((s) => s.value === cfee.feeSubject);
+                      const displayName = subInfo ? subInfo.label : cfee.feeSubject || '集装箱成本';
+                      const badgeText = subInfo ? subInfo.badge : '整柜成本';
+                      return (
+                        <div
+                          key={`cfee-${cfee.id}`}
+                          className={`bg-white border rounded-xl p-3 space-y-2 transition shadow-xs ${
+                            cfee.isPaid ? 'border-rose-200 bg-rose-50/10' : 'border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold">
+                                  [{badgeText}]
+                                </span>
+                                <span className="font-bold text-slate-800 text-xs">{displayName}</span>
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  (柜号: {selectedWaybill.containerMaster?.containerNo || '未绑定'})
+                                </span>
+                              </div>
+                              {cfee.note && (
+                                <div className="text-[10px] text-slate-500 mt-0.5">备注: {cfee.note}</div>
+                              )}
+                              <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                                原币: {cfee.currency} {Number(cfee.amount).toFixed(2)}{' '}
+                                {cfee.currency !== 'CNY' && (
+                                  <span>(@汇率 {Number(cfee.exchangeRate || 1.0).toFixed(4)})</span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="text-right font-mono">
+                              <span className="text-xs font-bold text-rose-700">
+                                折合 ¥ {Number(cfee.amountInCny || cfee.amount).toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* 结清状态栏与操作 */}
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                            {cfee.isPaid ? (
+                              <div className="flex items-center gap-2">
+                                <span className="px-2 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-200 text-[10px] font-bold flex items-center gap-1">
+                                  <Lock className="w-2.5 h-2.5" />
+                                  已付款
+                                </span>
+                                <span className="text-[10px] text-slate-500">
+                                  {cfee.paidBy || '财务'} · {cfee.paymentMethod || '已支付'}
+                                  {cfee.paidAt ? ` (${new Date(cfee.paidAt).toISOString().slice(0, 10)})` : ''}
+                                </span>
+                                {cfee.paymentNote && (
+                                  <span className="text-[10px] text-slate-400 max-w-[120px] truncate" title={cfee.paymentNote}>
+                                    [{cfee.paymentNote}]
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold flex items-center gap-1">
+                                <Clock className="w-2.5 h-2.5" />
+                                待付款
+                              </span>
+                            )}
+
+                            <div className="flex items-center gap-2">
+                              {cfee.isPaid ? (
+                                <button
+                                  onClick={() => handleUnsettle('FEE', cfee.id, displayName)}
+                                  className="text-[11px] text-slate-400 hover:text-rose-600 font-semibold flex items-center gap-1"
+                                >
+                                  <RotateCcw className="w-3 h-3" />
+                                  撤销付款
+                                </button>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() =>
+                                      handleOpenEditFee({
+                                        id: cfee.id,
+                                        feeName: displayName,
+                                        feeDirection: 'PAYABLE',
+                                        amount: cfee.amount,
+                                        currency: cfee.currency,
+                                        exchangeRate: cfee.exchangeRate,
+                                        note: cfee.note,
+                                        feeSubject: cfee.feeSubject,
+                                        isPaid: cfee.isPaid,
+                                      })
+                                    }
+                                    className="text-slate-400 hover:text-slate-700 p-1"
+                                    title="修改成本金额与汇率"
+                                  >
+                                    <Edit2 className="w-3 h-3" />
+                                  </button>
+                                  <button
+                                    onClick={() => cfee.id && handleDeleteFee(cfee.id, displayName)}
+                                    className="text-slate-400 hover:text-rose-600 p-1"
+                                    title="删除此成本项"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      handleOpenSettleModal({
+                                        type: 'FEE',
+                                        feeId: cfee.id,
+                                        title: displayName,
+                                        amount: Number(cfee.amount),
+                                        currency: cfee.currency,
+                                        amountInCny: Number(cfee.amountInCny || cfee.amount),
+                                      })
+                                    }
+                                    className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-bold transition shadow-xs flex items-center gap-1"
+                                  >
+                                    <ShieldCheck className="w-3 h-3" />
+                                    确认付款
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                  {/* 运单常规应付杂费 (Waybill Fees) */}
 
                   {(selectedWaybill.fees || [])
                     .filter((f) => f.feeDirection === 'PAYABLE')
@@ -1631,20 +1788,107 @@ export default function FinanceWorkbench() {
               </button>
             </div>
 
-            <form onSubmit={handleSaveFee} className="space-y-3.5 text-xs">
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1">
-                  费用科目名称 <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder={feeDirection === 'RECEIVABLE' ? '如: 代收报关费 / 送货车费' : '如: 码头THC堆存 / 拖车费 / 派件小费'}
-                  value={feeName}
-                  onChange={(e) => setFeeName(e.target.value)}
-                  className="w-full py-2 px-3 bg-white border border-slate-300 rounded-xl text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 shadow-2xs"
-                />
+            {!editingFeeId && selectedWaybill?.orderType === 'SEA_FCL' && selectedWaybill.containerMaster && feeDirection === 'PAYABLE' && (
+              <div className="flex bg-slate-100 p-1 rounded-xl gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFeeCategoryType('CONTAINER');
+                    setContainerFeeSubject('BOOKING_FEE');
+                    const found = CONTAINER_FEE_SUBJECTS.find((s) => s.value === 'BOOKING_FEE');
+                    setFeeName(found?.label || '海运订舱费 (BOOKING_FEE)');
+                    const curr = found?.defaultCurrency || 'USD';
+                    setFeeCurrency(curr);
+                    setFeeExchangeRate(
+                      curr === 'USD'
+                        ? selectedWaybill.usdRate || 7.2
+                        : curr === 'PHP'
+                        ? selectedWaybill.phpRate || 8.0
+                        : 1.0
+                    );
+                  }}
+                  className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                    feeCategoryType === 'CONTAINER'
+                      ? 'bg-white text-emerald-700 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  🚢 整柜履约成本 (集装箱科目)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFeeCategoryType('CUSTOM');
+                    setFeeName('');
+                    setFeeCurrency('CNY');
+                    setFeeExchangeRate(1.0);
+                  }}
+                  className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                    feeCategoryType === 'CUSTOM'
+                      ? 'bg-white text-emerald-700 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  📝 其他通用杂费
+                </button>
               </div>
+            )}
+
+            <form onSubmit={handleSaveFee} className="space-y-3.5 text-xs">
+              {feeCategoryType === 'CONTAINER' && selectedWaybill?.containerMaster && !editingFeeId ? (
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">
+                    整柜标准成本科目{' '}
+                    <span className="text-emerald-600 font-normal">
+                      (关联合同柜号: {selectedWaybill.containerMaster.containerNo})
+                    </span>
+                  </label>
+                  <select
+                    value={containerFeeSubject}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setContainerFeeSubject(val);
+                      const found = CONTAINER_FEE_SUBJECTS.find((s) => s.value === val);
+                      if (found) {
+                        setFeeName(found.label);
+                        const curr = found.defaultCurrency;
+                        setFeeCurrency(curr);
+                        if (curr === 'USD') {
+                          setFeeExchangeRate(selectedWaybill?.usdRate || 7.2);
+                        } else if (curr === 'PHP') {
+                          setFeeExchangeRate(selectedWaybill?.phpRate || 8.0);
+                        } else {
+                          setFeeExchangeRate(1.0);
+                        }
+                      }
+                    }}
+                    className="w-full py-2 px-3 bg-white border border-slate-300 rounded-xl text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500 font-semibold shadow-2xs"
+                  >
+                    {CONTAINER_FEE_SUBJECTS.map((sub) => (
+                      <option key={sub.value} value={sub.value}>
+                        [{sub.badge}] {sub.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 mt-1.5 font-sans">
+                    💡 该费用将直接记入集装箱履约成本台账，与集装箱跟踪及还柜异常联动核销。
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">
+                    费用科目名称 <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder={feeDirection === 'RECEIVABLE' ? '如: 代收报关费 / 送货车费' : '如: 码头THC堆存 / 拖车费 / 派件小费'}
+                    value={feeName}
+                    onChange={(e) => setFeeName(e.target.value)}
+                    className="w-full py-2 px-3 bg-white border border-slate-300 rounded-xl text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 shadow-2xs"
+                  />
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>

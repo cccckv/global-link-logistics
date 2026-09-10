@@ -15,10 +15,12 @@ import {
   X,
   RotateCcw,
   AlertCircle,
+  RefreshCw,
 } from 'lucide-react';
 import {
   containerV2Api,
   channelV2Api,
+  financeV2Api,
   type ContainerMaster,
   type ContainerStatus,
   type CurrencyType,
@@ -100,6 +102,76 @@ export default function ContainerTracking() {
   const [feeRate, setFeeRate] = useState(7.2);
   const [feeNote, setFeeNote] = useState('');
 
+  // 当日基准汇率缓存
+  const [todayRates, setTodayRates] = useState<{
+    usdRate: number;
+    phpRate: number;
+    date: string;
+    source: 'LIVE' | 'CACHE' | 'FALLBACK';
+  } | null>(null);
+
+  const getRateForCurrency = (curr: CurrencyType, rates = todayRates) => {
+    if (curr === 'USD') return rates?.usdRate ? Number(rates.usdRate) : 7.2000;
+    if (curr === 'PHP') {
+      const php = rates?.phpRate ? Number(rates.phpRate) : 8.0000;
+      return Number((1 / php).toFixed(4));
+    }
+    return 1.0;
+  };
+
+  const openAddFeeModal = (cId: string, initialSubject = 'BOOKING_FEE') => {
+    setFeeModalContainerId(cId);
+    setFeeSubject(initialSubject);
+    setFeeAmount(0);
+    setFeeNote('');
+
+    let defaultCurr: CurrencyType = 'USD';
+    if (
+      initialSubject.includes('THC') ||
+      initialSubject.includes('CLEARANCE') ||
+      initialSubject.includes('DEST_TRUCKING')
+    ) {
+      defaultCurr = 'PHP';
+    } else if (
+      initialSubject === 'PORT_SURCHARGE' ||
+      initialSubject === 'CUSTOMS_FEE' ||
+      initialSubject === 'TRUCKING_FEE'
+    ) {
+      defaultCurr = 'CNY';
+    } else {
+      defaultCurr = 'USD';
+    }
+    setFeeCurrency(defaultCurr);
+    setFeeRate(getRateForCurrency(defaultCurr, todayRates));
+  };
+
+  const handleFeeCurrencyChange = (curr: CurrencyType) => {
+    setFeeCurrency(curr);
+    setFeeRate(getRateForCurrency(curr, todayRates));
+  };
+
+  const handleFeeSubjectChange = (subj: string) => {
+    setFeeSubject(subj);
+    let defaultCurr: CurrencyType = 'USD';
+    if (
+      subj.includes('THC') ||
+      subj.includes('CLEARANCE') ||
+      subj.includes('DEST_TRUCKING')
+    ) {
+      defaultCurr = 'PHP';
+    } else if (
+      subj === 'PORT_SURCHARGE' ||
+      subj === 'CUSTOMS_FEE' ||
+      subj === 'TRUCKING_FEE'
+    ) {
+      defaultCurr = 'CNY';
+    } else {
+      defaultCurr = 'USD';
+    }
+    setFeeCurrency(defaultCurr);
+    setFeeRate(getRateForCurrency(defaultCurr, todayRates));
+  };
+
   const loadContainers = async (
     overrideSearch?: string,
     overrideStatus?: string,
@@ -150,6 +222,19 @@ export default function ContainerTracking() {
         setChannels(res.data.data);
       }
     });
+
+    financeV2Api
+      .getTodayExchangeRates()
+      .then((res) => {
+        if (res.data?.success && res.data?.data) {
+          setTodayRates(res.data.data);
+          // 若弹窗尚未打开，预热默认币种的汇率
+          setFeeRate(res.data.data.usdRate || 7.2);
+        }
+      })
+      .catch((err) => {
+        console.warn('获取当日外汇汇率失败，降级为默认基准汇率:', err);
+      });
   }, []);
 
   useEffect(() => {
@@ -642,10 +727,7 @@ export default function ContainerTracking() {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setFeeModalContainerId(container.id);
-                              setFeeSubject('BOOKING_FEE');
-                              setFeeCurrency('USD');
-                              setFeeRate(7.2);
+                              openAddFeeModal(container.id, 'BOOKING_FEE');
                             }}
                             className="px-2 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 rounded-full text-[10px] font-bold flex items-center gap-1 transition-colors shadow-xs"
                             title="该货柜尚未录入海运订舱成本 (BOOKING FEE)，点击快捷录入"
@@ -703,16 +785,7 @@ export default function ContainerTracking() {
                     </button>
 
                     <button
-                      onClick={() => {
-                        setFeeModalContainerId(container.id);
-                        if (feeSubject === 'BOOKING_FEE') {
-                          setFeeCurrency('USD');
-                          setFeeRate(7.2);
-                        } else {
-                          setFeeCurrency('PHP');
-                          setFeeRate(0.125);
-                        }
-                      }}
+                      onClick={() => openAddFeeModal(container.id, feeSubject)}
                       className="px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-colors"
                     >
                       + 录入整柜成本
@@ -1070,19 +1143,7 @@ export default function ContainerTracking() {
               </label>
               <select
                 value={feeSubject}
-                onChange={(e) => {
-                  setFeeSubject(e.target.value);
-                  if (e.target.value === 'BOOKING_FEE') {
-                    setFeeCurrency('USD');
-                    setFeeRate(7.2);
-                  } else if (e.target.value.includes('THC') || e.target.value.includes('CLEARANCE')) {
-                    setFeeCurrency('PHP');
-                    setFeeRate(0.125);
-                  } else {
-                    setFeeCurrency('CNY');
-                    setFeeRate(1.0);
-                  }
-                }}
+                onChange={(e) => handleFeeSubjectChange(e.target.value)}
                 className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold"
               >
                 <option value="BOOKING_FEE">订舱海运费 (BOOKING_FEE)</option>
@@ -1117,7 +1178,7 @@ export default function ContainerTracking() {
                 </label>
                 <select
                   value={feeCurrency}
-                  onChange={(e) => setFeeCurrency(e.target.value as any)}
+                  onChange={(e) => handleFeeCurrencyChange(e.target.value as any)}
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold"
                 >
                   <option value="USD">$ USD 美元</option>
@@ -1128,9 +1189,21 @@ export default function ContainerTracking() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                折算人民币汇率 (1 {feeCurrency} = ¥)
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-slate-700">
+                  折算人民币汇率 (1 {feeCurrency} = ¥)
+                </label>
+                {todayRates && feeCurrency !== 'CNY' && (
+                  <button
+                    type="button"
+                    onClick={() => setFeeRate(getRateForCurrency(feeCurrency, todayRates))}
+                    className="text-[11px] text-indigo-600 hover:text-indigo-800 flex items-center gap-1 font-medium cursor-pointer"
+                    title="重新获取并套用今日基准折算汇率"
+                  >
+                    <RefreshCw className="w-3 h-3" /> 重置当日汇率
+                  </button>
+                )}
+              </div>
               <input
                 type="number"
                 step="0.0001"
@@ -1138,6 +1211,18 @@ export default function ContainerTracking() {
                 onChange={(e) => setFeeRate(Number(e.target.value))}
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-mono"
               />
+              {todayRates && (
+                <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1">
+                  <span>
+                    💡 引用: 当日基准汇率 ({todayRates.date} {todayRates.source === 'LIVE' ? '实时接口' : todayRates.source === 'CACHE' ? '今日缓存' : '保底系统值'})
+                  </span>
+                  {feeAmount > 0 && (
+                    <span className="text-emerald-700 font-bold font-mono">
+                      折合: ¥{(feeAmount * (feeCurrency === 'CNY' ? 1.0 : feeRate)).toFixed(2)}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             <div>

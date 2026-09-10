@@ -81,7 +81,11 @@ export class FinanceV2Service {
           },
           attachments: true,
           containerMaster: {
-            select: { containerNo: true, vesselVoyage: true, blNumber: true },
+            include: {
+              fees: {
+                orderBy: { createdAt: 'asc' },
+              },
+            },
           },
           customer: {
             select: { name: true, phone: true },
@@ -100,10 +104,18 @@ export class FinanceV2Service {
       const settledRecvItemsCount =
         (hasFreightRecv && wb.isFreightSettled ? 1 : 0) + feeReceivables.filter((f) => f.isPaid).length;
 
-      // 应付项分析 (附加应付杂费)
+      // 应付项分析 (附加应付杂费 + 海运整柜SEA_FCL干线全链路成本)
+      const isFcl = wb.orderType === 'SEA_FCL';
       const feePayables = wb.fees.filter((f) => f.feeDirection === 'PAYABLE');
-      const totalPayItemsCount = feePayables.length;
-      const settledPayItemsCount = feePayables.filter((f) => f.isPaid).length;
+      const containerPayables =
+        isFcl && wb.containerMaster?.fees
+          ? (wb.containerMaster.fees as any[]).filter((f) => f.feeDirection === 'PAYABLE' || !f.feeDirection)
+          : [];
+
+      const totalPayItemsCount = feePayables.length + containerPayables.length;
+      const settledPayItemsCount =
+        feePayables.filter((f) => f.isPaid).length +
+        containerPayables.filter((f) => f.isPaid).length;
 
       // 未结金额计算 (CNY)
       let uncollectedRecvCny = 0;
@@ -124,6 +136,23 @@ export class FinanceV2Service {
           unpaidPayCny += Number(f.amountInCny || 0);
         }
       }
+      for (const cf of containerPayables) {
+        if (!cf.isPaid) {
+          unpaidPayCny += Number(cf.amountInCny || 0);
+        }
+      }
+
+      // 整柜真实总成本与真实纯毛利穿透聚合
+      const containerFeesSumCny = containerPayables.reduce(
+        (acc: number, curr: any) => acc + Number(curr.amountInCny || 0),
+        0
+      );
+      const effectivePayableAmount = isFcl
+        ? Math.round((Number(wb.payableAmount || 0) + containerFeesSumCny) * 100) / 100
+        : Number(wb.payableAmount || 0);
+      const effectiveProfitAmount = isFcl
+        ? Math.round((Number(wb.receivableAmount || 0) - effectivePayableAmount) * 100) / 100
+        : Number(wb.profitAmount || 0);
 
       const recvComplete = totalRecvItemsCount > 0 ? settledRecvItemsCount >= totalRecvItemsCount : true;
       const payComplete = totalPayItemsCount > 0 ? settledPayItemsCount >= totalPayItemsCount : true;
@@ -131,6 +160,8 @@ export class FinanceV2Service {
 
       return {
         ...wb,
+        payableAmount: effectivePayableAmount,
+        profitAmount: effectiveProfitAmount,
         financialProgress: {
           receivable: {
             totalItems: totalRecvItemsCount,
@@ -167,6 +198,7 @@ export class FinanceV2Service {
     const allMatching = await prisma.waybill.findMany({
       where,
       select: {
+        orderType: true,
         receivableAmount: true,
         payableAmount: true,
         profitAmount: true,
@@ -180,6 +212,19 @@ export class FinanceV2Service {
             currency: true,
             amountInCny: true,
             isPaid: true,
+          },
+        },
+        containerMaster: {
+          select: {
+            fees: {
+              select: {
+                feeDirection: true,
+                amount: true,
+                currency: true,
+                amountInCny: true,
+                isPaid: true,
+              },
+            },
           },
         },
       },
@@ -197,8 +242,17 @@ export class FinanceV2Service {
 
     for (const item of allMatching) {
       const rec = Number(item.receivableAmount || 0);
-      const pay = Number(item.payableAmount || 0);
-      const profit = Number(item.profitAmount || 0);
+      let pay = Number(item.payableAmount || 0);
+
+      const isFcl = item.orderType === 'SEA_FCL';
+      const cPayables =
+        isFcl && item.containerMaster?.fees
+          ? item.containerMaster.fees.filter((f) => f.feeDirection === 'PAYABLE' || !f.feeDirection)
+          : [];
+      const cPaySum = cPayables.reduce((acc, curr) => acc + Number(curr.amountInCny || 0), 0);
+      pay += cPaySum;
+
+      const profit = rec - pay;
 
       kpiTotalReceivableCny += rec;
       kpiTotalPayableCny += pay;
@@ -222,10 +276,15 @@ export class FinanceV2Service {
         }
       }
 
-      // 未结应付
+      // 未结应付 (单票应付 + SEA_FCL整柜干线应付)
       for (const f of item.fees) {
         if (f.feeDirection === 'PAYABLE' && !f.isPaid) {
           kpiUnpaidPayableCny += Number(f.amountInCny || 0);
+        }
+      }
+      for (const cf of cPayables) {
+        if (!cf.isPaid) {
+          kpiUnpaidPayableCny += Number(cf.amountInCny || 0);
         }
       }
     }
@@ -260,7 +319,7 @@ export class FinanceV2Service {
   }
 
   /**
-   * 附加杂费条目结清 / 反结清切换
+   * 附加杂费与整柜干线成本条目结清 / 反结清切换
    */
   async toggleFeeSettlement(
     feeId: string,
@@ -272,7 +331,24 @@ export class FinanceV2Service {
     }
   ) {
     const fee = await prisma.waybillFee.findUnique({ where: { id: feeId } });
-    if (!fee) throw new Error('费用条目不存在');
+    if (!fee) {
+      // 兼容穿透整柜成本 ContainerFee
+      const cFee = await prisma.containerFee.findUnique({ where: { id: feeId } });
+      if (cFee) {
+        const updatedCFee = await prisma.containerFee.update({
+          where: { id: feeId },
+          data: {
+            isPaid: data.isPaid,
+            paidAt: data.isPaid ? new Date() : null,
+            paidBy: data.isPaid ? data.paidBy || '财务' : null,
+            paymentMethod: data.isPaid ? data.paymentMethod || cFee.paymentMethod : null,
+            paymentNote: data.paymentNote,
+          },
+        });
+        return updatedCFee;
+      }
+      throw new Error('费用条目不存在');
+    }
 
     const updated = await prisma.waybillFee.update({
       where: { id: feeId },
@@ -331,7 +407,30 @@ export class FinanceV2Service {
     }
   ) {
     const fee = await prisma.waybillFee.findUnique({ where: { id: feeId } });
-    if (!fee) throw new Error('费用条目不存在');
+    if (!fee) {
+      const cFee = await prisma.containerFee.findUnique({ where: { id: feeId } });
+      if (cFee) {
+        if (cFee.isPaid) throw new Error('已结清条目已被锁定，如需修改请先撤销结清');
+        const curr = (data.currency || cFee.currency || 'CNY').toUpperCase();
+        let effectiveRate = Number(cFee.exchangeRate || 1.0);
+        if (data.exchangeRate && Number(data.exchangeRate) > 0) {
+          effectiveRate = Number(data.exchangeRate);
+        }
+        const amt = data.amount !== undefined ? Number(data.amount) : Number(cFee.amount);
+        const { amountInCny } = convertAmountToCny(amt, curr, effectiveRate);
+        return prisma.containerFee.update({
+          where: { id: feeId },
+          data: {
+            amount: amt,
+            currency: (curr as CurrencyType) || 'CNY',
+            exchangeRate: effectiveRate,
+            amountInCny,
+            note: data.note !== undefined ? data.note : cFee.note,
+          },
+        });
+      }
+      throw new Error('费用条目不存在');
+    }
     if (fee.isPaid) throw new Error('已结清条目已被锁定，如需修改请先撤销结清');
 
     const waybill = await prisma.waybill.findUnique({
@@ -379,11 +478,12 @@ export class FinanceV2Service {
       currency?: CurrencyType;
       exchangeRate?: number;
       note?: string;
+      containerFeeSubject?: any;
     }
   ) {
     const waybill = await prisma.waybill.findUnique({
       where: { id: waybillId },
-      select: { usdRate: true, phpRate: true },
+      select: { usdRate: true, phpRate: true, orderType: true, containerId: true },
     });
 
     const curr = (data.currency || 'CNY').toUpperCase();
@@ -397,6 +497,23 @@ export class FinanceV2Service {
     }
 
     const { amountInCny } = convertAmountToCny(Number(data.amount || 0), curr, effectiveRate);
+
+    // 若是海运整柜(SEA_FCL)且选择了整柜干线科目，自动双向同步写入集装箱成本 ContainerFee
+    if (waybill?.orderType === 'SEA_FCL' && waybill.containerId && data.containerFeeSubject) {
+      const cFee = await prisma.containerFee.create({
+        data: {
+          containerId: waybill.containerId,
+          feeSubject: data.containerFeeSubject,
+          feeDirection: data.feeDirection || 'PAYABLE',
+          amount: data.amount,
+          currency: (curr as CurrencyType) || 'CNY',
+          exchangeRate: effectiveRate,
+          amountInCny,
+          note: data.note,
+        },
+      });
+      return cFee;
+    }
 
     const fee = await prisma.waybillFee.create({
       data: {
@@ -419,7 +536,15 @@ export class FinanceV2Service {
 
   async deleteWaybillFee(feeId: string) {
     const fee = await prisma.waybillFee.findUnique({ where: { id: feeId } });
-    if (!fee) return null;
+    if (!fee) {
+      const cFee = await prisma.containerFee.findUnique({ where: { id: feeId } });
+      if (cFee) {
+        if (cFee.isPaid) throw new Error('已结清条目已被锁定，严禁直接删除');
+        await prisma.containerFee.delete({ where: { id: feeId } });
+        return true;
+      }
+      return null;
+    }
     if (fee.isPaid) throw new Error('已结清条目已被锁定，严禁直接删除');
 
     const waybillId = fee.waybillId;

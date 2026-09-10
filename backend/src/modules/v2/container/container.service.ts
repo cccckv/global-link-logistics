@@ -288,6 +288,39 @@ export class ContainerV2Service {
     return prisma.containerFee.delete({ where: { id: feeId } });
   }
 
+  async settleContainerFee(
+    feeId: string,
+    data: {
+      paymentMethod: string;
+      paymentNote?: string;
+      paidBy?: string;
+    }
+  ) {
+    return prisma.containerFee.update({
+      where: { id: feeId },
+      data: {
+        isPaid: true,
+        paidAt: new Date(),
+        paymentMethod: data.paymentMethod,
+        paymentNote: data.paymentNote,
+        paidBy: data.paidBy || '财务',
+      },
+    });
+  }
+
+  async unsettleContainerFee(feeId: string) {
+    return prisma.containerFee.update({
+      where: { id: feeId },
+      data: {
+        isPaid: false,
+        paidAt: null,
+        paymentMethod: null,
+        paymentNote: null,
+        paidBy: null,
+      },
+    });
+  }
+
   async deleteContainer(id: string) {
     // Unlink waybills
     await prisma.waybill.updateMany({

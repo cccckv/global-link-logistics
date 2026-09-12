@@ -207,6 +207,23 @@ model BatchImportTask {
   @@index([userId, status, createdAt(sort: Desc)])
 }
 
+model ImportLog {
+  id              String    @id @default(uuid())
+  importType      String
+  fileName        String?
+  totalCount      Int       @default(0)
+  successCount    Int       @default(0)
+  failedCount     Int       @default(0)
+  detailsJson     String?   @db.Text
+  successWaybills String?   @db.Text
+  operatorId      String?
+  operatorName    String?
+  createdAt       DateTime  @default(now())
+
+  @@index([importType, createdAt(sort: Desc)])
+  @@index([operatorId])
+}
+
 model Shipment {
   id               String          @id @default(uuid())
   orderId          String?         @unique

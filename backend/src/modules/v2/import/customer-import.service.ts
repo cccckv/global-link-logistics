@@ -52,7 +52,10 @@ export class CustomerImportService {
    */
   async importCustomers(
     fileBuffer: Buffer,
-    options: CustomerImportOptions = { skipExisting: true }
+    options: CustomerImportOptions = { skipExisting: true },
+    operatorId?: string,
+    fileName?: string,
+    operatorName?: string
   ): Promise<CustomerImportResult> {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(fileBuffer as any);
@@ -417,13 +420,32 @@ export class CustomerImportService {
       groupedMap.size +
       errors.filter((e) => !Array.from(groupedMap.values()).some((g) => g.firstRowNumber === e.row)).length;
 
-    return {
+    const result: CustomerImportResult = {
       total,
       successCount,
       skippedCount,
       failedCount: errors.length,
       errors,
     };
+
+    try {
+      await prisma.importLog.create({
+        data: {
+          importType: 'CUSTOMER',
+          fileName: fileName || null,
+          totalCount: result.total,
+          successCount: result.successCount,
+          failedCount: result.failedCount,
+          detailsJson: errors.length > 0 ? JSON.stringify(errors) : null,
+          operatorId: operatorId || null,
+          operatorName: operatorName || null,
+        },
+      });
+    } catch (logErr) {
+      console.error('[ImportLog] Failed to persist customer import log:', logErr);
+    }
+
+    return result;
   }
 
   /**

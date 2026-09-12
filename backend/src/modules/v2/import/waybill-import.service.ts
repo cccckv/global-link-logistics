@@ -199,7 +199,9 @@ export class WaybillImportService {
   async importWaybills(
     fileBuffer: Buffer,
     orderType: ShipmentType = 'SEA_LCL',
-    operatorId?: string
+    operatorId?: string,
+    fileName?: string,
+    operatorName?: string
   ): Promise<WaybillImportResult> {
     // 1. 提取所有内嵌图片
     const imageMap = await this.imageExtractor.extractImagesFromWorkbook(fileBuffer);
@@ -664,13 +666,33 @@ export class WaybillImportService {
     }
 
     const totalWaybills = groupedMap.size;
-    return {
+    const finalResult: WaybillImportResult = {
       total: totalWaybills,
       successCount: successWaybillNos.length,
       failedCount: totalWaybills - successWaybillNos.length,
       successWaybillNos,
       errors,
     };
+
+    try {
+      await prisma.importLog.create({
+        data: {
+          importType: orderType,
+          fileName: fileName || null,
+          totalCount: finalResult.total,
+          successCount: finalResult.successCount,
+          failedCount: finalResult.failedCount,
+          detailsJson: errors.length > 0 ? JSON.stringify(errors) : null,
+          successWaybills: successWaybillNos.length > 0 ? JSON.stringify(successWaybillNos) : null,
+          operatorId: operatorId || null,
+          operatorName: operatorName || null,
+        },
+      });
+    } catch (logErr) {
+      console.error('[ImportLog] Failed to persist waybill import log:', logErr);
+    }
+
+    return finalResult;
   }
 
   /**

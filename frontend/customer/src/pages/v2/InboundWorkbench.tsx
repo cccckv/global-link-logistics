@@ -21,8 +21,10 @@ import {
   Users,
   X,
   RefreshCw,
+  History,
 } from 'lucide-react';
 import { BatchImportModal } from '../../components/v2/BatchImportModal';
+import { ImportLogDrawer } from '../../components/v2/ImportLogDrawer';
 import { copyToClipboard } from '../../lib/clipboard';
 import {
   customerV2Api,
@@ -77,6 +79,7 @@ export default function InboundWorkbench() {
   // Mode: SEA_LCL | AIR | SEA_FCL
   const [orderType, setOrderType] = useState<ShipmentType>('SEA_LCL');
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showLogDrawer, setShowLogDrawer] = useState(false);
 
   // Customer / userMark
   const [userMark, setUserMark] = useState('');
@@ -653,6 +656,16 @@ export default function InboundWorkbench() {
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-300" />
             批量导入此类型订单
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowLogDrawer(true)}
+            className="px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-semibold backdrop-blur-md border border-white/20 flex items-center gap-1.5 transition-all shadow-sm"
+            title="查看批量导入历史与失败跳过日志"
+          >
+            <History className="w-4 h-4 text-sky-200" />
+            导入日志
           </button>
 
           <div className="flex bg-black/20 p-1.5 rounded-xl backdrop-blur-md">
@@ -1650,9 +1663,15 @@ export default function InboundWorkbench() {
         onClose={() => setShowImportModal(false)}
         importType={orderType}
         onSuccess={() => {
-          toast.success('订单批量导入完成！');
           navigate('/v2/waybills');
         }}
+      />
+
+      {/* 批量导入历史日志抽屉 */}
+      <ImportLogDrawer
+        isOpen={showLogDrawer}
+        onClose={() => setShowLogDrawer(false)}
+        defaultType={orderType}
       />
     </div>
   );

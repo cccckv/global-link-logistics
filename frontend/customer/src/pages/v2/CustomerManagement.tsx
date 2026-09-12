@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronUp,
   Users,
+  History,
 } from 'lucide-react';
 import {
   customerV2Api,
@@ -19,6 +20,7 @@ import {
   type CustomerAddress,
 } from '../../lib/v2-api';
 import { BatchImportModal } from '../../components/v2/BatchImportModal';
+import { ImportLogDrawer } from '../../components/v2/ImportLogDrawer';
 import {
   DESTINATION_COUNTRIES,
   getPortsByCountry,
@@ -31,6 +33,7 @@ export default function CustomerManagement() {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showLogDrawer, setShowLogDrawer] = useState(false);
 
   // Expanded address book state for customers (which customer card has address book expanded)
   const [expandedAddressBooks, setExpandedAddressBooks] = useState<Record<string, boolean>>({});
@@ -330,6 +333,15 @@ export default function CustomerManagement() {
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
             批量导入客户
+          </button>
+
+          <button
+            onClick={() => setShowLogDrawer(true)}
+            className="px-3.5 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5 transition-all"
+            title="查看客户档案批量导入历史与失败跳过日志"
+          >
+            <History className="w-4 h-4 text-indigo-600" />
+            导入日志
           </button>
 
           <button
@@ -928,11 +940,17 @@ export default function CustomerManagement() {
           importType="CUSTOMER"
           onClose={() => setShowImportModal(false)}
           onSuccess={() => {
-            setShowImportModal(false);
             loadCustomers();
           }}
         />
       )}
+
+      {/* 批量导入历史日志抽屉 */}
+      <ImportLogDrawer
+        isOpen={showLogDrawer}
+        onClose={() => setShowLogDrawer(false)}
+        defaultType="CUSTOMER"
+      />
     </div>
   );
 }

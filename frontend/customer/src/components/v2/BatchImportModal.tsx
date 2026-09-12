@@ -9,7 +9,9 @@ import {
   X,
   RefreshCw,
   AlertCircle,
+  Copy,
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 export type ImportType = 'CUSTOMER' | 'SEA_LCL' | 'AIR' | 'SEA_FCL' | 'LAND';
 
@@ -171,14 +173,48 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
       }
 
       setResult(data.data);
-      if (onSuccess && data.data.successCount > 0) {
-        onSuccess();
+      if (data.data.failedCount > 0) {
+        setShowErrorTable(true);
+      }
+
+      // 差异化系统反馈提示，杜绝单一模糊提示
+      if (data.data.failedCount === 0) {
+        toast.success(`批量导入全部成功！已入库 ${data.data.successCount} 票`);
+      } else if (data.data.successCount > 0) {
+        toast.warning(
+          `批量导入部分成功：成功 ${data.data.successCount} 票，异常跳过 ${data.data.failedCount} 票（请查看下方明细）`,
+          {
+            duration: 6000,
+          }
+        );
+      } else {
+        toast.error(`批量导入全部失败：共 ${data.data.failedCount} 票全部异常跳过，请查看失败原因`, {
+          duration: 6000,
+        });
       }
     } catch (err: any) {
       setErrorMessage(err.message || '网络请求失败，请稍后重试');
     } finally {
       setIsUploading(false);
     }
+  };
+
+  // 复制所有错误明细
+  const handleCopyErrors = () => {
+    if (!result?.errors || result.errors.length === 0) return;
+    const text = result.errors
+      .map((err) => `第 ${err.row} 行 | 唛头: ${err.userMark || '-'} | 原因: ${err.reason}`)
+      .join('\n');
+    navigator.clipboard.writeText(text);
+    toast.success('已复制异常明细到剪贴板');
+  };
+
+  // 用户点击完成并关闭
+  const handleFinishAndClose = () => {
+    if (onSuccess && result && result.successCount > 0) {
+      onSuccess();
+    }
+    onClose();
   };
 
   // 重置状态
@@ -335,6 +371,33 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
           ) : (
             /* Step 3: 导入结果反馈卡片 */
             <div className="space-y-4 animate-fade-in">
+              {/* 异常警示卡片 */}
+              {result.failedCount > 0 && (
+                <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-start justify-between">
+                  <div className="flex items-start space-x-2.5">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <h5 className="text-xs font-bold text-amber-900">
+                        {result.successCount > 0 ? '部分数据导入成功，部分数据已异常跳过' : '全部数据导入失败'}
+                      </h5>
+                      <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
+                        系统已将不符合校验规范的行摘出，请核对下方异常行号与具体跳过原因，修改 Excel 后可再次补录。
+                      </p>
+                    </div>
+                  </div>
+                  {result.errors && result.errors.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleCopyErrors}
+                      className="inline-flex items-center space-x-1 px-2.5 py-1 bg-white hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-xs font-medium shadow-xs transition-colors flex-shrink-0 ml-3"
+                    >
+                      <Copy className="w-3 h-3" />
+                      <span>复制原因</span>
+                    </button>
+                  )}
+                </div>
+              )}
+
               {/* 汇总统计徽标卡片 */}
               <div className="grid grid-cols-3 gap-3">
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
@@ -368,15 +431,23 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
               {/* 异常行折叠明细表格 */}
               {result.errors && result.errors.length > 0 && (
                 <div className="border border-amber-200 rounded-xl overflow-hidden bg-amber-50/30">
-                  <div
-                    onClick={() => setShowErrorTable(!showErrorTable)}
-                    className="px-4 py-2.5 bg-amber-100/60 flex items-center justify-between cursor-pointer select-none"
-                  >
-                    <div className="flex items-center space-x-2 text-xs font-semibold text-amber-900">
+                  <div className="px-4 py-2.5 bg-amber-100/60 flex items-center justify-between select-none">
+                    <div
+                      onClick={() => setShowErrorTable(!showErrorTable)}
+                      className="flex items-center space-x-2 text-xs font-semibold text-amber-900 cursor-pointer"
+                    >
                       <AlertTriangle className="w-4 h-4 text-amber-600" />
                       <span>异常跳过明细 ({result.errors.length} 条)</span>
+                      <span className="text-xs text-amber-700 font-normal ml-2">{showErrorTable ? '(点击收起)' : '(点击展开)'}</span>
                     </div>
-                    <span className="text-xs text-amber-700">{showErrorTable ? '点击折叠' : '点击展开'}</span>
+                    <button
+                      type="button"
+                      onClick={handleCopyErrors}
+                      className="text-xs text-amber-800 hover:text-amber-950 font-medium inline-flex items-center space-x-1 bg-white/80 hover:bg-white px-2 py-0.5 rounded border border-amber-300 transition-colors"
+                    >
+                      <Copy className="w-3 h-3" />
+                      <span>复制清单</span>
+                    </button>
                   </div>
 
                   {showErrorTable && (
@@ -429,35 +500,44 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
             )}
           </div>
           <div className="flex items-center space-x-3">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-200/60 rounded-xl transition-colors"
-            >
-              {result ? '完成并关闭' : '取消'}
-            </button>
-
-            {!result && (
+            {result ? (
               <button
-                disabled={!file || isUploading}
-                onClick={handleExecuteImport}
-                className={`inline-flex items-center space-x-1.5 px-5 py-2 rounded-xl text-xs font-semibold shadow-md transition-all ${
-                  !file || isUploading
-                    ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'
-                    : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/25 hover:shadow-blue-500/35'
-                }`}
+                onClick={handleFinishAndClose}
+                className="px-5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-500/20 rounded-xl transition-all"
               >
-                {isUploading ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>正在导入...</span>
-                  </>
-                ) : (
-                  <>
-                    <UploadCloud className="w-3.5 h-3.5" />
-                    <span>开始批量导入</span>
-                  </>
-                )}
+                {result.successCount > 0 ? '完成并刷新数据' : '关闭'}
               </button>
+            ) : (
+              <>
+                <button
+                  onClick={onClose}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-200/60 rounded-xl transition-colors"
+                >
+                  取消
+                </button>
+
+                <button
+                  disabled={!file || isUploading}
+                  onClick={handleExecuteImport}
+                  className={`inline-flex items-center space-x-1.5 px-5 py-2 rounded-xl text-xs font-semibold shadow-md transition-all ${
+                    !file || isUploading
+                      ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'
+                      : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/25 hover:shadow-blue-500/35'
+                  }`}
+                >
+                  {isUploading ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>正在导入...</span>
+                    </>
+                  ) : (
+                    <>
+                      <UploadCloud className="w-3.5 h-3.5" />
+                      <span>开始批量导入</span>
+                    </>
+                  )}
+                </button>
+              </>
             )}
           </div>
         </div>

@@ -26,8 +26,10 @@ import {
   Truck,
   User,
   MapPin,
+  History,
 } from 'lucide-react';
 import { BatchImportModal, type ImportType } from '../../components/v2/BatchImportModal';
+import { ImportLogDrawer } from '../../components/v2/ImportLogDrawer';
 import {
   waybillV2Api,
   containerV2Api,
@@ -116,6 +118,7 @@ export default function WaybillManagement() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [importModalType, setImportModalType] = useState<ImportType>('SEA_LCL');
   const [showImportDropdown, setShowImportDropdown] = useState(false);
+  const [showLogDrawer, setShowLogDrawer] = useState(false);
 
   // Calculate active advanced filter count
   const getUnassignedButtonConfig = () => {
@@ -396,6 +399,15 @@ export default function WaybillManagement() {
               </div>
             )}
           </div>
+
+          <button
+            onClick={() => setShowLogDrawer(true)}
+            className="px-3.5 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5 transition-all"
+            title="查看批量导入历史与失败跳过日志"
+          >
+            <History className="w-4 h-4 text-sky-600" />
+            导入日志
+          </button>
 
           <button
             onClick={() => navigate('/v2/inbound')}
@@ -1116,9 +1128,15 @@ export default function WaybillManagement() {
         onClose={() => setShowImportModal(false)}
         importType={importModalType}
         onSuccess={() => {
-          toast.success('订单批量导入完成！');
           loadWaybills();
         }}
+      />
+
+      {/* 批量导入历史日志抽屉 */}
+      <ImportLogDrawer
+        isOpen={showLogDrawer}
+        onClose={() => setShowLogDrawer(false)}
+        defaultType={importModalType}
       />
     </div>
   );

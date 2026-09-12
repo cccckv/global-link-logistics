@@ -504,13 +504,13 @@ export const channelV2Api = {
   create: (data: {
     category: ChannelCategory;
     name: string;
-    code?: string;
-    contactPerson?: string;
-    contactPhone?: string;
+    code?: string | null;
+    contactPerson?: string | null;
+    contactPhone?: string | null;
     isDefault?: boolean;
     isActive?: boolean;
     sortOrder?: number;
-    note?: string;
+    note?: string | null;
   }) =>
     v2Api.post<{ success: boolean; data: ShippingChannel }>('/channels', data),
   update: (
@@ -518,16 +518,17 @@ export const channelV2Api = {
     data: Partial<{
       category: ChannelCategory;
       name: string;
-      code?: string;
-      contactPerson?: string;
-      contactPhone?: string;
+      code?: string | null;
+      contactPerson?: string | null;
+      contactPhone?: string | null;
       isDefault?: boolean;
       isActive?: boolean;
       sortOrder?: number;
-      note?: string;
+      note?: string | null;
     }>
   ) =>
     v2Api.put<{ success: boolean; data: ShippingChannel }>(`/channels/${id}`, data),
+
   toggleActive: (id: string) =>
     v2Api.post<{ success: boolean; data: ShippingChannel }>(`/channels/${id}/toggle`),
   delete: (id: string) =>

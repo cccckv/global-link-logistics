@@ -168,27 +168,28 @@ export const ChannelManagementPage: React.FC = () => {
         await channelV2Api.update(editingChannel.id, {
           category: formData.category,
           name: formData.name.trim(),
-          code: formData.code.trim() || undefined,
-          contactPerson: formData.contactPerson.trim() || undefined,
-          contactPhone: formData.contactPhone.trim() || undefined,
+          code: formData.code.trim() || null,
+          contactPerson: formData.contactPerson.trim() || null,
+          contactPhone: formData.contactPhone.trim() || null,
           isDefault: formData.isDefault,
           isActive: formData.isActive,
-          note: formData.note.trim() || undefined,
+          note: formData.note.trim() || null,
         });
         toast.success(`渠道【${formData.name}】更新成功`);
       } else {
         await channelV2Api.create({
           category: formData.category,
           name: formData.name.trim(),
-          code: formData.code.trim() || undefined,
-          contactPerson: formData.contactPerson.trim() || undefined,
-          contactPhone: formData.contactPhone.trim() || undefined,
+          code: formData.code.trim() || null,
+          contactPerson: formData.contactPerson.trim() || null,
+          contactPhone: formData.contactPhone.trim() || null,
           isDefault: formData.isDefault,
           isActive: formData.isActive,
-          note: formData.note.trim() || undefined,
+          note: formData.note.trim() || null,
         });
         toast.success(`渠道【${formData.name}】创建成功`);
       }
+
       setIsModalOpen(false);
       loadChannels();
     } catch (err: any) {

@@ -35,14 +35,15 @@ export const DEFAULT_SHIPPING_CHANNELS = [
 export interface CreateShippingChannelInput {
   category: ChannelCategory;
   name: string;
-  code?: string;
-  contactPerson?: string;
-  contactPhone?: string;
+  code?: string | null;
+  contactPerson?: string | null;
+  contactPhone?: string | null;
   isDefault?: boolean;
   isActive?: boolean;
   sortOrder?: number;
-  note?: string;
+  note?: string | null;
 }
+
 
 export class ChannelV2Service {
   async ensureSeedChannels() {

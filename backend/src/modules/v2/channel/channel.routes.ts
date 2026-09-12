@@ -61,9 +61,11 @@ export async function channelV2Routes(fastify: FastifyInstance) {
       return reply.status(400).send({ success: false, error: err.message });
     }
   };
+  fastify.put('/:id', internalHandler, updateChannelHandler);
   fastify.patch('/:id', internalHandler, updateChannelHandler);
   fastify.post('/:id/update', internalHandler, updateChannelHandler);
   fastify.post('/:id', internalHandler, updateChannelHandler);
+
 
   // PATCH / POST /api/v2/channels/:id/toggle
   const toggleHandler = async (request: any, reply: any) => {

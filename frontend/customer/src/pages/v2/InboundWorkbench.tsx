@@ -23,6 +23,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { BatchImportModal } from '../../components/v2/BatchImportModal';
+import { copyToClipboard } from '../../lib/clipboard';
 import {
   customerV2Api,
   waybillV2Api,
@@ -144,11 +145,15 @@ export default function InboundWorkbench() {
   } | null>(null);
   const [hasCopied, setHasCopied] = useState(false);
 
-  const handleCopyWaybillNo = (no: string) => {
-    navigator.clipboard.writeText(no);
-    setHasCopied(true);
-    toast.success(`系统运单号【${no}】已复制到剪贴板！`);
-    setTimeout(() => setHasCopied(false), 2500);
+  const handleCopyWaybillNo = async (no: string) => {
+    const success = await copyToClipboard(no);
+    if (success) {
+      setHasCopied(true);
+      toast.success(`系统运单号【${no}】已复制到剪贴板！`);
+      setTimeout(() => setHasCopied(false), 2500);
+    } else {
+      toast.error('复制失败，请手动复制');
+    }
   };
 
   const resetForm = () => {

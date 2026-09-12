@@ -43,6 +43,7 @@ import {
   type ShippingChannel,
   type OriginWarehouse,
 } from '../../lib/v2-api';
+import { copyToClipboard } from '../../lib/clipboard';
 
 import {
   DESTINATION_COUNTRIES,
@@ -598,7 +599,7 @@ export default function WaybillDetailView() {
   }, [id]);
 
   // 一键复制派件指令 (格式化文本)
-  const handleCopyDispatchInstruction = () => {
+  const handleCopyDispatchInstruction = async () => {
     if (!waybill) return;
     const pcs = waybill.totalPieces || waybill.items?.reduce((s, i) => s + (i.quantity || 1), 0) || 0;
     const cbm = (Number(waybill.totalPayableCbm) || 0).toFixed(3);
@@ -614,8 +615,12 @@ export default function WaybillDetailView() {
 派送地址: ${waybill.overseasAddress || '自提/未填'}
 货物概况: 共 ${pcs} 件 / ${waybill.orderType === 'AIR' ? `实测总重 ${waybill.totalWeightKg || 0} kg` : `计费体积 ${cbm} m³`} / 渠道: ${waybill.forwarderChannel || '专线'}`;
 
-    navigator.clipboard.writeText(text);
-    toast.success('已复制派件指令至剪贴板！');
+    const success = await copyToClipboard(text);
+    if (success) {
+      toast.success('已复制派件指令至剪贴板！');
+    } else {
+      toast.error('复制失败，请手动复制');
+    }
   };
 
   // 独立保存/修改海外收件人 (随时在途变更)

@@ -16,6 +16,7 @@ import {
   originWarehouseV2Api,
   type OriginWarehouse,
 } from '../../lib/v2-api';
+import { copyToClipboard } from '../../lib/clipboard';
 
 export default function OriginWarehouseManagement() {
   const [warehouses, setWarehouses] = useState<OriginWarehouse[]>([]);
@@ -184,12 +185,16 @@ export default function OriginWarehouseManagement() {
     }
   };
 
-  const handleCopyGuide = (w: OriginWarehouse) => {
+  const handleCopyGuide = async (w: OriginWarehouse) => {
     const fullAddr = `${w.province || ''}${w.city || ''}${w.address}`;
     const text = `【送仓指引】${w.name} (${w.shortName})\n收货联系人: ${w.contactName}\n联系电话: ${w.contactPhone}\n详细仓址: ${fullAddr}\n营业收货时间: ${w.receivingHours || '工作日正常收货'}\n⚠️ 重要提示: 外箱醒目处请务必贴牢客户唛头！`;
 
-    navigator.clipboard.writeText(text);
-    toast.success(`已复制【${w.shortName}】客户送仓指引到剪贴板！`);
+    const success = await copyToClipboard(text);
+    if (success) {
+      toast.success(`已复制【${w.shortName}】客户送仓指引到剪贴板！`);
+    } else {
+      toast.error('复制失败，请手动复制指引文本');
+    }
   };
 
   return (

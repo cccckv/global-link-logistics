@@ -139,7 +139,11 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
       const formData = new FormData();
       formData.append('file', file);
 
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('jwt_token') || localStorage.getItem('token');
+      if (!token) {
+        throw new Error('未检测到有效登录凭证，请重新登录后再试');
+      }
+
       let endpoint = '';
       if (importType === 'CUSTOMER') {
         endpoint = `/api/v2/import/customer?skipExisting=${skipExisting}`;
@@ -152,7 +156,7 @@ export const BatchImportModal: React.FC<BatchImportModalProps> = ({
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Authorization: `Bearer ${token}`,
         },
         body: formData,
       });

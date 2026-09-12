@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { waybillV2Api, type Waybill, type WaybillStatus } from '../../lib/v2-api';
+import { copyToClipboard } from '../../lib/clipboard';
 import {
   Package,
   ArrowLeft,
@@ -71,12 +72,16 @@ export default function CustomerWaybillDetail() {
     }
   };
 
-  const handleCopy = (text: string, key: string) => {
+  const handleCopy = async (text: string, key: string) => {
     if (!text) return;
-    navigator.clipboard.writeText(text);
-    setCopiedKey(key);
-    toast.success('已复制到剪贴板');
-    setTimeout(() => setCopiedKey(null), 2000);
+    const success = await copyToClipboard(text);
+    if (success) {
+      setCopiedKey(key);
+      toast.success('已复制到剪贴板');
+      setTimeout(() => setCopiedKey(null), 2000);
+    } else {
+      toast.error('复制失败，请手动复制');
+    }
   };
 
   // Receivable fees calculation (customer fees)

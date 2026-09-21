@@ -14,6 +14,7 @@ import {
   Layers,
   Package,
   FileSpreadsheet,
+  Download,
   Filter,
   RotateCcw,
   ChevronDown,
@@ -30,6 +31,7 @@ import {
 } from 'lucide-react';
 import { BatchImportModal, type ImportType } from '../../components/v2/BatchImportModal';
 import { ImportLogDrawer } from '../../components/v2/ImportLogDrawer';
+import { WaybillExportModal } from '../../components/v2/WaybillExportModal';
 import {
   waybillV2Api,
   containerV2Api,
@@ -119,6 +121,7 @@ export default function WaybillManagement() {
   const [importModalType, setImportModalType] = useState<ImportType>('SEA_LCL');
   const [showImportDropdown, setShowImportDropdown] = useState(false);
   const [showLogDrawer, setShowLogDrawer] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   // Calculate active advanced filter count
   const getUnassignedButtonConfig = () => {
@@ -407,6 +410,20 @@ export default function WaybillManagement() {
           >
             <History className="w-4 h-4 text-sky-600" />
             导入日志
+          </button>
+
+          <button
+            onClick={() => setShowExportModal(true)}
+            className="px-3.5 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold shadow-sm flex items-center gap-1.5 transition-all"
+            title="自定义勾选导出选中的运单或按当前筛选条件导出全量 Excel"
+          >
+            <Download className="w-4 h-4 text-emerald-600" />
+            导出订单
+            {selectedIds.length > 0 && (
+              <span className="px-1.5 py-0.2 bg-blue-600 text-white rounded-full text-[10px] font-bold">
+                {selectedIds.length}
+              </span>
+            )}
           </button>
 
           <button
@@ -1137,6 +1154,33 @@ export default function WaybillManagement() {
         isOpen={showLogDrawer}
         onClose={() => setShowLogDrawer(false)}
         defaultType={importModalType}
+      />
+
+      {/* 自定义列多维明细导出弹窗 */}
+      <WaybillExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        selectedIds={selectedIds}
+        totalCount={total}
+        currentFilters={{
+          orderType: orderType || undefined,
+          status: selectedStatus || undefined,
+          search: searchQuery.trim() || undefined,
+          originWarehouse: originWarehouse || undefined,
+          destinationCountry: destinationCountry || undefined,
+          destinationPort: destinationPort || undefined,
+          forwarderChannel: forwarderChannel || undefined,
+          customsType: customsType || undefined,
+          unassignedOnly: unassignedOnly ? true : undefined,
+          containerNo: containerNo.trim() || undefined,
+          overseasKeyword: overseasKeyword.trim() || undefined,
+          dateType: (startDate || endDate) ? dateType : undefined,
+          startDate: startDate || undefined,
+          endDate: endDate || undefined,
+        }}
+        onExportSuccess={(count) => {
+          toast.success(`成功导出 ${count} 票运单明细数据`);
+        }}
       />
     </div>
   );

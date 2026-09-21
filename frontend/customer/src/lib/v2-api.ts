@@ -345,6 +345,55 @@ export const waybillV2Api = {
 
   delete: (id: string) =>
     v2Api.delete<{ success: boolean; message: string }>(`/waybills/${id}`),
+
+  exportWaybills: async (data: {
+    scope: 'selected' | 'filtered';
+    ids?: string[];
+    columns: string[];
+    orderType?: string;
+    status?: string;
+    search?: string;
+    originWarehouse?: string;
+    destinationCountry?: string;
+    destinationPort?: string;
+    forwarderChannel?: string;
+    customsType?: string;
+    unassignedOnly?: boolean | string;
+    noAddressOnly?: boolean | string;
+    overseasKeyword?: string;
+    dateType?: string;
+    startDate?: string;
+    endDate?: string;
+  }) => {
+    const response = await v2Api.post('/waybills/export', data, {
+      responseType: 'blob',
+    });
+
+    let filename = `运单调度明细列表_${new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '')}.xlsx`;
+    const disposition = (response.headers as any)?.['content-disposition'];
+    if (disposition) {
+      const match = disposition.match(/filename\*=UTF-8''([^;]+)/i) || disposition.match(/filename="?([^";]+)"?/i);
+      if (match && match[1]) {
+        try {
+          filename = decodeURIComponent(match[1]);
+        } catch {
+          filename = match[1];
+        }
+      }
+    }
+
+    const blob = new Blob([response.data as any], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  },
 };
 
 export const containerV2Api = {

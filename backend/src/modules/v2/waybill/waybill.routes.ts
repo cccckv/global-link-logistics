@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { WaybillV2Service, CreateWaybillInput, sanitizeWaybillForCustomer } from './waybill.service';
+import { waybillExportService, WaybillExportOptions } from './waybill-export.service';
 import { ShipmentType, WaybillStatus } from '@prisma/client';
 import { authorize } from '../../../lib/auth';
 import { JWTPayload } from '../../../lib/jwt';
@@ -181,6 +182,43 @@ export async function waybillV2Routes(fastify: FastifyInstance) {
         return reply.send({ success: true, message: 'Waybill deleted' });
       } catch (err: any) {
         return reply.code(500).send({ success: false, error: err.message });
+      }
+    }
+  );
+
+  // Export waybills to Excel with item breakdown & column selection
+  fastify.post<{
+    Body: WaybillExportOptions;
+  }>(
+    '/export',
+    {
+      preHandler: [fastify.authenticate],
+    },
+    async (request, reply) => {
+      try {
+        const user = request.user as JWTPayload;
+        const body: WaybillExportOptions = { ...request.body };
+
+        // 普通用户数据隔离拦截
+        if (user && user.userRole === 'USER') {
+          const allowedMarks = user.shippingMarks || [];
+          if (allowedMarks.length === 0) {
+            return reply.code(400).send({ success: false, error: '您暂未绑定任何客户唛头，无法导出运单' });
+          }
+          body.userMarks = allowedMarks;
+        }
+
+        const { buffer, count, filename } = await waybillExportService.exportWaybillsToExcel(body);
+        const encodedFilename = encodeURIComponent(filename);
+
+        return reply
+          .header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+          .header('Content-Disposition', `attachment; filename*=UTF-8''${encodedFilename}`)
+          .header('X-Export-Count', String(count))
+          .send(buffer);
+      } catch (err: any) {
+        fastify.log.error(err);
+        return reply.code(400).send({ success: false, error: err.message || '导出运单失败' });
       }
     }
   );
